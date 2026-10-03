@@ -236,7 +236,12 @@ function protectionData(c){
  var out={},proto=type.indexOf('widevine')>=0?'com.widevine.alpha':type.indexOf('playready')>=0?'com.microsoft.playready':'org.w3.clearkey';
  var ph=JSON.stringify(c.headers||{});
  if(proto==='org.w3.clearkey'){
-   if(/^https?:/i.test(key))out[proto]={serverURL:'/api/license?u='+encodeURIComponent(key)+'&h='+encodeURIComponent(ph),httpRequestHeaders:{'X-NM7-Client':'web-1.0.69'}};
+   if(/^https?:/i.test(key)){
+     var lq2='/api/license?u='+encodeURIComponent(key)+'&h='+encodeURIComponent(ph);
+     if(c.ref)lq2+='&r='+encodeURIComponent(c.ref);
+     if(c.ua)lq2+='&ua='+encodeURIComponent(c.ua);
+     out[proto]={serverURL:lq2,httpRequestHeaders:c.headers||{'X-NM7-Client':'web-1.0.69'}};
+   }
    else{
      var map={},text=key.trim(),json=null,parts,i,p,k,v;
      try{if(text.charAt(0)==='{')json=JSON.parse(text)}catch(e){}

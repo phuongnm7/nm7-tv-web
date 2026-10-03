@@ -1,6 +1,7 @@
 name: NM7 1.0.69 stream access matrix
 on:
-  workflow_dispatch:
+  push:
+    branches: ["feature/web-tv-browser-1.0.69-android-exact"]
 jobs:
   probe:
     runs-on: ubuntu-latest

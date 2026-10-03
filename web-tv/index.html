@@ -425,32 +425,90 @@ function probeUnknown(c,cand,attempt){
    }else nextCandidate('Không xác định được định dạng');
  }).catch(function(){if(S.current===self&&attempt===S.attemptNo)nextCandidate('Không xác định được định dạng')})
 }
+function isTizenAvplay(){return !!(window.webapis&&webapis.avplay)}
+function tizenB64(ab){var b=new Uint8Array(ab),s='',i,n=0x8000;for(i=0;i<b.length;i+=n)s+=String.fromCharCode.apply(null,b.subarray(i,i+n));return btoa(s)}
+function tizenLicense(url,cand,body,done){
+ var x=new XMLHttpRequest();
+ try{
+   x.open('POST',url,true);x.responseType='arraybuffer';
+   x.setRequestHeader('Content-Type','application/octet-stream');
+   if(cand.ua)try{x.setRequestHeader('User-Agent',cand.ua)}catch(e){}
+   if(cand.ref)try{x.setRequestHeader('Referer',cand.ref)}catch(e){}
+   if(cand.headers)for(var k in cand.headers)try{x.setRequestHeader(k,cand.headers[k])}catch(e){}
+   x.onload=function(){done(x.status>=200&&x.status<300?null:x.status,x.response)};
+   x.onerror=function(){done(-1,null)};
+   x.send(body)
+ }catch(e){done(-1,null)}
+}
+function setupTizenDrm(c,cand,av){
+ var d=cand.drm||{},type=String(d.type||'').toLowerCase(),license=String(d.key||'').trim();
+ if(!license)return false;
+ if(type.indexOf('playready')>=0){
+   var p={DeleteLicenseAfterUse:true,LicenseServer:license};
+   if(cand.ua)p.UserAgent=cand.ua;
+   if(cand.ref)p.HttpHeader='Referer: '+cand.ref;
+   av.setDrm('PLAYREADY','SetProperties',JSON.stringify(p));return true
+ }
+ if(type.indexOf('widevine')>=0){
+   av.setDrm('WIDEVINE_CDM','SetProperties',JSON.stringify({AppSession:'nm7-1.0.69',DataType:'MPEG-DASH'}));return true
+ }
+ return false
+}
+function playTizen(c,cand,attempt){
+ var av=webapis.avplay,u=playbackUrl(cand),self=c;S.avplay=true;$('video').style.display='none';
+ try{av.stop()}catch(e){}try{av.close()}catch(e){}
+ try{
+   av.setListener({
+     onbufferingstart:function(){showStatus('Đang tải '+self.name+'…')},
+     onbufferingcomplete:function(){hideStatus()},
+     onstreamcompleted:function(){if(S.player)nextCandidate('Luồng kết thúc')},
+     onerror:function(e){if(S.player)nextCandidate('AVPlay lỗi '+(e||''))},
+     ondrmevent:function(a,b){
+       var d=b||a;if(!d)return;
+       if(d.name==='DrmError'){nextCandidate('DRM lỗi');return}
+       if(d.name==='Challenge'&&String((cand.drm||{}).type||'').toLowerCase().indexOf('widevine')>=0){
+         var raw='';try{raw=atob(d.challenge||'')}catch(e){raw=d.challenge||''}
+         tizenLicense(String((cand.drm||{}).key||''),cand,raw,function(status,response){
+           if(status){nextCandidate('DRM license HTTP '+status);return}
+           try{av.setDrm('WIDEVINE_CDM','widevine_license_data',String(d.session_id||'')+'PARAM_START_POSITION'+tizenB64(response)+'PARAM_START_POSITION')}
+           catch(e){nextCandidate('DRM license cài lỗi')}
+         })
+       }
+     }
+   });
+   av.open(u);
+   if(cand.ua)try{av.setStreamingProperty('USER_AGENT',cand.ua)}catch(e){}
+   if(/\.mpd(?:$|\?)/i.test(cand.url)||String(cand.type||'').toLowerCase()==='dash')try{av.setStreamingProperty('ADAPTIVE_INFO','FIXED_MAX_RESOLUTION=3840X2160')}catch(e){}
+   if(cand.drm&&!setupTizenDrm(c,cand,av)){showStatus('DRM chưa tương thích trên TV');return false}
+   av.setDisplayRect(0,0,1920,1080);try{av.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX')}catch(e){}
+   av.prepareAsync(function(){hideStatus();try{av.play()}catch(e){}},function(){nextCandidate('AVPlay chuẩn bị lỗi')});
+   return true
+ }catch(e){nextCandidate('AVPlay khởi tạo lỗi');return false}
+}
 function tryCurrent(){
  var c=S.current,cand=getCandidate(),v=$('video'),u,t,attempt=++S.attemptNo;
  if(!cand){showStatus('Kênh chưa có URL phát');return}
  S.advanceBusy=false;
+ if(isTizenAvplay()){clearPlayers();showStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));return playTizen(c,cand,attempt)}
  clearPlayers();u=playbackUrl(cand);
  showStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
- v.pause();v.removeAttribute('src');try{v.load()}catch(e){}
+ v.style.display='block';v.pause();v.removeAttribute('src');try{v.load()}catch(e){}
  t=classify(cand);
  if(t==='http'&&!cand.mime&&!cand.type)probeUnknown(c,cand,attempt);
  else if(t==='http'&&cand.type==='http')directPlayback(c,cand,v,u);
  else tryResolvedType(c,cand,v,u,t);
- S.watchdog=setTimeout(function(){
-   if(!S.player||attempt!==S.attemptNo)return;
-   if(v.readyState<2||v.paused)nextCandidate('Timeout phát 15s');
- },15000);
+ S.watchdog=setTimeout(function(){if(!S.player||attempt!==S.attemptNo)return;if(v.readyState<2||v.paused)nextCandidate('Timeout phát 15s')},15000);
 }
 function play(c){
- if(!c)return;S.current=c;S.candidateIndex=0;S.proxyAttempt=false;S.playerGeneration++;S.player=true;S.ctrl=false;
+ if(!c)return;S.zone='channel';S.current=c;S.candidateIndex=0;S.proxyAttempt=false;S.playerGeneration++;S.player=true;S.ctrl=false;
  $('player').className='';$('ctrl').className='hidden';$('playerTitle').textContent=c.name;$('playerMeta').textContent=c.url||'';
  S.recent=[c.id].concat(S.recent.filter(function(x){return x!==c.id})).slice(0,80);saveUser();tryCurrent()
 }
 function stop(){
  clearPlayers();var v=$('video');try{v.pause();v.removeAttribute('src');v.load()}catch(e){}
- S.current=null;S.player=false;S.ctrl=false;S.proxyAttempt=false;S.attemptNo++;$('player').className='hidden';$('ctrl').className='hidden'
+ v.style.display='block';S.current=null;S.player=false;S.ctrl=false;S.proxyAttempt=false;S.attemptNo++;$('player').className='hidden';$('ctrl').className='hidden'
 }
-function seek(sec){var v=$('video');if(!isFinite(v.duration)){toast('Luồng này không hỗ trợ tua');return}v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+sec))}
+function seek(sec){if(isTizenAvplay()&&S.player){try{if(sec<0)webapis.avplay.jumpBackward(Math.abs(sec)*1000);else webapis.avplay.jumpForward(sec*1000);return}catch(e){toast('Luồng này không hỗ trợ tua')}}var v=$('video');if(!isFinite(v.duration)){toast('Luồng này không hỗ trợ tua');return}v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+sec))}
 function showCtrl(){S.ctrl=!S.ctrl;$('ctrl').className=S.ctrl?'':'hidden';if(S.ctrl)focusCtrl()}
 function focusCtrl(){
  var b=document.querySelectorAll('.cb'),i;

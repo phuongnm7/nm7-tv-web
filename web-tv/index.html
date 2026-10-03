@@ -82,6 +82,21 @@ function row(g){var a=srcList(),b=[],i;for(i=0;i<a.length;i++)if(a[i].group===g)
 function cur(){var a=row(S.groups[S.row]||'');return a[S.col]||a[0]}
 function activateLogos(){var imgs=document.querySelectorAll('img[data-src]'),i,im,ri;for(i=0;i<imgs.length;i++){im=imgs[i];ri=parseInt(im.getAttribute('data-row')||'0',10);if(Math.abs(ri-S.row)<=2&&im.getAttribute('data-src')){im.setAttribute('src',im.getAttribute('data-src'));im.removeAttribute('data-src')}}}
 function render(){var h=$('home'),html='',start=Math.max(0,S.row-2),end=Math.min(S.groups.length,S.row+5),r,g,a,i,c,focus;for(r=start;r<end;r++){g=S.groups[r];a=row(g);if(!a.length)continue;html+='<section class="row"><h2>'+esc(g)+'</h2><div class="cards">';for(i=0;i<a.length;i++){c=normalize(a[i]);focus=(r===S.row&&i===S.col);html+='<div class="card '+(focus?'focus':'')+'"><div class="thumb">';if(c.logo){html+='<img data-row="'+r+'" data-src="'+esc(c.logo)+'" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span>TV</span>\'">'}else html+='<span>TV</span>';html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</div>'}html+='</div></section>'}h.innerHTML=html||'<div class="empty">Không có kênh phù hợp</div>';activateLogos()}
+function bindCardClicks(){
+ $('home').onclick=function(e){
+   var n=e.target;
+   while(n&&n!==$('home')&&!(' '+String(n.className||'')+' ').match(/ card /))n=n.parentNode;
+   if(!n||n===$('home'))return;
+   var cards=document.querySelectorAll('.card'),idx,i,el,gi,ci,a;
+   for(i=0;i<cards.length;i++)if(cards[i]===n){idx=i;break}
+   if(idx==null)return;
+   gi=parseInt(n.getAttribute('data-gi')||'0',10);
+   ci=parseInt(n.getAttribute('data-ci')||'0',10);
+   S.groupIndex=gi;S.colIndex=ci;
+   a=groupChannels();
+   if(a[ci])play(a[ci]);
+ };
+}
 function setSourceLabel(){var n=S.source===1?'Thể thao':'Truyền hình';$('src').textContent=n+(S.list.length?' · '+S.list.length+' kênh':'')}
 function parseLegacy(t){var lines=String(t).replace(/^\uFEFF/,'').split(/\r?\n/),out=[],m=null,ua='',ref='',i,l,p,h,c;for(i=0;i<lines.length;i++){l=lines[i].trim();if(l.indexOf('#EXTINF:')===0){if(m&&m.candidates.length)out.push(m);p=l.indexOf(',');h=p<0?l:l.slice(0,p);m={name:p<0?'Kênh':l.slice(p+1).trim(),group:(/group-title="([^"]*)"/i.exec(h)||[])[1]||'Khác',logo:(/tvg-logo="([^"]*)"/i.exec(h)||[])[1]||'',id:(/tvg-id="([^"]*)"/i.exec(h)||[])[1]||'',candidates:[]};ua='';ref=''}else if(m&&l.indexOf('#EXTVLCOPT:')===0){var um=/http-user-agent=(?:"([^"]+)"|([^\s]+))/i.exec(l);var rm=/(?:http-referrer|http-referer)=(?:"([^"]+)"|([^\s]+))/i.exec(l);if(um)ua=um[1]||um[2];if(rm)ref=rm[1]||rm[2]}else if(m&&l.charAt(0)!=='#'&&/^(https?|rtsp|rtmp|udp):/i.test(l)){var parts=l.split('|'),url=parts[0],r2=ref,u2=ua,j;for(j=1;j<parts.length;j++){if(/^referer=/i.test(parts[j]))r2=parts[j].slice(parts[j].indexOf('=')+1);else if(/^http-user-agent=/i.test(parts[j]))u2=parts[j].slice(parts[j].indexOf('=')+1)}m.candidates.push({url:url,ref:r2,ua:u2})}}if(m&&m.candidates.length)out.push(m);for(i=0;i<out.length;i++){c=out[i];c.id=c.id||c.name}return out}
 function fetchSource(n){S.source=n;var cache=[];try{cache=JSON.parse(localStorage.getItem('nm7:list:'+n)||'[]')}catch(e){}if(cache.length){S.list=cache;S.view=null;S.q='';rebuildGroups();setSourceLabel();render();toast('Đã mở cache · đang cập nhật…')}else{S.list=[];$('home').innerHTML='<div class="empty">Đang tải danh sách '+(n?'thể thao':'truyền hình')+'…</div>'}
@@ -181,7 +196,7 @@ if(S.player){if(k===461||k===10009||k===27){if(S.ctrl){S.ctrl=false;$('ctrl').cl
 if(S.mode==='menu'){if(k===461||k===10009||k===27||k===8){closeMenu();e.preventDefault();return}if(k===38||k===40){var mi=menuItems(),d=k===38?-1:1;S.menu=Math.max(0,Math.min(mi.length-1,S.menu+d));drawMenu()}else if(k===13||k===39)selectMenu();e.preventDefault();return}
 if(k===461||k===10009||k===27){openMenu();e.preventDefault();return}
 if(k===37){if(S.col===0)openMenu();else S.col--;render()}else if(k===39){var a=row(S.groups[S.row]||'');S.col=Math.min(Math.max(0,a.length-1),S.col+1);render()}else if(k===38){S.row=Math.max(0,S.row-1);S.col=Math.min(S.col,Math.max(0,row(S.groups[S.row]||'').length-1));render()}else if(k===40){S.row=Math.min(S.groups.length-1,S.row+1);S.col=Math.min(S.col,Math.max(0,row(S.groups[S.row]||'').length-1));render()}else if(k===13)play(cur());else if(k===8||k===403){var c=cur();if(c){var fi=S.fav.indexOf(c.id);if(fi<0)S.fav.push(c.id);else S.fav.splice(fi,1);save();render();toast(fi<0?'Đã thêm yêu thích':'Đã bỏ yêu thích')}}e.preventDefault()});
-restore();S.list=S.list||[];rebuildGroups();setSourceLabel();render();fetchSource(0);setInterval(function(){var d=new Date();$('clock').textContent=d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})},1000);updateClock();
+restore();S.list=S.list||[];rebuildGroups();setSourceLabel();render();bindCardClicks();fetchSource(0);setInterval(function(){var d=new Date();$('clock').textContent=d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})},1000);updateClock();
 function updateClock(){var d=new Date();$('clock').textContent=d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}
 })();
 </script>

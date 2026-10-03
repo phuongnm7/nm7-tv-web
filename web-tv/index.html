@@ -72,13 +72,15 @@ button{cursor:pointer}
 
 #toast{position:absolute;z-index:120;left:50%;bottom:38px;transform:translateX(-50%);background:#121821f2;border-radius:9px;padding:11px 19px;font-size:18px;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
 #toast.show{opacity:1}
+#remoteSink{position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0;pointer-events:none;outline:0;border:0;padding:0;margin:0}
 </style>
 <script src="./dash.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
 </head>
-<body id="nm7-body" tabindex="0" onkeydown="return window.NM7_REMOTE ? window.NM7_REMOTE(event) : true;">
+<body id="nm7-body" tabindex="0">
 <div id="app">
+<div id="remoteSink" tabindex="0" aria-hidden="true"></div>
 <header id="top"><div id="brand">NM7 TV</div><div id="version">1.0.69 Web</div><div id="src">Truyền hình</div><div id="count"></div><div id="clock"></div></header>
 <main id="home"><div class="empty">Đang tải danh sách kênh…</div></main>
 <section id="player" class="hidden">
@@ -118,12 +120,12 @@ function currentRows(){return S.view||S.list}
 function channelsInGroup(g){var a=currentRows(),b=[],i;for(i=0;i<a.length;i++)if((a[i].group||'Khác')===g)b.push(a[i]);return b}
 function currentChannel(){var a=channelsInGroup(S.groups[S.row]||'');return a[S.col]||a[0]||null}
 function nearestColumn(oldCol,g){var n=channelsInGroup(g).length;return n?Math.min(oldCol,n-1):0}
+function focusRemoteSink(){var s=$('remoteSink');if(!s)return;try{s.focus()}catch(e){}}
 function focusElement(){
  var el=document.querySelector('.card.focus');
  if(!el){var all=document.querySelectorAll('.card');el=all[0]||null;if(el)el.classList.add('focus')}
- if(!el)return;
- try{el.focus({preventScroll:true})}catch(e){try{el.focus()}catch(e2){}}
- try{el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}catch(e){}
+ if(el)try{el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}catch(e){}
+ focusRemoteSink();
 }
 function activateLogos(){var imgs=document.querySelectorAll('img[data-src]'),i,im,r;for(i=0;i<imgs.length;i++){im=imgs[i];r=parseInt(im.getAttribute('data-row')||'0',10);if(Math.abs(r-S.row)<=2){im.src=im.getAttribute('data-src');im.removeAttribute('data-src')}}}
 function setHomeFocus(rr,cc){
@@ -133,12 +135,12 @@ function setHomeFocus(rr,cc){
  cc=Math.max(0,Math.min(rows.length-1,cc));
  S.row=rr;S.col=cc;
  var el=document.querySelector('.card[data-row="'+rr+'"][data-col="'+cc+'"]');
- if(!el){render();return true}
+ if(!el){render();focusRemoteSink();return true}
  document.querySelectorAll('.card.focus').forEach(function(x){if(x!==el)x.classList.remove('focus')});
  el.classList.add('focus');
- try{el.focus({preventScroll:true})}catch(e){try{el.focus()}catch(e2){}}
  try{el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}catch(e){}
  activateLogos();
+ focusRemoteSink();
  return true;
 }
 function render(){
@@ -152,11 +154,11 @@ function render(){
    html+='<section class="row" data-row="'+r+'"><h2>'+esc(g)+'</h2><div class="cards">';
    for(i=0;i<a.length;i++){
      c=norm(a[i]);selected=(r===S.row&&i===S.col);
-     html+='<button type="button" class="card '+(selected?'focus':'')+'" tabindex="0" data-row="'+r+'" data-col="'+i+'" aria-label="'+esc(c.name)+'">';
+     html+='<div class="card '+(selected?'focus':'')+'" tabindex="-1" role="button" data-row="'+r+'" data-col="'+i+'" aria-label="'+esc(c.name)+'">';
      html+='<div class="thumb">';
      if(c.logo)html+='<img loading="lazy" data-row="'+r+'" data-src="'+esc(c.logo)+'" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span>TV</span>\'">';
      else html+='<span>TV</span>';
-     html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</button>';
+     html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</div>';
    }
    html+='</div></section>';
  }
@@ -218,16 +220,18 @@ function fetchSource(n){
 function menuItems(){return ['▣ Truyền hình','⚽ Thể thao','★ Yêu thích','◷ Gần đây','⌕ Tìm kiếm','↻ Tải lại playlist'].concat(S.groups)}
 function drawMenu(){
  var a=menuItems(),h='',i;
- for(i=0;i<a.length;i++)h+='<button type="button" class="mi '+(i===S.menu?'focus':'')+'" tabindex="0" data-menu-index="'+i+'">'+esc(a[i])+'</button>';
+ for(i=0;i<a.length;i++)h+='<div class="mi '+(i===S.menu?'focus':'')+'" tabindex="-1" role="button" data-menu-index="'+i+'">'+esc(a[i])+'</div>';
  $('ml').innerHTML=h;
  $('ml').querySelectorAll('.mi').forEach(function(mi){
    mi.onclick=function(){S.menu=Number(mi.getAttribute('data-menu-index')||0);selectMenu()};
-   mi.onfocus=function(){S.menu=Number(mi.getAttribute('data-menu-index')||0);drawMenuFocus()};
  });
- var f=$('ml').querySelector('.mi.focus');if(f)try{f.focus({preventScroll:true})}catch(e){}
+ drawMenuFocus();
 }
 function drawMenuFocus(){
- $('ml').querySelectorAll('.mi').forEach(function(mi,i){mi.classList.toggle('focus',i===S.menu)});
+ var nodes=$('ml').querySelectorAll('.mi'),target=null;
+ nodes.forEach(function(mi,i){var on=i===S.menu;mi.classList.toggle('focus',on);if(on)target=mi});
+ if(target)try{target.scrollIntoView({behavior:'auto',block:'nearest'})}catch(e){}
+ focusRemoteSink();
 }
 function openMenu(){S.mode='menu';S.menu=Math.max(0,Math.min(S.menu,menuItems().length-1));$('menu').className='';drawMenu()}
 function closeMenu(){S.mode=S.player?'player':'home';$('menu').className='hidden';render()}
@@ -439,8 +443,9 @@ function seek(sec){var v=$('video');if(!isFinite(v.duration)){toast('Luồng nà
 function showCtrl(){S.ctrl=!S.ctrl;$('ctrl').className=S.ctrl?'':'hidden';if(S.ctrl)focusCtrl()}
 function focusCtrl(){
  var b=document.querySelectorAll('.cb'),i;
- for(i=0;i<b.length;i++){b[i].className='cb '+(i===S.cp?'focus':'');b[i].tabIndex=i===S.cp?0:-1}
- var el=b[S.cp];if(el)try{el.focus({preventScroll:true})}catch(e){try{el.focus()}catch(e2){}}
+ for(i=0;i<b.length;i++){b[i].className='cb '+(i===S.cp?'focus':'');b[i].tabIndex=-1}
+ var el=b[S.cp];if(el)try{el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}catch(e){}
+ focusRemoteSink();
 }
 function ctrlAction(){var b=document.querySelectorAll('.cb'),a=b[S.cp]?b[S.cp].getAttribute('data-a'):'';if(a==='back'){stop();render()}else if(a==='back10')seek(-10);else if(a==='fwd30')seek(30);else if(a==='play'){var v=$('video');v.paused?v.play():v.pause()}else if(a==='next'){switchChannelRelative(1)}}
 function switchChannelRelative(d){var c=S.current||currentChannel(),i=S.list.indexOf(c);if(i<0)i=0;play(S.list[(i+d+S.list.length)%S.list.length])}
@@ -458,7 +463,8 @@ function remoteCode(e){
  if(key==='arrowdown'||key==='down'||code==='arrowdown'||id==='down')return 40;
  if(key==='enter'||key==='select'||key==='ok'||key==='numpadenter')return 13;
  if(key==='escape'||key==='esc')return 27;
- if(key==='back'||key==='backspace')return 461;
+ if(key==='back'||key==='backspace'||key==='return')return 10009;
+ if(k===10009)return 10009;
  if(k===412||key==='mediarewind')return 412;
  if(k===417||key==='mediafastforward')return 417;
  if(k===10252||key==='mediaplaypause')return 10252;
@@ -466,7 +472,7 @@ function remoteCode(e){
  if(k===428||key==='channeldown')return 428;
  return k;
 }
-function stopRemoteEvent(e){try{e.preventDefault()}catch(x){}try{e.stopPropagation()}catch(x){}}
+function stopRemoteEvent(e){try{if(e&&e.cancelable)e.preventDefault()}catch(x){}try{e.stopImmediatePropagation()}catch(x){}try{e.stopPropagation()}catch(x){}}
 function handleRemote(e){
  if(e&&e.__nm7RemoteHandled)return false;
  if(e&&e.repeat)return true;
@@ -509,13 +515,21 @@ function handleRemote(e){
  return true;
 }
 window.NM7_REMOTE=handleRemote;
-window.addEventListener('keydown',handleRemote,true);
-document.addEventListener('keydown',handleRemote,false);
+function registerSamsungRemoteKeys(){
+ try{
+   if(window.tizen&&tizen.tvinputdevice&&tizen.tvinputdevice.registerKeyBatch){
+     tizen.tvinputdevice.registerKeyBatch(['MediaPlayPause','MediaRewind','MediaFastForward','ChannelUp','ChannelDown']);
+   }else if(window.tizen&&tizen.tvinputdevice&&tizen.tvinputdevice.registerKey){
+     ['MediaPlayPause','MediaRewind','MediaFastForward','ChannelUp','ChannelDown'].forEach(function(k){try{tizen.tvinputdevice.registerKey(k)}catch(e){}});
+   }
+ }catch(e){}
+}
 document.body.addEventListener('keydown',handleRemote,false);
-document.addEventListener('focusin',function(e){var t=e&&e.target;if(!t||!t.classList||!t.classList.contains('card'))return;var rr=Number(t.getAttribute('data-row')||0),cc=Number(t.getAttribute('data-col')||0);if(isFinite(rr)&&isFinite(cc)){S.row=rr;S.col=cc;document.querySelectorAll('.card.focus').forEach(function(x){if(x!==t)x.classList.remove('focus')});t.classList.add('focus')}},true);
-window.addEventListener('focus',function(){if(S.mode==='home'&&!S.player&&!S.dialog)setTimeout(focusElement,0)},true);
+window.addEventListener('focus',function(){setTimeout(focusElement,0)},true);
+window.addEventListener('pageshow',function(){setTimeout(focusElement,0)},true);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(focusElement,0)},true);
 
-restoreUser();try{document.body.focus()}catch(e){}var cached=readListCache();if(cached){S.list=cached.channels||[];rebuildGroups();setLabel();render()}
+restoreUser();registerSamsungRemoteKeys();focusRemoteSink();var cached=readListCache();if(cached){S.list=cached.channels||[];rebuildGroups();setLabel();render();focusRemoteSink()}
 fetchSource(0);
 setInterval(function(){$('clock').textContent=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})},1000);
 $('clock').textContent=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});

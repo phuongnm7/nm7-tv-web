@@ -10,7 +10,7 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     env:
-      PREVIEW_URL: https://nm7-tv-web-git-feature-web-tv-browser-1069-phuongnm7.vercel.app
+      PREVIEW_URL: https://nm7-tv-web-git-feature-web-tv-browser-1069-final-phuongnm7.vercel.app
     steps:
       - name: Diagnose preview response
         run: |

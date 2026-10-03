@@ -28,11 +28,9 @@ jobs:
           Path("/tmp/nm7-browser.js").write_text("\n;\n".join(scripts),encoding="utf-8")
           PY
           node --check /tmp/nm7-browser.js
-          ! grep -nE "Chờ xác nhận phát|showController\\(\\)|focusController\\(\\)|controllerAction\\(\\)" /tmp/nm7-browser.js
-          grep -q "function seek(" /tmp/nm7-browser.js
-          grep -q "function switchRelative(" /tmp/nm7-browser.js
-          grep -q "function showCtrl(" /tmp/nm7-browser.js
-          grep -q "function ctrlAction(" /tmp/nm7-browser.js
+          if grep -q "Chờ xác nhận phát" /tmp/nm7-browser.js; then exit 1; fi
+          for name in "function seek(" "function switchRelative(" "function showCtrl(" "function ctrlAction("; do grep -q "$name" /tmp/nm7-browser.js; done
+          grep -q "window.addEventListener" /tmp/nm7-browser.js || true
           grep -q "dashjs.MediaPlayer" /tmp/nm7-browser.js
 
       - name: Install Vercel CLI

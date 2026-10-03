@@ -176,14 +176,17 @@ function protectionData(c){
  var d=c.drm||{},type=String(d.type||c.licenseType||'').toLowerCase(),key=String(d.key||c.licenseKey||'').trim();
  if(!type||!key)return null;
  var out={},proto=type.indexOf('widevine')>=0?'com.widevine.alpha':type.indexOf('playready')>=0?'com.microsoft.playready':'org.w3.clearkey';
+ var ph=JSON.stringify(c.headers||{});
  if(proto==='org.w3.clearkey'){
-   if(/^https?:/i.test(key))out[proto]={serverURL:'/api/license?u='+encodeURIComponent(key),httpRequestHeaders:{'X-NM7-Client':'web-1.0.69'}};
+   if(/^https?:/i.test(key))out[proto]={serverURL:'/api/license?u='+encodeURIComponent(key)+'&h='+encodeURIComponent(ph),httpRequestHeaders:{'X-NM7-Client':'web-1.0.69'}};
    else{
-     var map={},parts=key.split(/[;,]/),i,p,k,v;
-     for(i=0;i<parts.length;i++){p=parts[i].split(':');if(p.length===2){k=b64urlFromHex(p[0]);v=b64urlFromHex(p[1]);if(k&&v)map[k]=v}}
+     var map={},text=key.trim(),json=null,parts,i,p,k,v;
+     try{if(text.charAt(0)==='{')json=JSON.parse(text)}catch(e){}
+     if(json&&json.keys){for(i=0;i<json.keys.length;i++){k=json.keys[i].kid;v=json.keys[i].k;if(k&&v)map[k]=v}}
+     else{parts=text.split(/[;,]/);for(i=0;i<parts.length;i++){p=parts[i].split(':');if(p.length===2){k=b64urlFromHex(p[0]);v=b64urlFromHex(p[1]);if(!k)k=p[0].trim();if(!v)v=p[1].trim();if(k&&v)map[k]=v}}}
      if(Object.keys(map).length)out[proto]={clearkeys:map};
    }
- }else if(/^https?:/i.test(key))out[proto]={serverURL:'/api/license?u='+encodeURIComponent(key),httpRequestHeaders:{'X-NM7-Client':'web-1.0.69'}};
+ }else if(/^https?:/i.test(key))out[proto]={serverURL:'/api/license?u='+encodeURIComponent(key)+'&h='+encodeURIComponent(ph),httpRequestHeaders:c.headers||{'X-NM7-Client':'web-1.0.69'}};
  return Object.keys(out).length?out:null
 }
 function b64urlFromHex(s){var h=String(s||'').replace(/^0x/i,'').replace(/-/g,'').trim(),bin='',i;if(!/^[0-9a-f]+$/i.test(h)||h.length%2)return '';for(i=0;i<h.length;i+=2)bin+=String.fromCharCode(parseInt(h.substr(i,2),16));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
@@ -204,14 +207,15 @@ function setupDash(c,cand,v,u){
  }catch(e){nextCandidate('DASH khởi tạo lỗi');return false}
 }
 function setupHls(c,cand,v,u){
+ var nativeHls=(v.canPlayType&&((v.canPlayType('application/vnd.apple.mpegurl')||v.canPlayType('application/x-mpegURL'))))&&/SMART-TV|Tizen/i.test(navigator.userAgent||'');
+ if(nativeHls){v.src=u;var x=v.play();if(x&&x.catch)x.catch(function(){});return true}
  if(window.Hls&&Hls.isSupported()){
    S.hls=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,startFragPrefetch:true,maxBufferHole:0.3});
    S.hls.on(Hls.Events.ERROR,function(ev,data){if(data&&data.fatal)nextCandidate('HLS lỗi '+(data.details||''))});
    S.hls.on(Hls.Events.MANIFEST_PARSED,function(){hideStatus();var x=v.play();if(x&&x.catch)x.catch(function(){toast('Nhấn OK để phát '+c.name)})});
-   var conf={};if(cand.ua)conf.xhrSetup=function(xhr){try{xhr.setRequestHeader('User-Agent',cand.ua)}catch(e){}};if(cand.ref)conf.referrerPolicy='no-referrer';
    S.hls.loadSource(u);S.hls.attachMedia(v);return true
  }
- if(v.canPlayType&&v.canPlayType('application/vnd.apple.mpegurl')){v.src=u;var x=v.play();if(x&&x.catch)x.catch(function(){});return true}
+ if(v.canPlayType&&v.canPlayType('application/vnd.apple.mpegurl')){v.src=u;var x2=v.play();if(x2&&x2.catch)x2.catch(function(){});return true}
  showStatus('Trình duyệt không hỗ trợ HLS/MSE');return false
 }
 function directPlayback(c,cand,v,u){

@@ -1,10 +1,10 @@
 import { Readable } from "node:stream";
 export default async function handler(req,res){
   const q=new URL(req.url,"https://nm7-tv-web.vercel.app").searchParams;
-  const target=q.get("u"),ref=q.get("r")||"",ua=q.get("ua")||"Mozilla/5.0";
+  const target=q.get("u"),ref=q.get("r")||"",ua=q.get("ua")||"Mozilla/5.0",extra=q.get("h")||"";
   if(!target||!/^https?:/i.test(target))return res.status(400).send("bad url");
   try{
-    const reqHeaders={"User-Agent":ua};if(ref)reqHeaders["Referer"]=ref;if(req.headers.range)reqHeaders["Range"]=req.headers.range;if(req.headers["accept"])reqHeaders["Accept"]=req.headers["accept"];const r=await fetch(target,{redirect:"follow",cache:"no-store",headers:reqHeaders});
+    const reqHeaders={"User-Agent":ua};if(ref)reqHeaders["Referer"]=ref;if(req.headers.range)reqHeaders["Range"]=req.headers.range;if(req.headers["accept"])reqHeaders["Accept"]=req.headers["accept"];try{const eh=JSON.parse(extra||"{}");for(const [k,v] of Object.entries(eh||{})){const lk=k.toLowerCase();if(["host","connection","content-length","cookie"].includes(lk))continue;if(typeof v==="string"&&v.length<4000)reqHeaders[k]=v}}catch(e){}const r=await fetch(target,{redirect:"follow",cache:"no-store",headers:reqHeaders});
     const ct=(r.headers.get("content-type")||"").toLowerCase(),finalUrl=r.url||target;
     res.setHeader("Access-Control-Allow-Origin","*");
     res.setHeader("Access-Control-Expose-Headers","Content-Length,Content-Range,Accept-Ranges,Content-Type");
@@ -24,19 +24,21 @@ export default async function handler(req,res){
       const lines=t.split(/\r?\n/);
       for(let i=0;i<lines.length;i++){
         const z=lines[i].trim();
-        if(z&&z.charAt(0)!=="#"&&/^https?:/i.test(z))lines[i]=px(z);
+        if(z&&z.charAt(0)!=="#"&&!/^(?:data:|blob:)/i.test(z))lines[i]=px(z);
       }
       res.setHeader("Content-Type","application/vnd.apple.mpegurl; charset=utf-8");
       return res.status(r.status).send(lines.join("\n"));
     }
     if(r.body){
-      if(ct)res.setHeader("Content-Type",ct);
+      const outCt=ct||(/\.mpd(?:$|\?)/i.test(finalUrl)?"application/dash+xml":"");
+      if(outCt)res.setHeader("Content-Type",outCt);
       if(r.headers.get("content-length"))res.setHeader("Content-Length",r.headers.get("content-length"));if(r.headers.get("content-range"))res.setHeader("Content-Range",r.headers.get("content-range"));if(r.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",r.headers.get("accept-ranges"));
       res.statusCode=r.status;
       return Readable.fromWeb(r.body).pipe(res);
     }
     const ab=await r.arrayBuffer();
-    if(ct)res.setHeader("Content-Type",ct);
+    const outCt=ct||(/\.mpd(?:$|\?)/i.test(finalUrl)?"application/dash+xml":"");
+    if(outCt)res.setHeader("Content-Type",outCt);
     return res.status(r.status).send(Buffer.from(ab));
   }catch(e){
     return res.status(502).send("stream proxy error");

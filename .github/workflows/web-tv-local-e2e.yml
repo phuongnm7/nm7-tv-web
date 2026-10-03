@@ -93,6 +93,9 @@ jobs:
             sleep 1
           done
           curl -fsS http://127.0.0.1:4173/test-dash.mpd | grep -q '<MPD'
+          echo "=== LOCAL DASH MPD ==="
+          cat e2e/test-dash.mpd
+          echo "=== END LOCAL DASH MPD ==="
           node <<'NODE'
           const { chromium }=require('playwright');
           (async()=>{
@@ -101,6 +104,8 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push('pageerror: '+e.message));
             page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
+            page.on('requestfailed',r=>console.log('REQUEST_FAILED '+r.url()+' '+(r.failure()?r.failure().errorText:'')));
+            page.on('response',r=>{if(/test-dash|chunk-stream|init-stream|test-hls/i.test(r.url()))console.log('MEDIA_RESPONSE '+r.status()+' '+r.url())});
             await page.goto('http://127.0.0.1:4173/?e2e=1',{waitUntil:'domcontentloaded',timeout:30000});
             await page.waitForSelector('.card',{timeout:15000});
             const count=await page.locator('.card').count();

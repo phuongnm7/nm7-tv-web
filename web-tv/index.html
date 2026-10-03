@@ -381,7 +381,7 @@ function tryCurrent(){
 function play(ch){
  if(!ch)return;
  S.current=ch;S.candidates=candidatesFor(ch);S.candidateIndex=0;S.proxyAttempt=false;S.player=true;S.controller=false;S.controllerIndex=2;
- $('playerName').textContent=ch.name||'Kênh';$('playerMeta').textContent=ch.url||'';openPlayer();$('controller').className='';tryCurrent();
+ $('playerName').textContent=ch.name||'Kênh';openPlayer();$('controller').className='';tryCurrent();
  var id=ch.tvgId||ch.url;S.recent=[id].concat(S.recent.filter(function(x){return x!==id})).slice(0,80);saveUser()
 }
 function stopPlayer(){clearPlayers();var v=$('video');try{v.pause();v.removeAttribute('src');v.load()}catch(e){}S.player=false;S.controller=false;$('player').className='';$('controller').className='';S.current=null}

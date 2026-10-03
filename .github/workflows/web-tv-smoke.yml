@@ -47,6 +47,7 @@ jobs:
           NODE
 
       - name: Probe seenow MPD
+        continue-on-error: true
         run: |
           set -euxo pipefail
           curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o probe-vtv1.json

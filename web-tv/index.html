@@ -158,7 +158,7 @@ function render(){
      else html+='<span>TV</span>';
      html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</button>';
    }
-   html+='</button></section>';
+   html+='</div></section>';
  }
  h.innerHTML=html||'<div class="empty">Không có kênh phù hợp</div>';
  var yt=$('ytTab');if(yt)yt.onclick=function(){toast('YouTube trên Web đang ở chế độ trình duyệt')};

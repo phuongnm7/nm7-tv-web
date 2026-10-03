@@ -84,10 +84,13 @@ jobs:
             await page.waitForTimeout(1200);
             if(!requests.some(u=>u===can.url))throw new Error('Tizen HLS did not use native direct URL');
             const nav=await page.evaluate(()=>{
+              if(window.__NM7_TEST__.getState().player){
+                document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:461,which:461}));
+              }
               if(!window.__NM7_TEST__.focusLastCard())return null;
               var before=window.__NM7_TEST__.getState().colIndex;
               document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:39,which:39}));
-              return {before,after:window.__NM7_TEST__.getState().colIndex};
+              return {before,after:window.__NM7_TEST__.getState().colIndex,player:window.__NM7_TEST__.getState().player};
             });
             if(!nav||nav.after!==0)throw new Error('RIGHT at rightmost card did not wrap/process correctly: '+JSON.stringify(nav));
             console.log('TIZEN_NATIVE_HLS=PASS '+can.url);

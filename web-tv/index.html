@@ -150,7 +150,7 @@ function render(){
  lazyLogoScan();
 }
 function focusCard(gi,ci,animate=true){
- S.groupIndex=Math.max(0,Math.min(S.groups.length-1,gi));const a=S.groups[S.groupIndex]?.[1]||[];S.colIndex=Math.max(0,Math.min(a.length-1,ci));
+ S.groupIndex=Math.max(0,Math.min(S.groups.length-1,gi));const a=(S.groups[S.groupIndex]?S.groups[S.groupIndex][1]:[])||[];S.colIndex=Math.max(0,Math.min(a.length-1,ci));
  const old=document.querySelector('.card.focus');if(old)old.classList.remove('focus');
  const el=document.querySelector('.card[data-gi="'+S.groupIndex+'"][data-ci="'+S.colIndex+'"]');if(el){el.classList.add('focus');el.focus({preventScroll:true});el.scrollIntoView({behavior:animate?'smooth':'auto',block:'nearest',inline:'center'})}
  const row=document.querySelector('.hrow[data-gi="'+S.groupIndex+'"]');if(row){const x=el?el.offsetLeft-row.clientWidth/2+64:0;row.scrollLeft=Math.max(0,x)}
@@ -234,7 +234,7 @@ function play(channel){
  S.recent=[channel.tvgId||channel.url].concat(S.recent.filter(x=>x!==(channel.tvgId||channel.url))).slice(0,80);saveUser()
 }
 function tryCandidate(){
- const c=S.playerCandidates[S.candidateIndex];if(!c){status('Không phát được '+(S.current?.name||'Kênh')+'\nĐã thử '+S.playerCandidates.length+' nguồn');return}
+ const c=S.playerCandidates[S.candidateIndex];if(!c){status('Không phát được '+((S.current&&S.current.name)||'Kênh')+'\nĐã thử '+S.playerCandidates.length+' nguồn');return}
  clearPlayers();const direct= S.attempt===0;const u=urlFor(c,!direct);status('Đang mở '+S.current.name+'\nNguồn '+(S.candidateIndex+1)+'/'+S.playerCandidates.length+(direct?' · trực tiếp':' · proxy'));
  const v=$('video');try{v.pause();v.removeAttribute('src');v.load()}catch(e){}
  const t=c.type||mimeType(c.url,c.headers||{},c.options||[]);
@@ -283,10 +283,10 @@ function hexB64(s){try{let x=s.trim().replace(/^0x/i,'').replace(/-/g,'');if(/^[
 function stopPlayer(){clearPlayers();const v=$('video');try{v.pause();v.removeAttribute('src');v.load()}catch(e){}S.player=false;S.controller=false;$('player').className='';$('controller').className=''}
 function showController(){S.controller=!S.controller;$('controller').className=S.controller?'open':'';if(S.controller)focusController()}
 function focusController(){document.querySelectorAll('.ctrl').forEach((b,i)=>b.className='ctrl '+(i===S.controllerIndex?'focus':''))}
-function controllerAction(){const b=document.querySelectorAll('.ctrl')[S.controllerIndex],a=b?.dataset.a;if(a==='back'){stopPlayer();return}if(a==='rewind')seek(-10);if(a==='forward')seek(30);if(a==='play'){const v=$('video');v.paused?v.play():v.pause()}if(a==='next'){const c=S.current;const i=S.list.indexOf(c);if(i>=0)play(S.list[(i+1)%S.list.length]);}}
+function controllerAction(){const b=document.querySelectorAll('.ctrl')[S.controllerIndex],a=b?b.dataset.a:null;if(a==='back'){stopPlayer();return}if(a==='rewind')seek(-10);if(a==='forward')seek(30);if(a==='play'){const v=$('video');v.paused?v.play():v.pause()}if(a==='next'){const c=S.current;const i=S.list.indexOf(c);if(i>=0)play(S.list[(i+1)%S.list.length]);}}
 function seek(n){const v=$('video');if(isFinite(v.duration)){v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+n))}else toast('Luồng này không hỗ trợ tua')}
 function drawMenu(){const box=$('menuItems');box.innerHTML='';S.menuItems=['⌂  Trang chính','▣  Truyền hình','⚽  Thể thao','★  Yêu thích','◷  Gần đây','⌕  Tìm kiếm','↻  Tải lại nguồn'];for(const g of S.groups)S.menuItems.push('☷  '+g[0]);S.menuItems.forEach((txt,i)=>{const b=document.createElement('button');b.className='menuItem '+(i===S.menuIndex?'focus':'');b.textContent=txt;b.tabIndex=0;b.onclick=()=>menuSelect(i);box.appendChild(b)})}
-function openMenu(){S.mode='menu';S.menuIndex=0;drawMenu();$('sideShade').style.visibility='visible';$('sideMenu').classList.add('open');document.querySelectorAll('.menuItem')[0]?.focus()}
+function openMenu(){S.mode='menu';S.menuIndex=0;drawMenu();$('sideShade').style.visibility='visible';$('sideMenu').classList.add('open');if(document.querySelectorAll('.menuItem')[0])document.querySelectorAll('.menuItem')[0].focus()}
 function closeMenu(){S.mode='home';$('sideShade').style.visibility='hidden';$('sideMenu').classList.remove('open');focusCard(S.groupIndex,S.colIndex,false)}
 function menuSelect(i){
  if(i===0){closeMenu();return}
@@ -310,18 +310,18 @@ document.addEventListener('keydown',e=>{
  }
  if(S.mode==='menu'){
    if(k===461||k===10009||k===27||k===37){closeMenu();e.preventDefault();return}
-   if(k===38||k===40){S.menuIndex=Math.max(0,Math.min(S.menuItems.length-1,S.menuIndex+(k===38?-1:1)));drawMenu();document.querySelectorAll('.menuItem')[S.menuIndex]?.focus();e.preventDefault();return}
+   if(k===38||k===40){S.menuIndex=Math.max(0,Math.min(S.menuItems.length-1,S.menuIndex+(k===38?-1:1)));drawMenu();if(document.querySelectorAll('.menuItem')[S.menuIndex])document.querySelectorAll('.menuItem')[S.menuIndex].focus();e.preventDefault();return}
    if(k===39||k===13){menuSelect(S.menuIndex);e.preventDefault();return}return
  }
  if(k===461||k===10009||k===27||k===37){if(k===37&&S.colIndex>0){S.colIndex--;focusCard(S.groupIndex,S.colIndex)}else openMenu();e.preventDefault();return}
  const a=groupChannels();
  if(k===39){if(a.length){S.colIndex=(S.colIndex+1)%a.length;focusCard(S.groupIndex,S.colIndex)}e.preventDefault();return}
- if(k===38){const old=S.colIndex;S.groupIndex=Math.max(0,S.groupIndex-1);S.colIndex=Math.min(old,(S.groups[S.groupIndex]?.[1].length||1)-1);render();e.preventDefault();return}
- if(k===40){const old=S.colIndex;S.groupIndex=Math.min(S.groups.length-1,S.groupIndex+1);S.colIndex=Math.min(old,(S.groups[S.groupIndex]?.[1].length||1)-1);render();e.preventDefault();return}
+ if(k===38){const old=S.colIndex;S.groupIndex=Math.max(0,S.groupIndex-1);S.colIndex=Math.min(old,((S.groups[S.groupIndex]?S.groups[S.groupIndex][1].length:0)||1)-1);render();e.preventDefault();return}
+ if(k===40){const old=S.colIndex;S.groupIndex=Math.min(S.groups.length-1,S.groupIndex+1);S.colIndex=Math.min(old,((S.groups[S.groupIndex]?S.groups[S.groupIndex][1].length:0)||1)-1);render();e.preventDefault();return}
  if(k===13){play(current());e.preventDefault();return}
  if(k===403){const c=current();if(c){const id=c.tvgId||c.url,ix=S.fav.indexOf(id);if(ix<0)S.fav.push(id);else S.fav.splice(ix,1);saveUser();toast(ix<0?'Đã thêm Yêu thích':'Đã bỏ Yêu thích')}e.preventDefault();return}
 });
-$('video').addEventListener('playing',hideStatus);$('video').addEventListener('loadeddata',hideStatus);$('video').addEventListener('waiting',()=>status('Đang đệm '+(S.current?.name||'')));
+$('video').addEventListener('playing',hideStatus);$('video').addEventListener('loadeddata',hideStatus);$('video').addEventListener('waiting',()=>status('Đang đệm '+((S.current&&S.current.name)||'')));
 loadUser();updateHeader();setInterval(updateHeader,30000);fetchPlaylist(0);
 })();
 </script>

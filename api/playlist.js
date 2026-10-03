@@ -1,4 +1,4 @@
-const SOURCES={tv:["https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/","https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u"],sport:["https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"]};
+const SOURCES={tv:["https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/","https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u","https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u"],sport:["https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"]};
 function parse(t){const lines=String(t||"").replace(/^\uFEFF/,"").split(/\r?\n/),out=[];let m=null,ua="",ref="";
 for(const raw of lines){const l=raw.trim();
 if(l.indexOf("#EXTINF:")===0){if(m&&m.candidates.length)out.push(m);const p=l.indexOf(","),h=p<0?l:l.slice(0,p);m={name:p<0?"Kênh":l.slice(p+1).trim(),group:(/group-title="([^"]*)"/i.exec(h)||[])[1]||"Khác",logo:(/tvg-logo="([^"]*)"/i.exec(h)||[])[1]||"",id:(/tvg-id="([^"]*)"/i.exec(h)||[])[1]||"",candidates:[]};ua="";ref="";}

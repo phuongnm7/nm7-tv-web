@@ -184,7 +184,7 @@ function selectMenu(){
 function showSearch(){S.dialog='search';$('dlg').className='';$('box').innerHTML='<h2>Tìm kiếm kênh</h2><input id="qin" class="input" value="'+esc(S.q)+'" placeholder="Tên kênh, TVG-ID hoặc nhóm"><p class="guide">Gõ tìm kiếm rồi nhấn Enter. Back đóng.</p>';var i=$('qin');i.focus();i.oninput=function(){S.q=i.value.trim();S.row=0;S.col=0;render()}}
 function listForNavigation(){var a=S.list;if(S.q){var q=S.q.toLowerCase(),b=[],i,c;for(i=0;i<a.length;i++){c=a[i];if((c.name+' '+c.group+' '+c.id).toLowerCase().indexOf(q)>=0)b.push(c)}return b}return a}
 function refreshView(){var old=S.list;S.list=listForNavigation();rebuildGroups();S.list=old;render()}
-function clearPlayers(){if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}if(S.dash){try{S.dash.reset()}catch(e){}S.dash=null}}}
+function clearPlayers(){if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}if(S.dash){try{S.dash.reset()}catch(e){}S.dash=null}}
 function getCandidate(){if(!S.current||!S.current.candidates||!S.current.candidates.length)return null;return S.current.candidates[S.candidateIndex]||null}
 function showStatus(s){$('status').textContent=s;$('status').style.display='flex'}
 function classify(c){

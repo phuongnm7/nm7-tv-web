@@ -1,0 +1,49 @@
+name: Build NM7 TV Tizen 1.0.69 AVPlay
+on:
+  push:
+    branches: ["feature/web-tv-browser-1.0.69-android-exact"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+jobs:
+  build-wgt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble WGT
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp web-tv/index.html dist/index.html
+          cp web-tv/dash.all.min.js dist/dash.all.min.js
+          cp tizen/config.xml dist/config.xml
+          curl -fsSL --max-time 60 "https://raw.githubusercontent.com/phuongnm7/nm7-tv-android/f79fc06009f20e0ac3a5859c0abcfd6ce70a6763/app/src/main/res/mipmap-hdpi/ic_launcher.png" -o dist/icon.png
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("dist/index.html")
+          s=p.read_text(encoding="utf-8")
+          s=s.replace("</head>",'<script type="text/javascript" src="$WEBAPIS/webapis/webapis.js"></script></head>',1)
+          p.write_text(s,encoding="utf-8")
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("dist/index.html").read_text(encoding="utf-8")
+          assert "$WEBAPIS/webapis/webapis.js" in s
+          assert "webapis.avplay" in s
+          assert "1.0.69" in s
+          assert "Q9a3nm7tv.NM7TV" not in s
+          print("Tizen HTML assembly OK")
+          PY
+          (cd dist && zip -qr "../NM7-TV-Tizen-1.0.69-AVPlay-unsigned.wgt" .)
+          sha256sum NM7-TV-Tizen-1.0.69-AVPlay-unsigned.wgt | tee NM7-TV-Tizen-1.0.69-AVPlay-unsigned.wgt.sha256
+      - name: Publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NM7-TV-Tizen-1.0.69-AVPlay-unsigned
+          path: |
+            NM7-TV-Tizen-1.0.69-AVPlay-unsigned.wgt
+            NM7-TV-Tizen-1.0.69-AVPlay-unsigned.wgt.sha256
+            dist/index.html
+            dist/config.xml

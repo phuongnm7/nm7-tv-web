@@ -29,7 +29,8 @@ jobs:
           PY
           node --check /tmp/nm7-browser.js
           if grep -q "Chờ xác nhận phát" /tmp/nm7-browser.js; then echo "legacy confirmation gate still present"; exit 1; fi
-          grep -q "dashjs.MediaPlayer" /tmp/nm7-browser.js
+          grep -q 'src="/web-tv/dash.all.min.js"' web-tv/index.html
+          grep -q 'src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"' web-tv/index.html
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest

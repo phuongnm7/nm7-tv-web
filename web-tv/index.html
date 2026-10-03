@@ -154,6 +154,23 @@ function setHomeFocus(rr,cc){
  focusRemoteSink();
  return true;
 }
+function logoOverride(c){
+ var id=String(c&&c.id||'').toLowerCase().replace(/\s+/g,'').trim();
+ var name=String(c&&c.name||'').toLowerCase().replace(/_/g,' ').replace(/-/g,' ').replace(/\s+/g,' ').trim();
+ var group=String(c&&c.group||'').toLowerCase().replace(/\s+/g,'').trim();
+ if(group.indexOf('vtvcab')<0&&name.indexOf('vtvcab')<0)return '';
+ if(id==='vtvcab3hd'||name.indexOf('vtvcab 3')>=0||name.indexOf('vtvcab3')>=0||name.indexOf('on sports')>=0)return 'https://cdn.hqth.me/logo/thumbs/14.png';
+ if(id==='vtvcab6hd'||name.indexOf('vtvcab 6')>=0||name.indexOf('vtvcab6')>=0||name.indexOf('on sports+')>=0||name.indexOf('onsports+')>=0)return 'https://cdn.hqth.me/logo/thumbs/17.png';
+ if(id==='vtvcab16hd'||name.indexOf('vtvcab 16')>=0||name.indexOf('vtvcab16')>=0||name.indexOf('on football')>=0||name.indexOf('onfootball')>=0)return 'https://cdn.hqth.me/logo/thumbs/24.png';
+ if(id==='vtvcab18hd'||name.indexOf('vtvcab 18')>=0||name.indexOf('vtvcab18')>=0||name.indexOf('on sports news')>=0||name.indexOf('onsports news')>=0)return 'https://cdn.hqth.me/logo/thumbs/26.png';
+ return '';
+}
+function logoSource(c){
+ var u=logoOverride(c)||String(c&&c.logo||'').trim();
+ if(!u)return '';
+ if(/^https?:\/\//i.test(u))return '/api/image?u='+encodeURIComponent(u);
+ return u;
+}
 function render(){
  var h=$('home'),html='',start=Math.max(0,S.row-2),end=Math.min(S.groups.length,S.row+5),r,g,a,i,c,selected;
  html+='<div id="homeTabs">';
@@ -167,7 +184,8 @@ function render(){
      c=norm(a[i]);selected=(r===S.row&&i===S.col);
      html+='<div class="card '+(selected?'focus':'')+'" tabindex="-1" role="button" data-row="'+r+'" data-col="'+i+'" aria-label="'+esc(c.name)+'">';
      html+='<div class="thumb">';
-     if(c.logo)html+='<img loading="lazy" data-row="'+r+'" data-src="'+esc(c.logo)+'" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span>TV</span>\'">';
+     var logo=logoSource(c);
+     if(logo)html+='<img loading="lazy" data-row="'+r+'" data-src="'+esc(logo)+'" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span>TV</span>\'">';
      else html+='<span>TV</span>';
      html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</div>';
    }

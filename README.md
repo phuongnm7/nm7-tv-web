@@ -70,3 +70,10 @@ Smoke gần nhất đã đọc được khoảng 493 kênh / 521 candidates tùy
 `feature/web-tv-browser-1.0.69-android-exact`
 
 Giữ nhánh riêng, không merge `main` cho tới khi người dùng xác nhận Web App chạy ổn định trên TV thật.
+
+## Remote + autoplay fix
+- D-pad is handled at window capture level and accepts Samsung/standard browser key forms.
+- Removed broken references to missing player-controller functions.
+- OK/Enter starts channel opening immediately; unknown stream URLs are probed in parallel instead of blocking initial playback.
+- Back returns to the selected channel card.
+- The previous "Chờ xác nhận phát…" status path has been removed.

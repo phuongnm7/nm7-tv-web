@@ -78,6 +78,7 @@ button{cursor:pointer}
 #remoteSink{position:fixed;left:0;top:0;width:100%;height:100%;opacity:0.001;pointer-events:none;outline:0;border:0;padding:0;margin:0;z-index:1}
 </style>
 <script src="./dash.all.min.js"></script>
+<script>if(/SMART-TV|Tizen/i.test(navigator.userAgent||'')){document.write('<script src="$WEBAPIS/webapis/webapis.js"><\/script>')}</script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
 </head>
@@ -516,7 +517,7 @@ function focusCtrl(){
  var el=b[S.cp];if(el)try{el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}catch(e){}
  focusRemoteSink();
 }
-function ctrlAction(){var b=document.querySelectorAll('.cb'),a=b[S.cp]?b[S.cp].getAttribute('data-a'):'';if(a==='back'){stop();render()}else if(a==='back10')seek(-10);else if(a==='fwd30')seek(30);else if(a==='play'){var v=$('video');v.paused?v.play():v.pause()}else if(a==='next'){switchChannelRelative(1)}}
+function ctrlAction(){var b=document.querySelectorAll('.cb'),a=b[S.cp]?b[S.cp].getAttribute('data-a'):'';if(a==='back'){stop();render();setTopFocus(0)}else if(a==='back10')seek(-10);else if(a==='fwd30')seek(30);else if(a==='play'){if(isTizenAvplay()&&S.player){try{var st=webapis.avplay.getState();if(st==='PLAYING')webapis.avplay.pause();else webapis.avplay.play()}catch(e){}}else{var v=$('video');v.paused?v.play():v.pause()}}else if(a==='next'){switchChannelRelative(1)}}
 function switchChannelRelative(d){var c=S.current||currentChannel(),i=S.list.indexOf(c);if(i<0)i=0;play(S.list[(i+d+S.list.length)%S.list.length])}
 $('video').addEventListener('playing',function(){if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}hideStatus()});
 $('video').addEventListener('canplay',function(){if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}hideStatus()});
@@ -600,7 +601,7 @@ window.addEventListener('focus',function(){setTimeout(focusElement,0)},true);
 window.addEventListener('pageshow',function(){setTimeout(focusElement,0)},true);
 document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(focusElement,0)},true);
 
-restoreUser();registerSamsungRemoteKeys();focusRemoteSink();var cached=readListCache();if(cached){S.list=cached.channels||[];rebuildGroups();setLabel();render();focusRemoteSink()}
+restoreUser();registerSamsungRemoteKeys();focusRemoteSink();var cached=readListCache();if(cached){S.list=cached.channels||[];rebuildGroups();setLabel();render();focusRemoteSink()}setTimeout(function(){S.zone='top';S.top=0;render();focusRemoteSink()},180)
 fetchSource(0);
 setInterval(function(){$('clock').textContent=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})},1000);
 $('clock').textContent=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});

@@ -36,6 +36,11 @@ jobs:
           npm install --no-save playwright@1.55.0 hls.js@0.14.17 >/dev/null 2>&1
           npx playwright install --with-deps chromium >/dev/null 2>&1
 
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+
       - name: Generate local HLS and DASH fixtures
         run: |
           set -euxo pipefail

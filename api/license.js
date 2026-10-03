@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 function safeHeaders(req,extra){
  const out={"User-Agent":req.headers["user-agent"]||"NM7-TV-Web/1.0"};
  const allowed=["accept","content-type","origin","referer"];

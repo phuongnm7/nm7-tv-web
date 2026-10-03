@@ -497,7 +497,7 @@ function handleRemote(e){
    }
  }else if(S.mode==='menu'){
    if(k===461||k===10009||k===27){closeMenu();handled=true}
-   else if(k===38||k===40){var mi=menuItems();S.menu=Math.max(0,Math.min(mi.length-1,S.menu+(k===38?-1:1)));drawMenuFocus();var mf=document.querySelector('#ml .mi[data-menu-index="'+S.menu+'"]');if(mf)try{mf.focus({preventScroll:true})}catch(e){}handled=true}
+   else if(k===38||k===40){var mi=menuItems();S.menu=Math.max(0,Math.min(mi.length-1,S.menu+(k===38?-1:1)));drawMenuFocus();handled=true}
    else if(k===13||k===39){selectMenu();handled=true}
  }else{
    if(k===461||k===10009||k===27){openMenu();handled=true}

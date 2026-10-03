@@ -274,16 +274,41 @@ function loadCustom(url){
   S.list=p.channels;S.query='';S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();toast('Đã tải '+S.list.length+' kênh')
  }).catch(function(e){S.loading=false;toast('Không tải được nguồn: '+e.message)})
 }
+function fetchJsonTimeout(url,ms){
+ var timer;
+ return Promise.race([
+  fetch(url,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}),
+  new Promise(function(_,reject){timer=setTimeout(function(){reject(new Error('timeout '+ms+'ms'))},ms)})
+ ]).then(function(v){clearTimeout(timer);return v},function(e){clearTimeout(timer);throw e})
+}
+function applyPlaylist(d,source,message){
+ if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error('playlist response không hợp lệ');
+ if(source!==S.source)return false;
+ S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();if(message)toast(message);return true
+}
 function loadSource(source,force){
  S.source=source;S.query='';S.loading=true;
- var cached=readCache();if(cached&&!force){S.list=cached.channels;rebuildGroups();S.row=0;S.col=0;renderHome();toast('Đã mở cache · đang cập nhật…')}
+ var cached=readCache();if(cached&&!force){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome();toast('Đã mở cache · đang cập nhật…')}
  else $('home').innerHTML='<div class="empty">Đang tải '+(source==='sport'?'thể thao':'truyền hình')+'…</div>';
- fetch(PLAYLISTS[source],{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
-  if(!d||!Array.isArray(d.channels))throw new Error('playlist response không hợp lệ');
-  S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();toast('Đã cập nhật '+S.list.length+' kênh')
+
+ if(source==='tv'){
+  fetchJsonTimeout('/web-tv/playlist.json?ts='+Date.now(),5000).then(function(d){
+   if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error('fallback tĩnh rỗng');
+   if(source!==S.source)return;
+   var hadList=S.list.length>0;
+   S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();
+   if(!hadList)toast('Đã mở playlist dự phòng · '+S.list.length+' kênh');
+  }).catch(function(){});
+ }
+
+ fetchJsonTimeout(PLAYLISTS[source],12000).then(function(d){
+  applyPlaylist(d,source,'Đã cập nhật '+d.channels.length+' kênh');
  }).catch(function(e){
-  S.loading=false;
-  if(source==='tv')fallbackStaticPlaylist(cached,e);else toast('Không tải được playlist: '+e.message)
+  if(source==='tv'){
+   S.loading=false;
+   if(S.list.length)toast('API không phản hồi · giữ playlist hiện tại');
+   else fallbackOriginal(cached,e);
+  }else{S.loading=false;toast('Không tải được playlist: '+e.message)}
  })
 }
 function fallbackStaticPlaylist(cached,firstError){

@@ -1,3 +1,1 @@
-# NM7 TV Web
-
-Samsung TV browser Web App.
+# NM7 TV Web 1.0.39\n\nWeb App cho Samsung TV Internet browser.\n\nBản này dùng hls.js 0.14.17 cho HLS/MSE, đọc nhiều URL dự phòng trong M3U, giữ User-Agent/Referer từ EXTVLCOPT và dùng /api/stream để proxy HLS manifest/segments cùng origin. Danh sách cache 30 giây và logo chỉ tải quanh nhóm đang xem để giảm tải ban đầu.

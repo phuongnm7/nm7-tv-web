@@ -1,0 +1,127 @@
+name: NM7 TV Web 1.0.69 stable preview E2E
+
+on:
+  push:
+    branches: ["feature/web-tv-1.0.69-from-stable-old"]
+  workflow_dispatch:
+
+concurrency:
+  group: nm7-tv-stable-e2e
+  cancel-in-progress: true
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    outputs:
+      preview_url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate browser script
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path("web-tv/index.html").read_text(encoding="utf-8")
+          scripts=re.findall(r"<script(?:[^>]*)>([\\s\\S]*?)</script>",s,re.I)
+          Path("/tmp/nm7-browser.js").write_text("\n;\n".join(scripts),encoding="utf-8")
+          PY
+          node --check /tmp/nm7-browser.js
+          ! grep -nE "Chờ xác nhận phát|showController\\(\\)|focusController\\(\\)|controllerAction\\(\\)" /tmp/nm7-browser.js
+          grep -q "function seek(" /tmp/nm7-browser.js
+          grep -q "function switchRelative(" /tmp/nm7-browser.js
+          grep -q "function showCtrl(" /tmp/nm7-browser.js
+          grep -q "function ctrlAction(" /tmp/nm7-browser.js
+          grep -q "dashjs.MediaPlayer" /tmp/nm7-browser.js
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Link Vercel project
+        run: vercel link --project nm7-tv-web --scope phuongnm7 --yes --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Deploy preview
+        id: deploy
+        run: |
+          set -euo pipefail
+          url=$(vercel deploy --yes --token="${{ secrets.VERCEL_TOKEN }}")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "PREVIEW_URL=$url"
+
+      - name: Wait for preview
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -euxo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsSL --max-time 15 "$PREVIEW_URL/" | grep -q "NM7 TV"; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Browser remote and player E2E
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            const page=await browser.newPage({viewport:{width:1920,height:1080}});
+            const errors=[];
+            page.on('pageerror',e=>errors.push('pageerror: '+e.message));
+            page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
+
+            const response=await page.goto(process.env.PREVIEW_URL+'/',{waitUntil:'domcontentloaded',timeout:45000});
+            if(!response||!response.ok())throw new Error('Landing page failed');
+            await page.waitForSelector('.card',{timeout:45000});
+            const cardCount=await page.locator('.card').count();
+            if(cardCount<2)throw new Error('Expected >=2 cards, got '+cardCount);
+
+            // Remote uses the same legacy state/render model that was known to work.
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',keyCode:39,which:39,bubbles:true})));
+            await page.waitForTimeout(150);
+            if(await page.locator('.card.focus').count()<1)throw new Error('RIGHT did not leave a focused card');
+
+            // Return to first card and open the side menu with LEFT.
+            await page.evaluate(()=>{
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true});
+            });
+            await page.waitForTimeout(150);
+            if(await page.locator('#menu:not(.hidden)').count()<1)throw new Error('LEFT did not open menu');
+
+            // DOWN must move the menu selection.
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,which:40,bubbles:true})));
+            await page.waitForTimeout(100);
+            if(await page.locator('#menu .mi.focus').count()<1)throw new Error('DOWN did not focus menu item');
+
+            // Close menu, then OK should open player immediately.
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:27,which:27,bubbles:true})));
+            await page.waitForTimeout(100);
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true})));
+            await page.waitForTimeout(500);
+            if(await page.locator('#player:not(.hidden)').count()<1)throw new Error('OK did not open player');
+            const status=String(await page.locator('#status').textContent());
+            if(/chờ xác nhận/i.test(status))throw new Error('Confirmation-gate text still present: '+status);
+
+            // Try the actual first selected channel. Do not fail merely because an upstream CDN
+            // refuses the GitHub runner; record both player state and media state.
+            await page.waitForTimeout(8000);
+            const media=await page.evaluate(()=>{
+              const v=document.querySelector('#video');
+              return {readyState:v.readyState,paused:v.paused,currentTime:v.currentTime,src:v.currentSrc||v.src,error:v.error?{code:v.error.code,message:v.error.message}:null};
+            });
+            console.log('CARD_COUNT='+cardCount);
+            console.log('MEDIA='+JSON.stringify(media));
+            console.log('PAGE_ERRORS='+JSON.stringify(errors));
+            if(media.currentTime>0 && !media.paused)console.log('BROWSER_PLAYBACK=PASS');
+            else console.log('BROWSER_PLAYBACK=BLOCKED_OR_UPSTREAM');
+
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

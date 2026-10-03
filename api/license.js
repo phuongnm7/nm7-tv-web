@@ -8,7 +8,7 @@ function safeHeaders(req,extra){
 }
 export default async function handler(req,res){
  const q=new URL(req.url,"https://nm7-tv-web.vercel.app").searchParams;
- const target=q.get("u"),ref=q.get("r")||"",ua=q.get("ua")||"",extra=q.get("h")||"";
+ const target=q.get("u"),ref=q.get("r")||"",ua=q.get("ua")||"",extra=q.get("h")||"",base64=q.get("base64")==="1";
  if(!target||!/^https?:/i.test(target))return res.status(400).send("bad url");
  const headers=safeHeaders(req,extra);if(ua)headers["User-Agent"]=ua;if(ref)headers["Referer"]=ref;
  res.setHeader("Access-Control-Allow-Origin","*");res.setHeader("Access-Control-Allow-Methods","GET,POST,OPTIONS");res.setHeader("Access-Control-Allow-Headers","Content-Type,Accept,Origin,Referer,User-Agent,X-Requested-With");res.setHeader("Cache-Control","no-store");
@@ -16,7 +16,13 @@ export default async function handler(req,res){
  try{
   let body=undefined;
   if(req.method==="POST"){
-   if(req.body&&typeof req.body==="string")body=req.body;
+   if(base64){
+    const raw=typeof req.body==="string"?req.body:(req.body==null?"":String(req.body));
+    try{body=Buffer.from(raw,"base64")}catch(e){return res.status(400).send("bad base64 body")}
+    headers["Content-Type"]="application/octet-stream";
+   }else if(Buffer.isBuffer(req.body))body=req.body;
+   else if(req.body instanceof Uint8Array)body=Buffer.from(req.body);
+   else if(req.body&&typeof req.body==="string")body=req.body;
    else if(req.body!=null)body=typeof req.body==="object"?JSON.stringify(req.body):String(req.body);
    else body="";
   }

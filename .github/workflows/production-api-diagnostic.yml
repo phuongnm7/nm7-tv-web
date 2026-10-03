@@ -1,0 +1,32 @@
+name: Production API diagnostic
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production page and playlist API
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "== PAGE =="
+          curl -fsSL --max-time 20 -o /tmp/page.html -w "HTTP %{http_code} %{size_download} bytes\n" https://nm7-tv-web.vercel.app/
+          grep -q "NM7 TV" /tmp/page.html
+          echo "== TV API =="
+          curl -fsSL --max-time 30 -o /tmp/tv.json -w "HTTP %{http_code} %{size_download} bytes\n" 'https://nm7-tv-web.vercel.app/api/playlist?source=tv'
+          python3 - <<'PY'
+import json
+d=json.load(open('/tmp/tv.json',encoding='utf-8'))
+print('keys=',list(d.keys()))
+print('channels=',len(d.get('channels',[])))
+if not d.get('channels'): raise SystemExit('TV playlist returned zero channels')
+PY
+          echo "== SPORT API =="
+          curl -fsSL --max-time 30 -o /tmp/sport.json -w "HTTP %{http_code} %{size_download} bytes\n" 'https://nm7-tv-web.vercel.app/api/playlist?source=sport'
+          python3 - <<'PY'
+import json
+d=json.load(open('/tmp/sport.json',encoding='utf-8'))
+print('channels=',len(d.get('channels',[])))
+PY

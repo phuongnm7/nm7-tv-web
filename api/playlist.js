@@ -79,10 +79,10 @@ function makeProxy(x){
  let q="?u="+encodeURIComponent(x.url);
  if(x.ref)q+="&r="+encodeURIComponent(x.ref);
  if(x.ua)q+="&ua="+encodeURIComponent(x.ua);
- return "/api/stream"+q;
+ if(x.headers&&Object.keys(x.headers).length)q+="&h="+encodeURIComponent(JSON.stringify(x.headers));return "/api/stream"+q;
 }
 function addKnownFallbacks(channels){
- const add=(names,entry)=>{for(const c of channels){const n=(c.id+" "+c.name).toLowerCase().replace(/[^a-z0-9]+/g,"");let ok=false;for(const v of names)if(n.indexOf(v)>=0)ok=true;if(!ok)continue;let dup=false;for(const x of c.candidates)if(x.url===entry.url)dup=true;if(!dup)c.candidates.push({...entry,headers:{},proxy:makeProxy(entry)})}};
+ const add=(names,entry)=>{for(const c of channels){const n=(c.id+" "+c.name).toLowerCase().replace(/[^a-z0-9]+/g,"");let ok=false;for(const v of names)if(n.indexOf(v)>=0)ok=true;if(!ok)continue;let dup=false;for(const x of c.candidates)if(x.url===entry.url)dup=true;if(!dup)c.candidates.push({...entry,headers:entry.headers||{},proxy:makeProxy(entry)})}};
  add(["vtv1","vtv1hd"],{url:"https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd",type:"dash",mime:"application/dash+xml",ua:"Mozilla/5.0"});
  add(["onfootball","vtvcab16","bongdahd"],{url:"https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd",type:"dash",mime:"application/dash+xml",ua:"Mozilla/5.0"});
  add(["onsport","vtvcab3"],{url:"https://livevlive.vtvcab.vn/hls/OS_THETHAO_HD/sc-gaFEAA/m30_index.m3u8",type:"hls",mime:"application/x-mpegURL",ua:"Mozilla/5.0 (Linux; Android 10; KM6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Mobile Safari/537.36"});

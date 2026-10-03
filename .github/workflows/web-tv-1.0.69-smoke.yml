@@ -4,6 +4,10 @@ on:
     branches: ["feature/web-tv-browser-1.0.69-android-exact"]
   pull_request:
     branches: ["main"]
+concurrency:
+  group: nm7-tv-web-1.0.69-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   smoke:
     runs-on: ubuntu-latest

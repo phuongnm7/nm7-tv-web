@@ -36,7 +36,7 @@ jobs:
           console.log('channels='+d.channels.length);
           console.log('candidates='+all.length);
           console.log(JSON.stringify(count,null,2));
-          console.log('VTV1='+v1.url);
+          console.log('VTV1='+JSON.stringify(v1,null,2));
           console.log('ON Sports candidates='+JSON.stringify(all.filter(x=>(norm(x.id)+' '+norm(x.name)).includes('onsport')),null,2));
           console.log('ON Football candidates='+JSON.stringify(all.filter(x=>(norm(x.id)+' '+norm(x.name)).includes('onfootball')),null,2));
           NODE

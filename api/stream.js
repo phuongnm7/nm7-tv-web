@@ -4,9 +4,10 @@ export default async function handler(req,res){
   const target=q.get("u"),ref=q.get("r")||"",ua=q.get("ua")||"Mozilla/5.0";
   if(!target||!/^https?:/i.test(target))return res.status(400).send("bad url");
   try{
-    const r=await fetch(target,{redirect:"follow",cache:"no-store",headers:{"User-Agent":ua,"Referer":ref}});
+    const reqHeaders={"User-Agent":ua};if(ref)reqHeaders["Referer"]=ref;if(req.headers.range)reqHeaders["Range"]=req.headers.range;if(req.headers["accept"])reqHeaders["Accept"]=req.headers["accept"];const r=await fetch(target,{redirect:"follow",cache:"no-store",headers:reqHeaders});
     const ct=(r.headers.get("content-type")||"").toLowerCase(),finalUrl=r.url||target;
     res.setHeader("Access-Control-Allow-Origin","*");
+    res.setHeader("Access-Control-Expose-Headers","Content-Length,Content-Range,Accept-Ranges,Content-Type");
     res.setHeader("Cache-Control","no-store");
     if(ct.indexOf("mpegurl")>=0||/\.m3u8(?:$|\?)/i.test(finalUrl)){
       let t=await r.text();
@@ -30,7 +31,7 @@ export default async function handler(req,res){
     }
     if(r.body){
       if(ct)res.setHeader("Content-Type",ct);
-      if(r.headers.get("content-length"))res.setHeader("Content-Length",r.headers.get("content-length"));
+      if(r.headers.get("content-length"))res.setHeader("Content-Length",r.headers.get("content-length"));if(r.headers.get("content-range"))res.setHeader("Content-Range",r.headers.get("content-range"));if(r.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",r.headers.get("accept-ranges"));
       res.statusCode=r.status;
       return Readable.fromWeb(r.body).pipe(res);
     }

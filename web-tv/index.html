@@ -72,7 +72,7 @@ button{cursor:pointer}
 
 #toast{position:absolute;z-index:120;left:50%;bottom:38px;transform:translateX(-50%);background:#121821f2;border-radius:9px;padding:11px 19px;font-size:18px;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
 #toast.show{opacity:1}
-#remoteSink{position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0;pointer-events:none;outline:0;border:0;padding:0;margin:0}
+#remoteSink{position:fixed;left:0;top:0;width:100%;height:100%;opacity:0.001;pointer-events:none;outline:0;border:0;padding:0;margin:0;z-index:1}
 </style>
 <script src="./dash.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"></script>
@@ -88,11 +88,11 @@ button{cursor:pointer}
 <video id="video" playsinline preload="auto"></video>
 <div id="status">Đang chờ phát…</div>
 <div id="ctrl" class="hidden">
-<button class="cb" data-a="back">◀ Thoát</button>
-<button class="cb" data-a="back10">↶ -10s</button>
-<button class="cb" data-a="play">▶/Ⅱ</button>
-<button class="cb" data-a="fwd30">+30s ↷</button>
-<button class="cb" data-a="next">CH +</button>
+<button class="cb" tabindex="-1" data-a="back">◀ Thoát</button>
+<button class="cb" tabindex="-1" data-a="back10">↶ -10s</button>
+<button class="cb" tabindex="-1" data-a="play">▶/Ⅱ</button>
+<button class="cb" tabindex="-1" data-a="fwd30">+30s ↷</button>
+<button class="cb" tabindex="-1" data-a="next">CH +</button>
 </div>
 </section>
 <aside id="menu" class="hidden"><h2>MENU TÙY CHỌN</h2><div id="ml"></div><div id="menuHint">◀/Back mở · ↑↓ chọn · →/OK xác nhận</div></aside>
@@ -120,7 +120,11 @@ function currentRows(){return S.view||S.list}
 function channelsInGroup(g){var a=currentRows(),b=[],i;for(i=0;i<a.length;i++)if((a[i].group||'Khác')===g)b.push(a[i]);return b}
 function currentChannel(){var a=channelsInGroup(S.groups[S.row]||'');return a[S.col]||a[0]||null}
 function nearestColumn(oldCol,g){var n=channelsInGroup(g).length;return n?Math.min(oldCol,n-1):0}
-function focusRemoteSink(){var s=$('remoteSink');if(!s)return;try{s.focus()}catch(e){}}
+function focusRemoteSink(){
+ var s=$('remoteSink'),b=document.body;
+ if(s)try{s.focus()}catch(e){}
+ if(document.activeElement!==s&&b)try{b.focus()}catch(e2){}
+}
 function focusElement(){
  var el=document.querySelector('.card.focus');
  if(!el){var all=document.querySelectorAll('.card');el=all[0]||null;if(el)el.classList.add('focus')}
@@ -146,8 +150,8 @@ function setHomeFocus(rr,cc){
 function render(){
  var h=$('home'),html='',start=Math.max(0,S.row-2),end=Math.min(S.groups.length,S.row+5),r,g,a,i,c,selected;
  html+='<div id="homeTabs">';
- html+='<button id="ytTab" class="homeTab" type="button" aria-label="YouTube"><span class="ytPlay"></span><span class="ytText">YouTube</span></button>';
- html+='<button id="appShortcut" class="homeTab" type="button" aria-label="Chọn ứng dụng"><span class="plus">+</span><span class="label">Chọn ứng dụng</span></button>';
+ html+='<div id="ytTab" class="homeTab" tabindex="-1" role="button" aria-label="YouTube"><span class="ytPlay"></span><span class="ytText">YouTube</span></div>';
+ html+='<div id="appShortcut" class="homeTab" tabindex="-1" role="button" aria-label="Chọn ứng dụng"><span class="plus">+</span><span class="label">Chọn ứng dụng</span></div>';
  html+='<div id="homeTitle">Danh sách kênh TV</div></div>';
  for(r=start;r<end;r++){
    g=S.groups[r];a=channelsInGroup(g);if(!a.length)continue;
@@ -524,7 +528,9 @@ function registerSamsungRemoteKeys(){
    }
  }catch(e){}
 }
-document.body.addEventListener('keydown',handleRemote,false);
+var remoteSink=$('remoteSink');
+if(remoteSink)remoteSink.addEventListener('keydown',handleRemote,false);
+document.body.addEventListener('keydown',handleRemote,true);
 window.addEventListener('focus',function(){setTimeout(focusElement,0)},true);
 window.addEventListener('pageshow',function(){setTimeout(focusElement,0)},true);
 document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(focusElement,0)},true);

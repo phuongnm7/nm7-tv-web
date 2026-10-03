@@ -8,7 +8,9 @@ if(m&&m.candidates.length)out.push(m);
 const merged=[],byKey={};
 for(const c of out){
   c.id=c.id||c.name;
-  const key=(c.group||"")+"|"+(c.id||c.name).toLowerCase().trim()+"|"+(c.name||"").toLowerCase().trim();
+  const gid=(c.id||"").toLowerCase().trim();
+  const nameKey=(c.name||"").toLowerCase().replace(/\b(server|source|nguon)\s*\d+\b/g,"").replace(/[^a-z0-9]+/g," ").trim();
+  const key=(c.group||"")+"|"+(gid||nameKey);
   if(!byKey[key]){byKey[key]={...c,candidates:c.candidates.slice()};merged.push(byKey[key]);}
   else{
     const seen=new Set(byKey[key].candidates.map(x=>x.url));

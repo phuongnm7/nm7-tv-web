@@ -53,6 +53,41 @@ jobs:
           curl -fsSL --max-time 30 "$PREVIEW_URL/api/stream?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o vtv1.mpd || true
           head -c 200 vtv1.mpd || true
 
+      - name: Home D-pad navigation smoke
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install chromium >/dev/null 2>&1
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1920,height:1080}});
+            await page.goto(process.env.PREVIEW_URL+'/?e2e=1',{waitUntil:'domcontentloaded',timeout:45000});
+            await page.waitForFunction(()=>window.__NM7_TEST__&&window.__NM7_TEST__.version,null,{timeout:30000});
+            await page.waitForFunction(()=>document.querySelectorAll('.card').length>0,null,{timeout:45000});
+            const result=await page.evaluate(()=>{
+              var rows=document.querySelectorAll('.hrow'),target=null;
+              for(var i=0;i<rows.length;i++){var cs=rows[i].querySelectorAll('.card');if(cs.length>=2){target=cs;break}}
+              if(!target)return {ok:false,reason:'no row with >=2 channels'};
+              target[0].focus();
+              var before=target[0].getAttribute('data-ci');
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',keyCode:0,which:0,bubbles:true}));
+              var focused=document.querySelector('.card.focus');
+              var after=focused?focused.getAttribute('data-ci'):null;
+              var s1=window.__NM7_TEST__.getState();
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:0,which:0,bubbles:true}));
+              var s2=window.__NM7_TEST__.getState();
+              return {ok:before==='0'&&after==='1'&&s1.colIndex===1&&s2.player===true,before,after,col:s1.colIndex,player:s2.player};
+            });
+            console.log('HOME_DPAD='+JSON.stringify(result));
+            if(!result.ok)throw new Error('Home D-pad test failed');
+            await page.evaluate(()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:0,which:0,bubbles:true}))});
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
       - name: Tizen browser routing smoke
         run: |
           set -euxo pipefail

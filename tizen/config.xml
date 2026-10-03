@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://phuongnm7.com/NM7TVWeb" version="1.0.69" viewmodes="maximized">
+  <tizen:application id="NM7TVWEB.NM7TVWeb" package="NM7TVWEB" required_version="2.3"/>
+  <content src="index.html"/>
+  <feature name="http://tizen.org/feature/tv.inputdevice"/>
+  <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+  <icon src="icon.png"/>
+  <name>NM7 TV Web 1.0.69</name>
+  <tizen:profile name="tv-samsung"/>
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <tizen:privilege name="http://developer.samsung.com/privilege/drmplay"/>
+  <access origin="*" subdomains="true"/>
+  <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable"
+                encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>

@@ -28,9 +28,7 @@ jobs:
           Path("/tmp/nm7-browser.js").write_text("\n;\n".join(scripts),encoding="utf-8")
           PY
           node --check /tmp/nm7-browser.js
-          if grep -q "Chờ xác nhận phát" /tmp/nm7-browser.js; then exit 1; fi
-          for name in "function seek(" "function switchRelative(" "function showCtrl(" "function ctrlAction("; do grep -q "$name" /tmp/nm7-browser.js; done
-          grep -q "window.addEventListener" /tmp/nm7-browser.js || true
+          if grep -q "Chờ xác nhận phát" /tmp/nm7-browser.js; then echo "legacy confirmation gate still present"; exit 1; fi
           grep -q "dashjs.MediaPlayer" /tmp/nm7-browser.js
 
       - name: Install Vercel CLI

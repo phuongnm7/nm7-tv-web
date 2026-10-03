@@ -26,7 +26,12 @@ const BUILTIN={
   vtvcab16hd:[{url:"https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true}]
 };
 function addBuiltin(c){
-  const key=(c.id||"").toLowerCase().trim(), extra=BUILTIN[key]||[];
+  const key=(c.id||"").toLowerCase().trim();
+  const name=(c.name||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
+  let extra=BUILTIN[key]||[];
+  if(!extra.length&&((key==="vtv1"||name==="vtv1"||name.indexOf("vtv1")===0)))extra=BUILTIN.vtv1hd;
+  if(!extra.length&&((name.indexOf("onsport")===0||name.indexOf("vtvcab3")>=0)))extra=BUILTIN.vtvcab3hd;
+  if(!extra.length&&((name.indexOf("onfootball")===0||name.indexOf("vtvcab16")>=0)))extra=BUILTIN.vtvcab16hd;
   if(!extra.length)return;
   const seen=new Set((c.candidates||[]).map(x=>x.url));
   for(const x of extra)if(!seen.has(x.url)){c.candidates.push(x);seen.add(x.url);}

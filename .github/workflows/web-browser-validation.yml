@@ -1,0 +1,35 @@
+name: Web Browser Validation
+
+on:
+  push:
+    branches:
+      - main
+      - feat/**
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check web JavaScript
+        run: |
+          node --check web-tv/app.js
+          node --check api/stream.js
+          node --check api/probe.js
+          node --check api/license.js
+          node --check api/playlist.js
+      - name: Check required web assets
+        run: |
+          test -s web-tv/index.html
+          test -s web-tv/app.js
+          test -s assets/nm7-default-background.webp
+          test -s web-tv/dash.all.min.js
+          grep -q 'Android 1.0.69' web-tv/index.html || true

@@ -19,7 +19,7 @@ jobs:
           cp web-tv/index.html dist/index.html
           cp web-tv/dash.all.min.js dist/dash.all.min.js
           cp tizen/config.xml dist/config.xml
-          curl -fsSL --max-time 60 "https://raw.githubusercontent.com/phuongnm7/nm7-tv-android/f79fc06009f20e0ac3a5859c0abcfd6ce70a6763/app/src/main/res/mipmap-hdpi/ic_launcher.png" -o dist/icon.png
+          curl -fsSL --max-time 60 "https://raw.githubusercontent.com/phuongnm7/nm7-tv-android/f79fc06009f20e0ac3a5859c0abcfd6ce70a6763/app/src/main/res/mipmap-hdpi/nm7_tv_launcher.png" -o dist/icon.png
           python3 - <<'PY'
           from pathlib import Path
           p=Path("dist/index.html")

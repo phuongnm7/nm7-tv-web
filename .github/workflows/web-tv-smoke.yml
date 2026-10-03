@@ -1,0 +1,93 @@
+name: Web TV 1.0.69 smoke
+
+on:
+  push:
+    branches: ["feature/web-tv-browser-1.0.69"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      PREVIEW_URL: https://nm7-tv-web-git-feature-web-tv-browser-1069-final-phuongnm7.vercel.app
+    steps:
+      - name: Diagnose preview response
+        run: |
+          set -euo pipefail
+          curl -sSIL --max-time 30 "$PREVIEW_URL/" || true
+          curl -sSL -A "Mozilla/5.0" --max-time 30 "$PREVIEW_URL/" -o page.html || true
+          echo "----- PAGE HEAD -----"
+          sed -n '1,100p' page.html || true
+          echo "----- PAGE SIZE -----"
+          wc -c page.html || true
+          grep -qi "NM7 TV" page.html
+
+      - name: Check TV playlist
+        run: |
+          set -euxo pipefail
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/playlist?source=tv" -o tv.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('tv.json','utf8'));
+          if(!d.channels || d.channels.length<1) throw new Error('TV playlist empty');
+          const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+          const find=(parts)=>d.channels.find(c=>parts.some(p=>(norm(c.id)+' '+norm(c.name)).includes(norm(p))));
+          const v=find(['vtv1','vtv1hd']), f=find(['onfootball','vtvcab16']), sp=find(['onsport','vtvcab3']);
+          if(!v) throw new Error('VTV1 not found');
+          if(!f) throw new Error('ON Football not found');
+          if(!sp) throw new Error('ON Sports not found');
+          const urls=c=>c.candidates.map(x=>x.url);
+          if(!urls(v).some(u=>/\.mpd(?:$|\?)/i.test(u))) throw new Error('VTV1 MPD candidate missing');
+          if(!urls(f).some(u=>/\.mpd(?:$|\?)/i.test(u))) throw new Error('ON Football MPD candidate missing');
+          console.log('TV channels:',d.channels.length);
+          console.log('VTV1:',JSON.stringify(urls(v),null,2));
+          console.log('ON Football:',JSON.stringify(urls(f),null,2));
+          console.log('ON Sports:',JSON.stringify(urls(sp),null,2));
+          NODE
+
+      - name: Probe seenow MPD
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o probe-vtv1.json
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Fmean%2FBONGDA_HD%2Fmanifest.mpd" -o probe-football.json
+          cat probe-vtv1.json
+          cat probe-football.json
+          node - <<'NODE'
+          const fs=require('fs');
+          for(const f of ['probe-vtv1.json','probe-football.json']){
+            const d=JSON.parse(fs.readFileSync(f,'utf8'));
+            if(d.type!=='dash') throw new Error(f+' did not identify DASH');
+          }
+          NODE
+
+
+      - name: Probe ON Sports and ON Football HLS
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          import urllib.parse
+          base=__import__('os').environ['PREVIEW_URL']
+          urls={
+            'sports':'https://livevlive.vtvcab.vn/hls/OS_THETHAO_HD/sc-gaFEAA/m30_index.m3u8',
+            'football':'https://livevlive.vtvcab.vn/hls/OS_BONGDA_HD/sc-gaFEAA/m30_index.m3u8'
+          }
+          for n,u in urls.items():
+            q=urllib.parse.urlencode({'u':u,'ua':'Mozilla/5.0 (Linux; Android 10; KM6) AppleWebKit/537.36'})
+            print(n, f"{base}/api/probe?{q}")
+          PY
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlive.vtvcab.vn%2Fhls%2FOS_THETHAO_HD%2Fsc-gaFEAA%2Fm30_index.m3u8&ua=Mozilla%2F5.0" -o probe-sports.json
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlive.vtvcab.vn%2Fhls%2FOS_BONGDA_HD%2Fsc-gaFEAA%2Fm30_index.m3u8&ua=Mozilla%2F5.0" -o probe-football.json
+          cat probe-sports.json
+          cat probe-football.json
+
+      - name: Check stream proxy
+        run: |
+          set -euxo pipefail
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/stream?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o vtv1.mpd
+          grep -q "<MPD" vtv1.mpd
+          grep -q "<BaseURL>" vtv1.mpd
+
+      - name: Check ffprobe availability
+        run: ffprobe -version | head -1

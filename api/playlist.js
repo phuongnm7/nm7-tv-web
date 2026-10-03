@@ -38,8 +38,23 @@ function parse(t){
    byKey[key].dash=byKey[key].dash||c.dash;
   }
  }
- for(const c of Object.values(byKey))c.candidates.sort((a,b)=>score(b.url)-score(a.url));
+ for(const c of Object.values(byKey)){addBuiltin(c);c.candidates.sort((a,b)=>score(b.url)-score(a.url));}
  return Object.values(byKey);
+}
+const BUILTIN={
+  vtv1:[{url:"https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd",ref:"",ua:"",hls:false,dash:true,licenseType:"",licenseKey:""}],
+  vtv1hd:[{url:"https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd",ref:"",ua:"",hls:false,dash:true,licenseType:"",licenseKey:""}],
+  onfootball:[{url:"https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd",ref:"",ua:"",hls:false,dash:true,licenseType:"",licenseKey:""}]
+};
+function addBuiltin(c){
+  const id=(c.id||"").toLowerCase().replace(/[^a-z0-9]+/g,""),name=(c.name||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
+  let extra=BUILTIN[id]||[];
+  if(!extra.length&&(id==="vtv1"||id==="vtv1hd"||name==="vtv1"||name.indexOf("vtv1")===0))extra=BUILTIN.vtv1;
+  if(!extra.length&&(id==="vtvcab16hd"||name.indexOf("onfootball")>=0))extra=BUILTIN.onfootball;
+  if(!extra.length)return;
+  const seen=new Set(c.candidates.map(x=>x.url));
+  for(const x of extra)if(!seen.has(x.url)){c.candidates.push({...x});seen.add(x.url);}
+  c.dash=c.dash||extra.some(x=>x.dash);
 }
 function score(u){let s=0;if(/\.m3u8(?:$|\?)/i.test(u))s+=100;if(/\.mpd(?:$|\?)/i.test(u))s+=95;if(/\.m3u(?:$|\?)/i.test(u))s+=80;if(/\/hls\//i.test(u))s+=20;if(/playlist|index\.m3u|manifest/i.test(u))s+=15;if(/\.(mp4|ts)(?:$|\?)/i.test(u))s+=10;return s}
 function proxify(c){

@@ -90,7 +90,7 @@ jobs:
 
             // Return to first card and open the side menu with LEFT.
             await page.evaluate(()=>{
-              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true});
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
             });
             await page.waitForTimeout(150);
             if(await page.locator('#menu:not(.hidden)').count()<1)throw new Error('LEFT did not open menu');

@@ -108,7 +108,8 @@ function addKnownFallbacks(channels){
  const defs=[
   {match:['vtv1hd','vtv1'],entries:[
    {url:'https://kcdn-livestream.vtvgiaitri.vn/vtvgtlivestream/vtv1_720/index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'},
-   {url:'https://cdnw-liv02.todayplus.com.vn/hdb/smil:vtv1-sub.smil/chunklist_w28623972_b2289152.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'}
+   {url:'https://cdnw-liv02.todayplus.com.vn/hdb/smil:vtv1-sub.smil/chunklist_w28623972_b2289152.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'},
+   {url:'https://live-a.fptplay53.net/live/media/vtv1/live247-hls-avc/index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'}
   ]},
   {match:['onsports.vn','onsports','vtvcab3'],entries:[
    {url:'https://livevlive.vtvcab.vn/hls/OS_THETHAO_HD/sc-gaFEAA/m40_index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0 (Linux; Android 10; KM6) AppleWebKit/537.36 Chrome/104.0.0.0 Mobile Safari/537.36'}

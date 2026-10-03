@@ -50,13 +50,11 @@ jobs:
           head -c 200 vtv1.mpd || true
 
       - name: Actual browser playback (Chromium)
-        timeout-minutes: 8
+        timeout-minutes: 5
         run: |
           set -euxo pipefail
           for i in $(seq 1 40); do
-            if curl -fsSL --max-time 15 "$PREVIEW_URL/" | grep -q "__NM7_TEST__"; then
-              break
-            fi
+            if curl -fsSL --max-time 15 "$PREVIEW_URL/" | grep -q "__NM7_TEST__"; then break; fi
             sleep 5
           done
           curl -fsSL --max-time 30 "$PREVIEW_URL/" | grep -q "__NM7_TEST__"
@@ -70,54 +68,57 @@ jobs:
             const browser = await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
             const page = await browser.newPage({viewport:{width:1920,height:1080}});
             const errors=[];
-            page.on('pageerror', e=>errors.push('pageerror: '+e.message));
-            page.on('console', m=>{ if(m.type()==='error') errors.push('console: '+m.text()) });
-            await page.goto(base+'/?e2e=1', {waitUntil:'domcontentloaded',timeout:45000});
-            await page.waitForFunction(()=>window.__NM7_TEST__&&window.__NM7_TEST__.version, null, {timeout:30000});
-            await page.waitForFunction(()=>document.querySelectorAll('.card').length>0, null, {timeout:45000});
+            page.on('pageerror',e=>errors.push('pageerror: '+e.message));
+            page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
+            await page.goto(base+'/?e2e=1',{waitUntil:'domcontentloaded',timeout:45000});
+            await page.waitForFunction(()=>window.__NM7_TEST__&&window.__NM7_TEST__.version,null,{timeout:30000});
+            await page.waitForFunction(()=>document.querySelectorAll('.card').length>0,null,{timeout:45000});
             const list=await page.evaluate(()=>window.__NM7_TEST__.list());
-            if(!list.length) throw new Error('playlist empty');
+            if(!list.length)throw new Error('playlist empty');
             console.log('playlist channels='+list.length);
 
-            async function testChannel(label, ch) {
-              if(!ch) { console.log(label+'=MISSING'); return false; }
-              console.log(label+'='+JSON.stringify({name:ch.name,tvgId:ch.tvgId,type:ch.type,url:ch.url}));
-              await page.evaluate(ch=>window.__NM7_TEST__.playChannel(ch), ch);
-              try {
-                await page.waitForFunction(
-                  ()=>{const s=window.__NM7_TEST__.getState();return s.player&&s.video.currentTime>0.75&&!s.video.paused&&s.video.readyState>=2},
-                  null,{timeout:35000}
-                );
+            function find(parts){
+              return list.find(c=>{
+                const n=(String(c.name)+' '+String(c.tvgId)).toLowerCase();
+                return parts.some(p=>n.indexOf(p)>=0);
+              });
+            }
+            function candidate(ch,type){
+              return ch && (ch.candidates||[]).find(x=>String(x.type||'').toLowerCase()===type);
+            }
+            async function test(label,ch,type,timeout=19000){
+              const can=candidate(ch,type);
+              if(!can){console.log(label+'_'+type.toUpperCase()+'=MISSING');return false}
+              console.log(label+'_'+type.toUpperCase()+'='+JSON.stringify({name:ch.name,tvgId:ch.tvgId,url:can.url}));
+              await page.evaluate(({ch,can})=>window.__NM7_TEST__.playSingleCandidate(ch,can),{ch,can});
+              try{
+                await page.waitForFunction(()=>{
+                  const s=window.__NM7_TEST__.getState();
+                  return s.player&&s.video.readyState>=2&&!s.video.paused&&s.video.currentTime>0.75
+                },null,{timeout});
                 const s=await page.evaluate(()=>window.__NM7_TEST__.getState());
-                console.log(label+'_PLAYBACK='+JSON.stringify(s));
-                await page.evaluate(()=>window.__NM7_TEST__.getState().player&&document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:461,which:461})));
+                console.log(label+'_'+type.toUpperCase()+'_PLAYBACK='+JSON.stringify(s));
+                await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:461,which:461})));
                 return true;
-              } catch(e) {
+              }catch(e){
                 const s=await page.evaluate(()=>window.__NM7_TEST__.getState());
-                console.log(label+'_FAILED='+JSON.stringify(s));
-                await page.screenshot({path:'playback-'+label.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.png'});
+                console.log(label+'_'+type.toUpperCase()+'_FAILED='+JSON.stringify(s));
+                await page.screenshot({path:'playback-'+label.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+type+'.png'});
                 return false;
               }
             }
 
-            function byName(parts){
-              return list.find(c=>{
-                const n=(c.name+' '+c.tvgId).toLowerCase();
-                return parts.some(p=>n.includes(p));
-              });
-            }
-            const vtv1=byName(['vtv1hd','vtv1']);
-            const sports=byName(['onsports','vtvcab3']);
-            const football=byName(['onfootball','vtvcab16','bongdahd']);
-            const hls=list.find(c=>(c.candidates||[]).some(x=>String(x.type).toLowerCase()==='hls'));
+            const vtv1=find(['vtv1hd','vtv1']);
+            const sports=find(['onsports.vn','onsports','vtvcab3']);
+            const football=find(['onfootball.vn','onfootball','vtvcab16','bongdahd']);
+            const hls=list.find(c=>candidate(c,'hls') && !/vtvcab3|vtvcab16/i.test(String(c.tvgId)+' '+String(c.name)));
             const results=[];
-            results.push(await testChannel('VTV1',vtv1));
-            results.push(await testChannel('ONSPORTS',sports));
-            results.push(await testChannel('ONFOOTBALL',football));
-            if(hls && hls!==vtv1 && hls!==sports && hls!==football) results.push(await testChannel('HLS',hls));
+            results.push(await test('VTV1',vtv1,'dash'));
+            results.push(await test('ONSPORTS',sports,'dash'));
+            results.push(await test('ONFOOTBALL',football,'dash'));
+            results.push(await test('HLS',hls,'hls'));
             console.log('page_errors='+JSON.stringify(errors));
-            if(results.filter(Boolean).length===0) throw new Error('No browser stream played successfully');
-            if(errors.length) console.log('browser_errors_present='+errors.length);
+            if(results.filter(Boolean).length===0)throw new Error('No browser stream played successfully');
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE

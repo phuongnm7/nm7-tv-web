@@ -453,7 +453,7 @@ function tryHlsJs(c,cand,url,gen){
  try{
   var h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:60,maxBufferHole:.5,startPosition:-1,manifestLoadingMaxRetry:2,fragLoadingMaxRetry:3,levelLoadingMaxRetry:3});
   S.hls=h;
-  h.on(Hls.Events.MANIFEST_PARSED,function(){markPlaying(gen);var p=$('video').play();if(p&&p.catch)p.catch(function(){try{$('video').muted=true;var q=$('video').play();if(q&&q.catch)q.catch(function(){})}catch(e){})}});
+  h.on(Hls.Events.MANIFEST_PARSED,function(){markPlaying(gen);var p=$('video').play();if(p&&p.catch)p.catch(function(){try{$('video').muted=true;var q=$('video').play();if(q&&q.catch)q.catch(function(){})}catch(e){}})});
   h.on(Hls.Events.ERROR,function(ev,data){
    if(gen!==S.generation)return;
    if(S.debug)console.log('NM7 HLS',data&&data.type,data&&data.details,data&&data.response||'');

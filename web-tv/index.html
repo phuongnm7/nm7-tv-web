@@ -107,7 +107,7 @@ button,input{font:inherit}
 </div>
 <script>
 (function(){
-var API='/api/playlist?source=tv',SPORT='/api/playlist?source=sport';
+var API_BASE=(/^https?:/i.test(location.protocol)?location.origin:'https://nm7-tv-web-git-feature-web-tv-browser-1069-and-8db876-phuongnm7.vercel.app');var API=API_BASE+'/api/playlist?source=tv',SPORT=API_BASE+'/api/playlist?source=sport';
 var S={list:[],groups:[],groupIndex:0,colIndex:0,source:0,mode:'home',menuIndex:0,search:'',fav:[],recent:[],player:false,controller:false,controllerIndex:2,current:null,candidates:[],candidateIndex:0,proxyAttempt:false,hls:null,dash:null,mpegts:null};
 var AFFECTED={
  'vtvcab3hd':['https://cdn.hqth.me/logo/thumbs/14.png','https://assets-vtvcab.gviet.vn/images/hq/posters/_ports_ng_logo_04202212.jpg','https://i.ibb.co/tsBYvZ4/onsports-BEARTV.png'],
@@ -239,7 +239,7 @@ function classify(c){
  return'http'
 }
 function makeProxy(c,url){
- var q='/api/stream?u='+encodeURIComponent(url||c.url);
+ var q=API_BASE+'/api/stream?u='+encodeURIComponent(url||c.url);
  if(c.ref)q+='&r='+encodeURIComponent(c.ref);
  if(c.ua)q+='&ua='+encodeURIComponent(c.ua);
  if(c.headers&&Object.keys(c.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(c.headers));
@@ -280,7 +280,7 @@ function parseHeaderString(s){
  return headers
 }
 function probeUnknown(c,done){
- var q='/api/probe?u='+encodeURIComponent(c.url);
+ var q=API_BASE+'/api/probe?u='+encodeURIComponent(c.url);
  if(c.ref)q+='&r='+encodeURIComponent(c.ref);
  if(c.ua)q+='&ua='+encodeURIComponent(c.ua);
  if(c.headers&&Object.keys(c.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(c.headers));
@@ -301,7 +301,7 @@ function makeProtection(c){
    licenseUrl=key;licenseHeaders={};p=key.indexOf('|');
    if(p>=0){licenseUrl=key.slice(0,p);licenseHeaders=parseHeaderString(key)}
    var rh={};for(var hk in (c.headers||{}))rh[hk]=c.headers[hk];for(var hk2 in licenseHeaders)rh[hk2]=licenseHeaders[hk2];
-   var remote={};remote[scheme]={serverURL:'/api/license?u='+encodeURIComponent(licenseUrl)+'&h='+encodeURIComponent(JSON.stringify(rh)),httpRequestHeaders:rh};return remote
+   var remote={};remote[scheme]={serverURL:API_BASE+'/api/license?u='+encodeURIComponent(licenseUrl)+'&h='+encodeURIComponent(JSON.stringify(rh)),httpRequestHeaders:rh};return remote
  }
  parts=key.split(/[;,]/);
  for(i=0;i<parts.length;i++){p=parts[i].indexOf(':');if(p>0){var kk=b64FromHex(parts[i].slice(0,p)),vv=b64FromHex(parts[i].slice(p+1));if(kk&&vv)map[kk]=vv}}

@@ -454,16 +454,16 @@ function probeUnknown(c,cand,attempt){
 function isTizenAvplay(){return !!(window.webapis&&webapis.avplay)}
 function tizenB64(ab){var b=new Uint8Array(ab),s='',i,n=0x8000;for(i=0;i<b.length;i+=n)s+=String.fromCharCode.apply(null,b.subarray(i,i+n));return btoa(s)}
 function tizenLicense(url,cand,body,done){
- var x=new XMLHttpRequest();
+ var x=new XMLHttpRequest(),b64='';
+ try{b64=btoa(body)}catch(e){done(-2,null);return}
+ var target='/api/license?u='+encodeURIComponent(url)+'&base64=1';
  try{
-   x.open('POST',url,true);x.responseType='arraybuffer';
-   x.setRequestHeader('Content-Type','application/octet-stream');
-   if(cand.ua)try{x.setRequestHeader('User-Agent',cand.ua)}catch(e){}
-   if(cand.ref)try{x.setRequestHeader('Referer',cand.ref)}catch(e){}
-   if(cand.headers)for(var k in cand.headers)try{x.setRequestHeader(k,cand.headers[k])}catch(e){}
+   x.open('POST',target,true);x.responseType='arraybuffer';
+   x.setRequestHeader('Content-Type','text/plain;charset=utf-8');
+   if(cand.headers)for(var k in cand.headers)if(k.toLowerCase()!=='content-type')try{x.setRequestHeader(k,cand.headers[k])}catch(e){}
    x.onload=function(){done(x.status>=200&&x.status<300?null:x.status,x.response)};
    x.onerror=function(){done(-1,null)};
-   x.send(body)
+   x.send(b64)
  }catch(e){done(-1,null)}
 }
 function setupTizenDrm(c,cand,av){
@@ -505,7 +505,7 @@ function playTizen(c,cand,attempt){
    av.open(u);
    if(cand.ua)try{av.setStreamingProperty('USER_AGENT',cand.ua)}catch(e){}
    if(/\.mpd(?:$|\?)/i.test(cand.url)||String(cand.type||'').toLowerCase()==='dash')try{av.setStreamingProperty('ADAPTIVE_INFO','FIXED_MAX_RESOLUTION=3840X2160')}catch(e){}
-   if(cand.drm&&!setupTizenDrm(c,cand,av)){showStatus('DRM chưa tương thích trên TV');return false}
+   if(cand.drm&&!setupTizenDrm(c,cand,av)){showStatus('DRM chưa tương thích trên TV');nextCandidate('DRM chưa tương thích');return false}
    av.setDisplayRect(0,0,1920,1080);try{av.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX')}catch(e){}
    av.prepareAsync(function(){hideStatus();try{av.play()}catch(e){}},function(){nextCandidate('AVPlay chuẩn bị lỗi')});
    return true

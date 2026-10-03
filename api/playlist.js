@@ -55,17 +55,22 @@ export default async function handler(req,res){
  const now=Date.now(),hit=cache[source];
  if(hit&&now-hit.time<30000){res.setHeader("Cache-Control","no-store");return res.status(200).json({channels:hit.channels,source,cached:true})}
  const errors=[];
- for(const target of targets){
+ const results=await Promise.all(targets.map(async target=>{
   try{
    const body=await fetchText(target);
    let channels=parse(body);
    for(const ch of channels)proxyUrl(ch);
    if(!channels.length)throw new Error("playlist rỗng");
-   cache[source]={time:now,channels};
-   res.setHeader("Cache-Control","no-store");
-   return res.status(200).json({channels,source,cached:false,upstream:target});
-  }catch(e){errors.push(String(e))}
+   return {target,channels};
+  }catch(e){return {target,error:String(e)}}
+ }));
+ const good=results.find(x=>x.channels&&x.channels.length);
+ if(good){
+  cache[source]={time:now,channels:good.channels};
+  res.setHeader("Cache-Control","no-store");
+  return res.status(200).json({channels:good.channels,source,cached:false,upstream:good.target});
  }
+ for(const x of results)if(x.error)errors.push(x.target+": "+x.error);
  if(hit&&hit.channels&&hit.channels.length){
   res.setHeader("Cache-Control","no-store");
   return res.status(200).json({channels:hit.channels,source,cached:true,stale:true,error:errors.join(" | ")});

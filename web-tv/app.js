@@ -462,7 +462,7 @@ function tryHlsJs(c,cand,url,gen){
     nextCandidate('HLS '+(data.details||data.type||'lỗi'))
    }
   });
-  h.attachMedia($('video'));h.loadSource(url);
+  h.loadSource(url);h.attachMedia($('video'));
  }catch(e){nextCandidate('HLS.js khởi tạo lỗi')}
 }
 function startFlv(c,cand,url,gen){

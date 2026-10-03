@@ -19,7 +19,18 @@ jobs:
           cp web-tv/index.html dist/index.html
           cp web-tv/dash.all.min.js dist/dash.all.min.js
           cp tizen/config.xml dist/config.xml
-          curl -fsSL --max-time 60 "https://raw.githubusercontent.com/phuongnm7/nm7-tv-android/f79fc06009f20e0ac3a5859c0abcfd6ce70a6763/app/src/main/res/mipmap-hdpi/nm7_tv_launcher.png" -o dist/icon.png
+          python3 -m pip install --quiet pillow
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw
+          scale=10
+          n=108*scale
+          im=Image.new("RGB",(n,n),(7,17,31))
+          d=ImageDraw.Draw(im)
+          d.rectangle([17*scale,28*scale,91*scale-1,79*scale-1],fill=(20,38,60))
+          d.polygon([(43*scale,39*scale),(68*scale-1,54*scale),(43*scale,69*scale-1)],fill=(55,214,166))
+          d.rectangle([37*scale,84*scale,71*scale-1,88*scale-1],fill=(55,214,166))
+          im.resize((108,108),Image.Resampling.LANCZOS).save("dist/icon.png")
+          PY
           python3 - <<'PY'
           from pathlib import Path
           p=Path("dist/index.html")

@@ -104,6 +104,30 @@ function classify(url,mime,options){
   if(/^rtsp/.test(l))return"rtsp";if(/^rtmp/.test(l))return"rtmp";if(/^udp/.test(l))return"udp";if(/^srt/.test(l))return"srt";if(/^rtp/.test(l))return"rtp";
   return"http";
 }
+function addKnownFallbacks(channels){
+ const defs=[
+  {match:['vtv1hd','vtv1'],entries:[
+   {url:'https://kcdn-livestream.vtvgiaitri.vn/vtvgtlivestream/vtv1_720/index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'},
+   {url:'https://cdnw-liv02.todayplus.com.vn/hdb/smil:vtv1-sub.smil/chunklist_w28623972_b2289152.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'}
+  ]},
+  {match:['onsports.vn','onsports','vtvcab3'],entries:[
+   {url:'https://livevlive.vtvcab.vn/hls/OS_THETHAO_HD/sc-gaFEAA/m40_index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0 (Linux; Android 10; KM6) AppleWebKit/537.36 Chrome/104.0.0.0 Mobile Safari/537.36'}
+  ]},
+  {match:['onfootball.vn','onfootball','vtvcab16','bongdahd'],entries:[
+   {url:'https://livevlive.vtvcab.vn/hls/OS_BONGDA_HD/sc-gaFEAA/m40_index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0 (Linux; Android 10; KM6) AppleWebKit/537.36 Chrome/104.0.0.0 Mobile Safari/537.36'}
+  ]}
+ ];
+ function normId(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'')}
+ for(const c of channels){
+  const id=normId(c.tvgId),name=normId(c.name);
+  for(const d of defs){
+   if(!d.match.some(m=>id.indexOf(m)>=0||name.indexOf(m)>=0))continue;
+   for(const e of d.entries){
+    if(!c.candidates.some(x=>x.url===e.url))c.candidates.push({url:e.url,type:e.type,mime:e.mime,ua:e.ua,ref:'',headers:{'User-Agent':e.ua},options:[],originalFallback:true});
+   }
+  }
+ }
+}
 let cache={};
 export default async function handler(req,res){
   res.setHeader("Access-Control-Allow-Origin","*");
@@ -120,7 +144,7 @@ export default async function handler(req,res){
       "Cache-Control":"no-cache"
     }});
     if(!r.ok)throw new Error("HTTP "+r.status);
-    const channels=parse(await r.text(),r.url||target);
+    const channels=parse(await r.text(),r.url||target);addKnownFallbacks(channels);
     cache[source]={time:now,channels};
     return res.status(200).json({channels,source,cached:false});
   }catch(e){

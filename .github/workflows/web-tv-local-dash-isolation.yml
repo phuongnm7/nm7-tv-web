@@ -1,0 +1,65 @@
+name: NM7 TV Web 1.0.69 dash isolation
+
+on:
+  push:
+    branches: ["feature/web-tv-1.0.69-from-stable-old"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+      - name: Generate DASH
+        run: |
+          mkdir -p e2e
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 8 -c:v libx264 -pix_fmt yuv420p -preset veryfast -g 50 -c:a aac -b:a 96k -seg_duration 2 -use_timeline 1 -use_template 1 -f dash e2e/test-dash.mpd
+          cp web-tv/dash.all.min.js e2e/dash.all.min.js
+          cp e2e/*.m4s .
+      - name: Run isolated dash.js player
+        run: |
+          mkdir -p e2e-site
+          cp e2e/test-dash.mpd e2e-site/
+          cp e2e/*.m4s e2e-site/
+          cp e2e/dash.all.min.js e2e-site/
+          cat > e2e-site/index.html <<'HTML'
+          <!doctype html><html><body><video id="v" autoplay muted></video>
+          <script src="/dash.all.min.js"></script><script>
+          window.events=[];
+          var v=document.getElementById('v');
+          var p=dashjs.MediaPlayer().create();
+          Object.keys(dashjs.MediaPlayer.events).forEach(function(k){
+            var ev=dashjs.MediaPlayer.events[k];
+            try{p.on(ev,function(x){window.events.push({e:k,code:x&&x.error&&x.error.code,msg:x&&x.error&&x.error.message})})}catch(e){}
+          });
+          p.initialize(v,'/test-dash.mpd',true);
+          window.__state=function(){return {ready:v.readyState,t:v.currentTime,paused:v.paused,src:v.currentSrc||v.src,events:window.events.slice(-30)}};
+          </script></body></html>
+          HTML
+          npx http-server e2e-site -p 4173 -c-1 --silent >/tmp/http.log 2>&1 &
+          PID=$!; trap 'kill $PID 2>/dev/null || true' EXIT
+          sleep 2
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            const p=await b.newPage();
+            const req=[];p.on('request',r=>{if(/test-dash|chunk-stream|init-stream/.test(r.url()))req.push(r.url())});
+            const fail=[];p.on('requestfailed',r=>{if(/test-dash|chunk-stream|init-stream/.test(r.url()))fail.push({u:r.url(),e:r.failure()})});
+            await p.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});
+            await p.waitForTimeout(7000);
+            const s=await p.evaluate(()=>window.__state());
+            console.log('STATE='+JSON.stringify(s));
+            console.log('REQUESTS='+JSON.stringify(req));
+            console.log('FAILED='+JSON.stringify(fail));
+            if(!(s.t>0&&s.ready>=2))process.exit(1);
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

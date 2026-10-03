@@ -1,4 +1,4 @@
-name: Cloudflare Worker Build Check
+name: Cloudflare Worker Build and Preview
 
 on:
   push:
@@ -19,5 +19,5 @@ jobs:
         run: npm run build
       - name: Check Worker syntax
         run: node --check src/index.js
-      - name: Validate Wrangler configuration
-        run: npx wrangler deploy --dry-run
+      - name: Validate and create temporary Cloudflare preview
+        run: npx wrangler deploy --temporary --yes

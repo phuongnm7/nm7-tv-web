@@ -15,8 +15,17 @@ export default async function handler(req,res){
   const r=await fetch(target,{redirect:"follow",cache:"no-store",headers});
   const ct=String(r.headers.get("content-type")||"").toLowerCase(),finalUrl=r.url||target;
   ["accept-ranges","content-range","content-length","etag","last-modified"].forEach(h=>{const v=r.headers.get(h);if(v)res.setHeader(h.replace(/(^|-)(\w)/g,(m,a,b)=>b.toUpperCase()),v)});
-  if(ct.includes("mpegurl")||/\.m3u8?(?:$|[?#])/i.test(finalUrl)){res.setHeader("Content-Type","application/vnd.apple.mpegurl; charset=utf-8");return res.status(r.status).send(rewriteHls(await r.text(),finalUrl,{r:ref,ua,h:rawHeaders}))}
-  if(ct.includes("dash+xml")||/\.mpd(?:$|[?#])/i.test(finalUrl)){res.setHeader("Content-Type","application/dash+xml; charset=utf-8");return res.status(r.status).send(await r.text())}
+  const manifestByUrl=/\.m3u8?(?:$|[?#])/i.test(finalUrl)||/\.mpd(?:$|[?#])/i.test(finalUrl);
+  if(manifestByUrl||ct.includes("mpegurl")||ct.includes("dash+xml")){
+    const body=await r.text();
+    const clean=body.replace(/^\uFEFF/,"").trim();
+    const isM3u=ct.includes("mpegurl")||/\.m3u8?(?:$|[?#])/i.test(finalUrl)||/^#EXTM3U/i.test(clean);
+    const isMpd=ct.includes("dash+xml")||/\.mpd(?:$|[?#])/i.test(finalUrl)||/^<\?xml[^>]*>\s*<MPD\b/i.test(clean)||/<MPD\b/i.test(clean.slice(0,4096));
+    if(isM3u){res.setHeader("Content-Type","application/vnd.apple.mpegurl; charset=utf-8");return res.status(r.status).send(rewriteHls(body,finalUrl,{r:ref,ua,h:rawHeaders}))}
+    if(isMpd){res.setHeader("Content-Type","application/dash+xml; charset=utf-8");return res.status(r.status).send(body)}
+    if(ct)res.setHeader("Content-Type",ct);
+    return res.status(r.status).send(body);
+  }
   if(ct)res.setHeader("Content-Type",ct);
   if(r.body){res.statusCode=r.status;return Readable.fromWeb(r.body).pipe(res)}
   return res.status(r.status).send(Buffer.from(await r.arrayBuffer()))

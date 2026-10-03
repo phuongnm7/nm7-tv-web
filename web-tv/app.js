@@ -490,9 +490,21 @@ function startHls(c,cand,url,gen){
 function tryHlsJs(c,cand,url,gen){
  if(!window.Hls||!Hls.isSupported()){nextCandidate('Trình duyệt không hỗ trợ HLS/MSE');return}
  try{
+  var v=$('video');
+  v.muted=true;
   var h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:60,maxBufferHole:.5,startPosition:-1,manifestLoadingMaxRetry:2,fragLoadingMaxRetry:3,levelLoadingMaxRetry:3});
   S.hls=h;
-  h.on(Hls.Events.MANIFEST_PARSED,function(){markPlaying(gen);var p=$('video').play();if(p&&p.catch)p.catch(function(){try{$('video').muted=true;var q=$('video').play();if(q&&q.catch)q.catch(function(){})}catch(e){}})});
+  h.on(Hls.Events.MEDIA_ATTACHED,function(){
+   if(gen!==S.generation||!S.player)return;
+   h.loadSource(url);
+  });
+  h.on(Hls.Events.MANIFEST_PARSED,function(){
+   if(gen!==S.generation||!S.player)return;
+   var p=v.play();
+   if(p&&p.catch)p.catch(function(){
+    try{v.muted=true;var q=v.play();if(q&&q.catch)q.catch(function(){})}catch(e){}
+   });
+  });
   h.on(Hls.Events.ERROR,function(ev,data){
    if(gen!==S.generation)return;
    if(S.debug)console.log('NM7 HLS',data&&data.type,data&&data.details,data&&data.response||'');
@@ -501,7 +513,7 @@ function tryHlsJs(c,cand,url,gen){
     nextCandidate('HLS '+(data.details||data.type||'lỗi'))
    }
   });
-  h.loadSource(url);h.attachMedia($('video'));
+  h.attachMedia(v);
  }catch(e){nextCandidate('HLS.js khởi tạo lỗi')}
 }
 function startFlv(c,cand,url,gen){

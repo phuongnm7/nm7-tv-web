@@ -1,6 +1,21 @@
 import { Readable } from "node:stream";
 function cors(res){res.setHeader("Access-Control-Allow-Origin","*");res.setHeader("Access-Control-Allow-Methods","GET,HEAD,OPTIONS");res.setHeader("Access-Control-Allow-Headers","Range,Content-Type,Origin,Referer");res.setHeader("Access-Control-Expose-Headers","Content-Length,Content-Range,Accept-Ranges,ETag,Last-Modified");res.setHeader("Cache-Control","no-store")}
 function proxy(abs,q){let x="/api/stream?u="+encodeURIComponent(abs);if(q.r)x+="&r="+encodeURIComponent(q.r);if(q.ua)x+="&ua="+encodeURIComponent(q.ua);if(q.h)x+="&h="+encodeURIComponent(q.h);return x}
+function rewriteMpd(text,base,q){
+ const abs=function(u){try{return new URL(u,base).toString()}catch(e){return u}};
+ const wrap=function(u){
+  if(!u)return u;
+  if(u.indexOf("/api/stream?")===0)return u;
+  return proxy(abs(u),q);
+ };
+ text=text.replace(/(<BaseURL(?:\\s[^>]*)?>)([^<]+)(<\\/BaseURL>)/gi,function(m,a,u,b){return a+wrap(u.trim())+b});
+ text=text.replace(/((?:media|initialization|index|sourceURL)=")([^"]+)(")/gi,function(m,a,u,b){
+  const v=u.trim();
+  if(!v||/^data:/i.test(v)||v.indexOf("/api/stream?")===0)return m;
+  return a+wrap(v)+b;
+ });
+ return text;
+}
 function rewriteHls(text,base,q){const abs=u=>{try{return new URL(u,base).toString()}catch(e){return u}};text=text.replace(/URI="([^"]+)"/g,(m,u)=>'URI="'+proxy(abs(u),q)+'"');const lines=text.split(/\r?\n/);for(let i=0;i<lines.length;i++){const z=lines[i].trim();if(z&&z[0]!=="#"&&!/^(?:data:|blob:)/i.test(z))lines[i]=proxy(abs(z),q)}return lines.join("\n")}
 export default async function handler(req,res){
  cors(res);if(req.method==="OPTIONS")return res.status(204).send("");
@@ -22,7 +37,7 @@ export default async function handler(req,res){
     const isM3u=ct.includes("mpegurl")||/\.m3u8?(?:$|[?#])/i.test(finalUrl)||/^#EXTM3U/i.test(clean);
     const isMpd=ct.includes("dash+xml")||/\.mpd(?:$|[?#])/i.test(finalUrl)||/^<\?xml[^>]*>\s*<MPD\b/i.test(clean)||/<MPD\b/i.test(clean.slice(0,4096));
     if(isM3u){res.setHeader("Content-Type","application/vnd.apple.mpegurl; charset=utf-8");return res.status(r.status).send(rewriteHls(body,finalUrl,{r:ref,ua,h:rawHeaders}))}
-    if(isMpd){res.setHeader("Content-Type","application/dash+xml; charset=utf-8");return res.status(r.status).send(body)}
+    if(isMpd){res.setHeader("Content-Type","application/dash+xml; charset=utf-8");return res.status(r.status).send(rewriteMpd(body,finalUrl,{r:ref,ua,h:rawHeaders}))}
     if(ct)res.setHeader("Content-Type",ct);
     return res.status(r.status).send(body);
   }

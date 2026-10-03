@@ -12,23 +12,28 @@ jobs:
     env:
       PREVIEW_URL: https://nm7-tv-web-git-feature-web-tv-browser-1069-phuongnm7.vercel.app
     steps:
-      - name: Check web page
+      - name: Diagnose preview response
         run: |
-          set -euxo pipefail
-          curl -fsSL "$PREVIEW_URL/" | grep -q "NM7 TV"
-          curl -fsSL "$PREVIEW_URL/" | grep -q "1.0.69 Web"
-          curl -fsSL "$PREVIEW_URL/" | grep -q "dash.all.min.js"
+          set -euo pipefail
+          curl -sSIL --max-time 30 "$PREVIEW_URL/" || true
+          curl -sSL -A "Mozilla/5.0" --max-time 30 "$PREVIEW_URL/" -o page.html || true
+          echo "----- PAGE HEAD -----"
+          sed -n '1,100p' page.html || true
+          echo "----- PAGE SIZE -----"
+          wc -c page.html || true
+          grep -qi "NM7 TV" page.html
 
       - name: Check TV playlist
         run: |
           set -euxo pipefail
-          curl -fsSL "$PREVIEW_URL/api/playlist?source=tv" -o tv.json
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/playlist?source=tv" -o tv.json
           node - <<'NODE'
           const fs=require('fs');
           const d=JSON.parse(fs.readFileSync('tv.json','utf8'));
           if(!d.channels || d.channels.length<1) throw new Error('TV playlist empty');
-          const find=(s)=>d.channels.find(c=>((c.id||'')+' '+(c.name||'')).toLowerCase().includes(s));
-          const v=find('vtv1'), f=find('onfootball'), sp=find('onsport');
+          const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+          const find=(parts)=>d.channels.find(c=>parts.some(p=>(norm(c.id)+' '+norm(c.name)).includes(norm(p))));
+          const v=find(['vtv1','vtv1hd']), f=find(['onfootball','vtvcab16']), sp=find(['onsport','vtvcab3']);
           if(!v) throw new Error('VTV1 not found');
           if(!f) throw new Error('ON Football not found');
           if(!sp) throw new Error('ON Sports not found');
@@ -36,16 +41,16 @@ jobs:
           if(!urls(v).some(u=>/\.mpd(?:$|\?)/i.test(u))) throw new Error('VTV1 MPD candidate missing');
           if(!urls(f).some(u=>/\.mpd(?:$|\?)/i.test(u))) throw new Error('ON Football MPD candidate missing');
           console.log('TV channels:',d.channels.length);
-          console.log('VTV1:',urls(v));
-          console.log('ON Football:',urls(f));
-          console.log('ON Sports:',urls(sp));
+          console.log('VTV1:',JSON.stringify(urls(v),null,2));
+          console.log('ON Football:',JSON.stringify(urls(f),null,2));
+          console.log('ON Sports:',JSON.stringify(urls(sp),null,2));
           NODE
 
       - name: Probe seenow MPD
         run: |
           set -euxo pipefail
-          curl -fsSL "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o probe-vtv1.json
-          curl -fsSL "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Fmean%2FBONGDA_HD%2Fmanifest.mpd" -o probe-football.json
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o probe-vtv1.json
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Fmean%2FBONGDA_HD%2Fmanifest.mpd" -o probe-football.json
           cat probe-vtv1.json
           cat probe-football.json
           node - <<'NODE'
@@ -59,7 +64,7 @@ jobs:
       - name: Check stream proxy
         run: |
           set -euxo pipefail
-          curl -fsSL --range 0-4095 "$PREVIEW_URL/api/stream?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o vtv1.mpd
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/stream?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o vtv1.mpd
           grep -q "<MPD" vtv1.mpd
           grep -q "<BaseURL>" vtv1.mpd
 

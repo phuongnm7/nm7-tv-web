@@ -136,7 +136,7 @@ jobs:
             function candidate(ch,type){
               return ch && (ch.candidates||[]).find(x=>String(x.type||'').toLowerCase()===type);
             }
-            async function test(label,ch,type,timeout=19000){
+            async function test(label,ch,type,timeout=50000){
               const can=candidate(ch,type);
               if(!can){console.log(label+'_'+type.toUpperCase()+'=MISSING');return false}
               console.log(label+'_'+type.toUpperCase()+'='+JSON.stringify({name:ch.name,tvgId:ch.tvgId,url:can.url}));

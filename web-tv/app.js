@@ -160,6 +160,11 @@ function getVisibleList(){
 function rebuildGroups(){
  var a=getVisibleList(),seen={},g=[];
  for(var i=0;i<a.length;i++){var x=a[i].group||'Khác';if(!seen[x]){seen[x]=1;g.push(x)}}
+ var priority={'VTV':0,'VTVcab':1,'Thể Thao':2,'The Thao':2,'SCTV':3};
+ g.sort(function(x,y){
+  var px=priority.hasOwnProperty(x)?priority[x]:1000,py=priority.hasOwnProperty(y)?priority[y]:1000;
+  return px-py;
+ });
  S.groups=g;
  if(S.row>=g.length)S.row=Math.max(0,g.length-1);
  var count=channelsInGroup(g[S.row]||'').length;

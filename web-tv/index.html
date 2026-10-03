@@ -279,6 +279,16 @@ function parseHeaderString(s){
  for(i=0;i<pairs.length;i++){e=pairs[i].indexOf('=');if(e<1)continue;k=decode(pairs[i].slice(0,e));v=decode(pairs[i].slice(e+1));if(/^referrer?$/i.test(k))k='Referer';if(/^user-agent$/i.test(k))k='User-Agent';if(/^origin$/i.test(k))k='Origin';if(!/\r|\n/.test(v)&&!/\r|\n/.test(k))headers[k]=v}
  return headers
 }
+function probeUnknown(c,done){
+ var q='/api/probe?u='+encodeURIComponent(c.url);
+ if(c.ref)q+='&r='+encodeURIComponent(c.ref);
+ if(c.ua)q+='&ua='+encodeURIComponent(c.ua);
+ if(c.headers&&Object.keys(c.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(c.headers));
+ fetch(q,{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+   if(d&&d.type&&d.type!=='http'){c.type=d.type;if(d.contentType)c.mime=d.contentType;done(d.type)}
+   else done('http')
+ }).catch(function(){done('http')})
+}
 function makeProtection(c){
  var opts=c.options||[],i,e,k,val,type='',key='',map={},parts,p,scheme,licenseUrl,licenseHeaders;
  for(i=0;i<opts.length;i++){e=opts[i].indexOf('=');if(e<0)continue;k=norm(opts[i].slice(0,e));val=trim(opts[i].slice(e+1));if(k.indexOf('license_type')>=0)type=val;if(k.indexOf('license_key')>=0)key=val}

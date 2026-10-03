@@ -68,7 +68,7 @@ button,input{font:inherit}
 <script>
 (function(){
 var SRC=[{id:'tv',name:'Truyền hình',url:'/api/playlist?source=tv'},{id:'sport',name:'Thể thao',url:'/api/playlist?source=sport'}];
-var S={source:0,list:[],groups:[],row:0,col:0,view:null,q:'',fav:[],recent:[],menu:0,mode:'home',player:false,ctrl:false,cp:2,dialog:null,current:null,candidateIndex:0,hls:null};
+var S={source:0,list:[],groups:[],row:0,col:0,view:null,q:'',fav:[],recent:[],menu:0,mode:'home',player:false,ctrl:false,cp:2,dialog:null,current:null,candidateIndex:0,hls:null,dash:null};
 function $(id){return document.getElementById(id)}
 var toastTimer;
 function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -107,25 +107,25 @@ function tryCandidate(c){
  if(isDash&&window.dashjs){
    try{
      S.dash=dashjs.MediaPlayer().create();
-     if(S.dash.setProtectionData&&cand.options){
-       var key='',i,e;
-       for(i=0;i<cand.options.length;i++){e=cand.options[i].indexOf('=');if(e>=0&&/license_key/i.test(cand.options[i]))key=cand.options[i].slice(e+1)}
-       if(key&&!/^https?:/i.test(key)){
-         var map={},parts=String(key).split(/[;,]/),j,p,z,b,n,rev;
-         for(j=0;j<parts.length;j++){p=parts[j].indexOf(':');if(p<1)continue;
-           function hx(s){z=String(s||'').replace(/^0x/i,'').replace(/-/g,'');if(!/^[0-9a-fA-F]+$/.test(z)||z.length%2)return s;b='';for(n=0;n<z.length;n+=2)b+=String.fromCharCode(parseInt(z.substr(n,2),16));try{return btoa(b).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'')}catch(q){return s}}
-           map[hx(parts[j].slice(0,p))]=hx(parts[j].slice(p+1));
-         }
-         if(Object.keys(map).length)S.dash.setProtectionData({'org.w3.clearkey':{clearkeys:map}})
+     var opts=cand.options||c.options||[],key='',i,e;
+     for(i=0;i<opts.length;i++){e=opts[i].indexOf('=');if(e>=0&&/license_key/i.test(opts[i]))key=opts[i].slice(e+1)}
+     if(key&&S.dash.setProtectionData&&!/^https?:/i.test(key)){
+       var map={},parts=String(key).split(/[;,]/),j,p,z,bin,n;
+       function hx(s){
+         z=String(s||'').replace(/^0x/i,'').replace(/-/g,'');if(!/^[0-9a-fA-F]+$/.test(z)||z.length%2)return s;
+         bin='';for(n=0;n<z.length;n+=2)bin+=String.fromCharCode(parseInt(z.substr(n,2),16));
+         try{return btoa(bin).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'')}catch(q){return s}
        }
+       for(j=0;j<parts.length;j++){p=parts[j].indexOf(':');if(p>0)map[hx(parts[j].slice(0,p))]=hx(parts[j].slice(p+1))}
+       if(Object.keys(map).length)S.dash.setProtectionData({'org.w3.clearkey':{clearkeys:map}})
      }
      S.dash.initialize(v,u,true);
      return
    }catch(e){setTimeout(function(){nextCandidate('DASH lỗi')},250);return}
  }
-function tryCandidate(c){if(!c||!c.candidates||!c.candidates.length){showStatus('Kênh không có URL phát');return}if(S.candidateIndex>=c.candidates.length){showStatus('Không phát được '+c.name+'\nĐã thử '+c.candidates.length+' nguồn');return}
+ function tryCandidate(c){if(!c||!c.candidates||!c.candidates.length){showStatus('Kênh không có URL phát');return}if(S.candidateIndex>=c.candidates.length){showStatus('Không phát được '+c.name+'\nĐã thử '+c.candidates.length+' nguồn');return}
 clearHls();var v=$('video'),cand=c.candidates[S.candidateIndex],u=cand.proxy||cand.url;showStatus('Đang thử '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length);v.pause();v.removeAttribute('src');v.load();
-if(window.Hls&&Hls.isSupported()&&likelyHls(cand,u)){S.hls=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30});S.hls.on(Hls.Events.ERROR,function(event,data){if(data&&data.fatal){setTimeout(function(){nextCandidate('HLS lỗi')},250)}});S.hls.on(Hls.Events.MANIFEST_PARSED,function(){var p=v.play();if(p&&p.catch)p.catch(function(){toast('Nhấn OK để phát')})});S.hls.loadSource(u);S.hls.attachMedia(v)}
+if(window.Hls&&Hls.isSupported()&&likelyHls(cand,u)){S.hls=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30});S.hls.on(Hls.Events.ERROR,function(event,data){if(data&&data.fatal){setTimeout(function(){nextCandidate('HLS lỗi')},250)}});S.hls.on(Hls.Events.MANIFEST_PARSED,function(){var p=v.play();if(p&&p.catch)p.catch(function(){})});S.hls.loadSource(u);S.hls.attachMedia(v)}
 else{v.src=u;var p=v.play();if(p&&p.catch)p.catch(function(){toast('Nhấn OK để phát')})}
 }
 

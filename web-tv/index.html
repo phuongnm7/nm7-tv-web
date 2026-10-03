@@ -413,6 +413,11 @@ function remoteCode(e){
  if(key==='enter'||key==='select'||key==='ok'||key==='numpadenter')return 13;
  if(key==='escape'||key==='esc')return 27;
  if(key==='back'||key==='backspace')return 461;
+ if(k===412||key==='mediarewind')return 412;
+ if(k===417||key==='mediafastforward')return 417;
+ if(k===10252||key==='mediaplaypause')return 10252;
+ if(k===427||key==='channelup')return 427;
+ if(k===428||key==='channeldown')return 428;
  return k;
 }
 function stopRemoteEvent(e){try{e.preventDefault()}catch(x){}try{e.stopPropagation()}catch(x){}try{e.stopImmediatePropagation()}catch(x){}}
@@ -431,11 +436,11 @@ function handleRemote(e){
      else if(k===13){ctrlAction();handled=true}
      else if(k===38||k===40){S.cp=k===38?Math.max(0,S.cp-1):Math.min(4,S.cp+1);focusCtrl();handled=true}
    }else{
-     if(k===13){showCtrl();handled=true}
-     else if(k===37){seek(-10);handled=true}
-     else if(k===39){seek(30);handled=true}
-     else if(k===38){switchChannelRelative(-1);handled=true}
-     else if(k===40){switchChannelRelative(1);handled=true}
+     if(k===13||k===10252){showCtrl();handled=true}
+     else if(k===37||k===412){seek(-10);handled=true}
+     else if(k===39||k===417){seek(30);handled=true}
+     else if(k===38||k===427){switchChannelRelative(-1);handled=true}
+     else if(k===40||k===428){switchChannelRelative(1);handled=true}
    }
  }else if(S.mode==='menu'){
    if(k===461||k===10009||k===27){closeMenu();handled=true}

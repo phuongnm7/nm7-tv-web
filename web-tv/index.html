@@ -126,6 +126,21 @@ function focusElement(){
  try{el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}catch(e){}
 }
 function activateLogos(){var imgs=document.querySelectorAll('img[data-src]'),i,im,r;for(i=0;i<imgs.length;i++){im=imgs[i];r=parseInt(im.getAttribute('data-row')||'0',10);if(Math.abs(r-S.row)<=2){im.src=im.getAttribute('data-src');im.removeAttribute('data-src')}}}
+function setHomeFocus(rr,cc){
+ rr=Math.max(0,Math.min(S.groups.length-1,rr));
+ var rows=channelsInGroup(S.groups[rr]||'');
+ if(!rows.length)return false;
+ cc=Math.max(0,Math.min(rows.length-1,cc));
+ S.row=rr;S.col=cc;
+ var el=document.querySelector('.card[data-row="'+rr+'"][data-col="'+cc+'"]');
+ if(!el){render();return true}
+ document.querySelectorAll('.card.focus').forEach(function(x){if(x!==el)x.classList.remove('focus')});
+ el.classList.add('focus');
+ try{el.focus({preventScroll:true})}catch(e){try{el.focus()}catch(e2){}}
+ try{el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}catch(e){}
+ activateLogos();
+ return true;
+}
 function render(){
  var h=$('home'),html='',start=Math.max(0,S.row-2),end=Math.min(S.groups.length,S.row+5),r,g,a,i,c,selected;
  html+='<div id="homeTabs">';
@@ -201,7 +216,19 @@ function fetchSource(n){
  })
 }
 function menuItems(){return ['▣ Truyền hình','⚽ Thể thao','★ Yêu thích','◷ Gần đây','⌕ Tìm kiếm','↻ Tải lại playlist'].concat(S.groups)}
-function drawMenu(){var a=menuItems(),h='',i;for(i=0;i<a.length;i++)h+='<div class="mi '+(i===S.menu?'focus':'')+'">'+esc(a[i])+'</div>';$('ml').innerHTML=h}
+function drawMenu(){
+ var a=menuItems(),h='',i;
+ for(i=0;i<a.length;i++)h+='<button type="button" class="mi '+(i===S.menu?'focus':'')+'" tabindex="0" data-menu-index="'+i+'">'+esc(a[i])+'</button>';
+ $('ml').innerHTML=h;
+ $('ml').querySelectorAll('.mi').forEach(function(mi){
+   mi.onclick=function(){S.menu=Number(mi.getAttribute('data-menu-index')||0);selectMenu()};
+   mi.onfocus=function(){S.menu=Number(mi.getAttribute('data-menu-index')||0);drawMenuFocus()};
+ });
+ var f=$('ml').querySelector('.mi.focus');if(f)try{f.focus({preventScroll:true})}catch(e){}
+}
+function drawMenuFocus(){
+ $('ml').querySelectorAll('.mi').forEach(function(mi,i){mi.classList.toggle('focus',i===S.menu)});
+}
 function openMenu(){S.mode='menu';S.menu=Math.max(0,Math.min(S.menu,menuItems().length-1));$('menu').className='';drawMenu()}
 function closeMenu(){S.mode=S.player?'player':'home';$('menu').className='hidden';render()}
 function selectMenu(){
@@ -464,16 +491,16 @@ function handleRemote(e){
    }
  }else if(S.mode==='menu'){
    if(k===461||k===10009||k===27){closeMenu();handled=true}
-   else if(k===38||k===40){var mi=menuItems();S.menu=Math.max(0,Math.min(mi.length-1,S.menu+(k===38?-1:1)));drawMenu();handled=true}
+   else if(k===38||k===40){var mi=menuItems();S.menu=Math.max(0,Math.min(mi.length-1,S.menu+(k===38?-1:1)));drawMenuFocus();var mf=document.querySelector('#ml .mi[data-menu-index="'+S.menu+'"]');if(mf)try{mf.focus({preventScroll:true})}catch(e){}handled=true}
    else if(k===13||k===39){selectMenu();handled=true}
  }else{
    if(k===461||k===10009||k===27){openMenu();handled=true}
    else{
-     var rows=channelsInGroup(S.groups[S.row]||'');
-     if(k===37){if(S.col===0)openMenu();else{S.col--;render()};handled=true}
-     else if(k===39){if(rows.length){S.col=(S.col+1)%rows.length;render()};handled=true}
-     else if(k===38){var old=S.col;S.row=Math.max(0,S.row-1);S.col=nearestColumn(old,S.groups[S.row]||'');render();handled=true}
-     else if(k===40){var old2=S.col;S.row=Math.min(S.groups.length-1,S.row+1);S.col=nearestColumn(old2,S.groups[S.row]||'');render();handled=true}
+     var rows=channelsInGroup(S.groups[S.row]||''),targetRow,targetCol;
+     if(k===37){if(S.col===0)openMenu();else setHomeFocus(S.row,S.col-1);handled=true}
+     else if(k===39){if(rows.length)setHomeFocus(S.row,(S.col+1)%rows.length);handled=true}
+     else if(k===38){targetRow=Math.max(0,S.row-1);targetCol=nearestColumn(S.col,S.groups[targetRow]||'');setHomeFocus(targetRow,targetCol);handled=true}
+     else if(k===40){targetRow=Math.min(S.groups.length-1,S.row+1);targetCol=nearestColumn(S.col,S.groups[targetRow]||'');setHomeFocus(targetRow,targetCol);handled=true}
      else if(k===13){play(currentChannel());handled=true}
      else if(k===8||k===403){var c=currentChannel();if(c){var fi=S.fav.indexOf(c.id);if(fi<0)S.fav.push(c.id);else S.fav.splice(fi,1);saveUser();render();toast(fi<0?'Đã thêm yêu thích':'Đã bỏ yêu thích')};handled=true}
    }
@@ -484,6 +511,7 @@ function handleRemote(e){
 window.NM7_REMOTE=handleRemote;
 window.addEventListener('keydown',handleRemote,true);
 document.addEventListener('keydown',handleRemote,false);
+document.body.addEventListener('keydown',handleRemote,false);
 document.addEventListener('focusin',function(e){var t=e&&e.target;if(!t||!t.classList||!t.classList.contains('card'))return;var rr=Number(t.getAttribute('data-row')||0),cc=Number(t.getAttribute('data-col')||0);if(isFinite(rr)&&isFinite(cc)){S.row=rr;S.col=cc;document.querySelectorAll('.card.focus').forEach(function(x){if(x!==t)x.classList.remove('focus')});t.classList.add('focus')}},true);
 window.addEventListener('focus',function(){if(S.mode==='home'&&!S.player&&!S.dialog)setTimeout(focusElement,0)},true);
 

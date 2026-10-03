@@ -68,12 +68,17 @@ function candidateUrl(c){if(!c||!c.candidates||!c.candidates.length)return '';re
 function likelyHls(c,u){return !!(c&&c.hls)||/\\.m3u8(?:$|\\?)/i.test(u)||/playlist|index\\.m3u|\\.m3u(?:$|\\?)/i.test(u)}
 function likelyDash(c,u){return !!(c&&c.dash)||/\\.mpd(?:$|\\?)/i.test(u)||/manifest\\.mpd(?:$|\\?)/i.test(u)}
 function clearVideo(v){try{v.pause()}catch(e){}try{v.removeAttribute('src');v.load()}catch(e){}}
+function hexToB64Url(s){
+  s=String(s||'').trim();if(!/^[0-9a-f]+$/i.test(s)||s.length%2)return s;
+  var bin='',i;for(i=0;i<s.length;i+=2)bin+=String.fromCharCode(parseInt(s.substr(i,2),16));
+  var b=btoa(bin);return b.replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');
+}
 function dashProtection(cand){
   if(!cand||!cand.licenseType||!cand.licenseKey)return null;
   var t=String(cand.licenseType).toLowerCase(),key=String(cand.licenseKey).trim();
   if(t.indexOf('clearkey')<0)return null;
-  var map={},pairs=key.split(/[;,]/),i,p;
-  for(i=0;i<pairs.length;i++){p=pairs[i].split(':');if(p.length===2&&p[0]&&p[1])map[p[0].trim()]=p[1].trim()}
+  var map={},pairs=key.split(/[;,]/),i,p,k,v;
+  for(i=0;i<pairs.length;i++){p=pairs[i].split(':');if(p.length===2&&p[0]&&p[1]){k=hexToB64Url(p[0]);v=hexToB64Url(p[1]);map[k]=v}}
   return Object.keys(map).length?{'org.w3.clearkey':{clearkeys:map}}:null
 }
 function dashProxy(url,cand){

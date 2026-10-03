@@ -10,7 +10,9 @@ function typeFrom(contentType,url){
 async function headOrRange(url,headers){
  try{
   const h=await fetch(url,{method:"HEAD",redirect:"follow",cache:"no-store",headers});
-  if(h.ok||h.status===206||h.status===302)return h;
+  const ct=(h.headers.get("content-type")||"").toLowerCase();
+  const usable=h.ok||h.status===206||h.status===302;
+  if(usable&&ct&&!/text\/html|text\/plain|application\/octet-stream/.test(ct))return h;
  }catch(e){}
  return fetch(url,{method:"GET",redirect:"follow",cache:"no-store",headers:{...headers,Range:"bytes=0-2047"}});
 }

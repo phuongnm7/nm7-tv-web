@@ -76,7 +76,7 @@ button,input{font:inherit}
 #toast{position:absolute;z-index:100;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(18,24,33,.95);padding:11px 18px;border-radius:9px;font-size:17px;display:none;max-width:92vw;text-align:center}
 #toast.show{display:block}
 </style>
-<script src="./dash.all.min.js"></script>
+<script src="/web-tv/dash.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
 </head>
@@ -272,20 +272,37 @@ function b64FromHex(s){
  for(i=0;i<h.length;i+=2)bin+=String.fromCharCode(parseInt(h.substr(i,2),16));
  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')
 }
+function parseHeaderString(s){
+ var headers={},p,i,e,k,v,pairs;
+ p=s.indexOf('|');if(p<0)return headers;
+ pairs=s.slice(p+1).split('&');
+ for(i=0;i<pairs.length;i++){e=pairs[i].indexOf('=');if(e<1)continue;k=decode(pairs[i].slice(0,e));v=decode(pairs[i].slice(e+1));if(/^referrer?$/i.test(k))k='Referer';if(/^user-agent$/i.test(k))k='User-Agent';if(/^origin$/i.test(k))k='Origin';if(!/\r|\n/.test(v)&&!/\r|\n/.test(k))headers[k]=v}
+ return headers
+}
 function makeProtection(c){
- var opts=c.options||[],i,e,k,val,type='',key='',map={},parts,p;
+ var opts=c.options||[],i,e,k,val,type='',key='',map={},parts,p,scheme,licenseUrl,licenseHeaders;
  for(i=0;i<opts.length;i++){e=opts[i].indexOf('=');if(e<0)continue;k=norm(opts[i].slice(0,e));val=trim(opts[i].slice(e+1));if(k.indexOf('license_type')>=0)type=val;if(k.indexOf('license_key')>=0)key=val}
- if(!c.drm&&!(type&&key))return null;
  if(c.drm){type=c.drm.type||type;key=c.drm.key||key}
  if(!type||!key)return null;
  var tl=norm(type).replace(/\s/g,'');scheme='org.w3.clearkey';
  if(tl.indexOf('widevine')>=0)scheme='com.widevine.alpha';
  else if(tl.indexOf('playready')>=0)scheme='com.microsoft.playready';
- if(/^https?:/i.test(key))return (function(){var x={};x[scheme]={serverURL:'/api/license?u='+encodeURIComponent(key)+'&h='+encodeURIComponent(JSON.stringify(c.headers||{})),httpRequestHeaders:c.headers||{}};return x})();
+ if(/^https?:/i.test(key)){
+   licenseUrl=key;licenseHeaders={};p=key.indexOf('|');
+   if(p>=0){licenseUrl=key.slice(0,p);licenseHeaders=parseHeaderString(key)}
+   var rh={};for(var hk in (c.headers||{}))rh[hk]=c.headers[hk];for(var hk2 in licenseHeaders)rh[hk2]=licenseHeaders[hk2];
+   var remote={};remote[scheme]={serverURL:'/api/license?u='+encodeURIComponent(licenseUrl)+'&h='+encodeURIComponent(JSON.stringify(rh)),httpRequestHeaders:rh};return remote
+ }
  parts=key.split(/[;,]/);
  for(i=0;i<parts.length;i++){p=parts[i].indexOf(':');if(p>0){var kk=b64FromHex(parts[i].slice(0,p)),vv=b64FromHex(parts[i].slice(p+1));if(kk&&vv)map[kk]=vv}}
  if(!Object.keys(map).length)return null;
  var out={};out[scheme]={clearkeys:map};return out
+}
+function b64FromHex(s){
+ var h=trim(s).replace(/^0x/i,'').replace(/-/g,''),bin='',i;
+ if(!/^[0-9a-fA-F]{32}$/.test(h))return trim(s);
+ for(i=0;i<h.length;i+=2)bin+=String.fromCharCode(parseInt(h.substr(i,2),16));
+ return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')
 }
 function directOrProxyStarted(t){return S.proxyAttempt||(t!=='hls'&&t!=='dash'&&t!=='ts')}
 function startCandidate(c,done){
@@ -343,9 +360,23 @@ function tryNext(reason){
  if(S.candidateIndex<S.candidates.length){setTimeout(tryCurrent,160);return}
  status('Không phát được '+((S.current&&S.current.name)||'kênh')+'\\nĐã thử '+S.candidates.length+' nguồn')
 }
+function probeUnknown(c,done){
+ var q='/api/probe?u='+encodeURIComponent(c.url);
+ if(c.ref)q+='&r='+encodeURIComponent(c.ref);
+ if(c.ua)q+='&ua='+encodeURIComponent(c.ua);
+ if(c.headers&&Object.keys(c.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(c.headers));
+ fetch(q,{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+   if(d&&d.type&&d.type!=='http'){c.type=d.type;if(d.contentType)c.mime=d.contentType}
+   done(d&&d.type?d.type:'http')
+ }).catch(function(){done('http')})
+}
 function tryCurrent(){
- var c=S.candidates[S.candidateIndex];if(!c){tryNext('Không còn nguồn');return}
- clearPlayers();startCandidate(c,function(success){if(success){hideStatus();}else tryNext('Nguồn không phát được')})
+ var c=S.candidates[S.candidateIndex];
+ if(!c){status('Không phát được '+((S.current&&S.current.name)||'kênh')+'\\nĐã thử '+S.candidates.length+' nguồn');return}
+ clearPlayers();var t=classify(c),v=$('video'),u=candidateUrl(c,S.proxyAttempt);
+ var open=function(){startCandidate(c,function(success){if(success)hideStatus();else tryNext('Nguồn không phát được')})};
+ if(t==='http'){probeUnknown(c,function(detected){if(S.current!==c)return;t=detected;c.type=detected;if(detected==='http'){u=candidateUrl(c,S.proxyAttempt);open()}else{u=candidateUrl(c,S.proxyAttempt);startCandidate(c,function(success){if(success)hideStatus();else tryNext('Nguồn không phát được')})}});return}
+ open()
 }
 function play(ch){
  if(!ch)return;

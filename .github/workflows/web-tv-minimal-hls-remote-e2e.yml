@@ -1,0 +1,91 @@
+name: NM7 TV Web 1.0.69 minimal HLS remote E2E
+
+on:
+  push:
+    branches: ["feature/web-tv-1.0.69-minimal-from-production"]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 hls.js@0.14.17 http-server@14.1.1 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+      - name: Generate HLS fixture
+        run: |
+          mkdir -p e2e
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -t 8 -c:v libx264 -pix_fmt yuv420p -preset veryfast -g 50 -f hls -hls_time 2 -hls_list_size 0 e2e/test-hls.m3u8
+          cp node_modules/hls.js/dist/hls.min.js e2e/hls.min.js
+      - name: Browser remote + HLS
+        run: |
+          set -euxo pipefail
+          rm -rf e2e-site
+          mkdir -p e2e-site
+          cp web-tv/index.html e2e-site/index.html
+          cp e2e/hls.min.js e2e-site/hls.min.js
+          cp e2e/test-hls.m3u8 e2e-site/test-hls.m3u8
+          cp e2e/*.ts e2e-site/ 2>/dev/null || true
+          sed -i 's#src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"#src="/hls.min.js"#' e2e-site/index.html
+          sed -i "s#'/api/playlist?source=tv'#'/playlist.json'#g; s#'/api/playlist?source=sport'#'/playlist.json'#g" e2e-site/index.html
+          python3 - <<'PY'
+          import json
+          with open('e2e-site/playlist.json','w') as f:
+            json.dump({'channels':[
+              {'id':'A','name':'Kênh A','group':'Nhóm 1','logo':'','candidates':[{'url':'/test-hls.m3u8','hls':True}]},
+              {'id':'B','name':'Kênh B','group':'Nhóm 1','logo':'','candidates':[{'url':'/test-hls.m3u8','hls':True}]},
+              {'id':'C','name':'Kênh C','group':'Nhóm 2','logo':'','candidates':[{'url':'/test-hls.m3u8','hls':True}]}
+            ]},f)
+          PY
+          (cd e2e-site && npx http-server . -p 4173 -c-1 --silent >/tmp/nm7-hls.log 2>&1) &
+          PID=$!; trap 'kill $PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          test -f /tmp/nm7-hls.log
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            const p=await b.newPage({viewport:{width:1920,height:1080}});
+            await p.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded',timeout:30000});
+            await p.waitForSelector('.card',{timeout:15000});
+            const cards=await p.locator('.card').count();
+            if(cards<3)throw new Error('cards='+cards);
+
+            const init=await p.locator('.card.focus').count();
+            if(!init)throw new Error('no initial focus');
+
+            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',keyCode:39,which:39,bubbles:true})));
+            await p.waitForTimeout(100);
+            const focusCount=await p.locator('.card.focus').count();
+            if(focusCount!==1)throw new Error('RIGHT did not leave exactly one focused card');
+
+            await p.evaluate(()=>{
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
+            });
+            await p.waitForTimeout(100);
+            if(await p.locator('#menu:not(.hidden)').count()!==1)throw new Error('LEFT did not open menu');
+
+            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,which:40,bubbles:true})));
+            await p.waitForTimeout(100);
+            if(await p.locator('#menu .mi.focus').count()!==1)throw new Error('DOWN did not move menu');
+
+            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:461,which:461,bubbles:true})));
+            await p.waitForTimeout(100);
+            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true})));
+            await p.waitForSelector('#player:not(.hidden)',{timeout:3000});
+            const before=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused}});
+            await p.waitForTimeout(5000);
+            const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused,err:v.error?{code:v.error.code,msg:v.error.message}:null}});
+            console.log('REMOTE='+JSON.stringify({right:true,menu:true,menuDown:true}));
+            console.log('HLS_BEFORE='+JSON.stringify(before));
+            console.log('HLS_AFTER='+JSON.stringify(media));
+            if(!(media.t>0&&media.ready>=2))throw new Error('HLS playback failed');
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

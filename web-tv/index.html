@@ -403,15 +403,16 @@ function startCandidate(c,done){
 function tryNext(reason){
  if(!S.player)return;
  if(S.proxyAttempt){
+   // Proxy failed: retry the SAME candidate directly.
    S.proxyAttempt=false;
-   S.candidateIndex++;
  }else{
-   var cc=S.candidates[S.candidateIndex];
-   if(cc&&classify(cc)==='hls'&&isSamsungTizenBrowser()){
-     S.candidateIndex++;
-     S.proxyAttempt=false;
+   // Direct failed: advance once, then choose the correct first mode for the new candidate.
+   S.candidateIndex++;
+   var next=S.candidates[S.candidateIndex];
+   if(next){
+     S.proxyAttempt=/^(hls|dash)$/.test(classify(next)) && !(classify(next)==='hls'&&isSamsungTizenBrowser());
    }else{
-     S.proxyAttempt=true;
+     S.proxyAttempt=false;
    }
  }
  if(S.candidateIndex<S.candidates.length){

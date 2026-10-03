@@ -1,9 +1,5 @@
 name: Build NM7 TV Tizen 1.0.69 AVPlay
 on:
-  push:
-    branches: ["feature/web-tv-browser-1.0.69-android-exact"]
-  pull_request:
-    branches: ["main"]
   workflow_dispatch:
 jobs:
   build-wgt:

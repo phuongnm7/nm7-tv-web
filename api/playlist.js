@@ -67,6 +67,7 @@ function parse(t){
   }
  }
  addKnownFallbacks(merged);
+ for(const c of merged)c.candidates.sort((a,b)=>score(b)-score(a));
  return merged;
 }
 function score(c){

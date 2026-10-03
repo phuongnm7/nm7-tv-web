@@ -248,10 +248,10 @@ function showSubset(kind){
 function findById(id){for(var i=0;i<S.list.length;i++)if(S.list[i].id===id)return S.list[i];return null}
 function showSearch(){
  S.dialog='search';$('dlg').className='';$('box').innerHTML='<h2>Tìm kiếm kênh</h2><input id="qin" class="input" value="'+esc(S.query)+'" placeholder="Tên kênh, TVG-ID hoặc nhóm"><p class="guide">Gõ nội dung tìm kiếm, dùng Enter để đóng.</p><div class="dialogActions"><button class="db" data-dlg="close">Đóng</button></div>';
- var q=$('qin');q.focus();q.addEventListener('input',function(){S.query=this.value.trim();rebuildGroups();renderHome();if(S.list.length)focusHome(true)});
+ var q=$('qin');q.focus();q.addEventListener('input',function(){S.query=this.value.trim()});
  $('box').querySelector('[data-dlg="close"]').addEventListener('click',closeDialog)
 }
-function closeDialog(){S.dialog=null;$('dlg').className='hidden';if(S.player)playerFocus();else if(S.menuOpen)renderMenu();else focusHome(true)}
+function closeDialog(){var type=S.dialog;S.dialog=null;$('dlg').className='hidden';if(type==='search'){rebuildGroups();renderHome()}if(S.player)playerFocus();else if(S.menuOpen)renderMenu();else focusHome(true)}
 function showAddSource(){
  S.dialog='add';$('dlg').className='';$('box').innerHTML='<h2>Thêm nguồn IPTV</h2><input id="srcInput" class="input" placeholder="https://.../playlist.m3u"><p class="guide">Nguồn phải là HTTPS/HTTP. Web Browser vẫn giữ nguyên metadata của playlist cho header và DRM.</p><div class="dialogActions"><button class="db" id="srcOk">Mở nguồn</button><button class="db" id="srcCancel">Hủy</button></div>';
  var i=$('srcInput');i.focus();$('srcOk').onclick=function(){var u=i.value.trim();if(!isHttp(u)){i.focus();toast('URL nguồn không hợp lệ');return}closeDialog();loadCustom(u)};$('srcCancel').onclick=closeDialog
@@ -501,7 +501,7 @@ function playerFocus(){
  if(!S.player)return;
  if(S.quick){focusQuick();return}
  if(S.ctrl){focusControls();return}
- $('video').focus=function(){};document.body.focus()
+ try{document.body.focus()}catch(e){}
 }
 function showControls(){
  S.ctrl=!S.ctrl;S.quick=false;$('quick').className='hidden';$('ctrl').className=S.ctrl?'':'hidden';

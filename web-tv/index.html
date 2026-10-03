@@ -4,90 +4,288 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#05070a">
-<title>NM7 TV Web</title>
+<meta name="application-name" content="NM7 TV 1.0.69">
+<title>NM7 TV 1.0.69</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05070a;color:#fff;font-family:Arial,Helvetica,sans-serif}button,input{font:inherit}
-#app{position:relative;width:100%;height:100%;background:#05070a}#top{position:absolute;z-index:20;left:0;right:0;top:0;height:82px;padding:20px 42px;display:flex;gap:24px;align-items:center;background:linear-gradient(#05070aee,transparent)}
-#brand{font-size:30px;font-weight:800}#src{font-size:18px;color:#c9ced6}#clock{margin-left:auto;color:#c9ced6;font-size:18px}
-#home{position:absolute;inset:0;padding:95px 42px 40px;overflow:hidden}.row{margin-bottom:26px}.row h2{margin:0 0 12px;font-size:27px}.cards{display:flex;gap:16px;overflow:hidden}
-.card{position:relative;flex:0 0 225px;height:180px;border:2px solid transparent;border-radius:12px;background:#13181f;padding:0 10px 10px}.card.focus{border-color:#fff;background:#222933;transform:scale(1.03)}
-.thumb{height:120px;border-radius:9px;background:#080a0e;display:flex;align-items:center;justify-content:center;overflow:hidden}.thumb img{max-width:92%;max-height:92%;object-fit:contain}.thumb span{color:#727b87;font-size:22px}
-.name{text-align:center;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:9px}.star{position:absolute;top:8px;right:12px}.empty{padding:90px 5px;font-size:28px;color:#abb2bc}
-.hidden{display:none!important}#player{position:absolute;z-index:60;inset:0;background:#000}#video{width:100%;height:100%;background:#000;object-fit:contain}
-#status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#bbb;font-size:28px;padding:60px;pointer-events:none;white-space:pre-wrap}
-#ctrl{position:absolute;z-index:5;left:50%;bottom:52px;transform:translateX(-50%);background:#10141aed;padding:12px 15px;border-radius:12px;display:flex;gap:10px}.cb{border:0;border-radius:8px;background:#2d333c;color:#fff;padding:12px 18px;font-size:18px}.cb.focus,.cb:focus{outline:3px solid #fff;background:#fff;color:#000}
-#menu{position:absolute;z-index:80;left:0;top:0;bottom:0;width:560px;background:#090c10f5;padding:102px 28px 30px;box-shadow:20px 0 60px #000}.mi{height:60px;padding:14px 20px;margin:4px 0;border-radius:8px;font-size:22px}.mi.focus{background:#fff;color:#000}.hint{position:absolute;left:30px;bottom:20px;color:#aab1bb;font-size:16px}
-#dlg{position:absolute;z-index:90;inset:0;background:#000b;display:flex;align-items:center;justify-content:center}#box{width:900px;max-width:90vw;max-height:82vh;overflow:auto;background:#171b21;border-radius:14px;padding:26px}#box h2{margin:0 0 18px;font-size:29px}.input{width:100%;background:#07090d;color:#fff;border:2px solid #555;border-radius:8px;padding:13px;font-size:21px}.guide{color:#b2b8c1;line-height:1.5}
-#toast{position:absolute;z-index:120;left:50%;bottom:44px;transform:translateX(-50%);background:#111820ef;border-radius:9px;padding:12px 22px;font-size:19px;opacity:0;pointer-events:none}#toast.show{opacity:1}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05070a;color:#fff;font-family:Arial,Helvetica,sans-serif}
+body{user-select:none}
+button,input{font:inherit}
+button{cursor:pointer}
+#app{position:relative;width:100%;height:100%;background:#05070a}
+#top{position:absolute;z-index:20;left:0;right:0;top:0;height:78px;padding:18px 40px;display:flex;align-items:center;gap:20px;background:linear-gradient(#05070af2,rgba(5,7,10,.68),transparent)}
+#brand{font-size:29px;font-weight:800;white-space:nowrap}
+#version{font-size:14px;color:#818b98;border:1px solid #39414d;border-radius:20px;padding:5px 9px}
+#src{font-size:18px;color:#c9ced6;white-space:nowrap}
+#count{font-size:16px;color:#828c98}
+#clock{margin-left:auto;color:#c9ced6;font-size:18px}
+#home{position:absolute;inset:0;padding:92px 40px 32px;overflow:hidden}
+.row{margin:0 0 24px}
+.row h2{margin:0 0 10px;font-size:26px;line-height:32px}
+.cards{display:flex;gap:14px;min-width:max-content}
+.card{position:relative;flex:0 0 214px;height:174px;border:2px solid transparent;border-radius:12px;background:#141a22;padding:0 9px 9px;outline:none;transition:transform .08s ease,background .08s ease,border-color .08s ease}
+.card.focus{border-color:#fff;background:#232a34;transform:scale(1.035);z-index:2}
+.thumb{height:116px;border-radius:9px;background:#080a0e;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.thumb img{max-width:94%;max-height:94%;object-fit:contain}
+.thumb span{color:#6f7986;font-size:21px}
+.name{text-align:center;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px}
+.star{position:absolute;top:7px;right:10px;font-size:17px}
+.empty{padding:80px 5px;font-size:28px;color:#abb2bc}
+.hidden{display:none!important}
+
+#player{position:absolute;z-index:60;inset:0;background:#000}
+#video{width:100%;height:100%;background:#000;object-fit:contain}
+#status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#c5cad1;font-size:26px;padding:70px;pointer-events:none;white-space:pre-wrap}
+#playerTop{position:absolute;left:0;right:0;top:0;z-index:4;padding:22px 32px;background:linear-gradient(#000d,transparent)}
+#playerTitle{font-size:25px;font-weight:700}
+#playerMeta{font-size:15px;color:#9ea8b5;margin-top:5px;word-break:break-all}
+#ctrl{position:absolute;z-index:5;left:50%;bottom:44px;transform:translateX(-50%);background:#10141aed;padding:12px 14px;border-radius:12px;display:flex;gap:9px}
+.cb{border:0;border-radius:8px;background:#303742;color:#fff;padding:11px 17px;font-size:18px}
+.cb.focus,.cb:focus{outline:3px solid #fff;background:#fff;color:#000}
+
+#menu{position:absolute;z-index:80;left:0;top:0;bottom:0;width:500px;background:#090c10fa;padding:92px 24px 26px;box-shadow:20px 0 60px #000}
+#menu h2{margin:0 0 15px;font-size:28px}
+.mi{height:57px;padding:13px 18px;margin:4px 0;border-radius:9px;font-size:21px}
+.mi.focus{background:#fff;color:#000}
+#menuHint{position:absolute;left:24px;bottom:18px;color:#949eab;font-size:14px}
+
+#dlg{position:absolute;z-index:100;inset:0;background:#000b;display:flex;align-items:center;justify-content:center}
+#box{width:860px;max-width:90vw;max-height:78vh;overflow:auto;background:#171c23;border-radius:14px;padding:26px}
+#box h2{margin:0 0 17px;font-size:28px}
+.input{width:100%;background:#07090d;color:#fff;border:2px solid #4e5662;border-radius:8px;padding:12px;font-size:21px}
+.guide{color:#acb5c0;line-height:1.5;font-size:17px}
+.db{border:0;border-radius:8px;background:#303741;color:#fff;padding:11px 17px;font-size:18px}
+.db:focus{outline:3px solid #fff;background:#fff;color:#000}
+
+#toast{position:absolute;z-index:120;left:50%;bottom:38px;transform:translateX(-50%);background:#121821f2;border-radius:9px;padding:11px 19px;font-size:18px;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
 </style>
+<script src="./dash.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"></script>
 </head>
 <body>
 <div id="app">
-<header id="top"><div id="brand">NM7 TV</div><div id="src">Truyền hình</div><div id="clock"></div></header>
+<header id="top"><div id="brand">NM7 TV</div><div id="version">1.0.69 Web</div><div id="src">Truyền hình</div><div id="count"></div><div id="clock"></div></header>
 <main id="home"><div class="empty">Đang tải danh sách kênh…</div></main>
 <section id="player" class="hidden">
-<video id="video" playsinline preload="metadata"></video>
+<div id="playerTop"><div id="playerTitle"></div><div id="playerMeta"></div></div>
+<video id="video" playsinline preload="auto"></video>
 <div id="status">Đang chờ phát…</div>
 <div id="ctrl" class="hidden">
-<button class="cb" data-a="back">◀ Thoát</button><button class="cb" data-a="back10">↶ -10s</button><button class="cb" data-a="play">▶/Ⅱ</button><button class="cb" data-a="fwd30">+30s ↷</button><button class="cb" data-a="next">CH +</button>
-</div></section>
-<aside id="menu" class="hidden"><h2>MENU TÙY CHỌN</h2><div id="ml"></div><p class="hint">◀ mở/đóng · ▲▼ chọn · OK xác nhận</p></aside>
-<div id="dlg" class="hidden"><div id="box"></div></div><div id="toast"></div>
+<button class="cb" data-a="back">◀ Thoát</button>
+<button class="cb" data-a="back10">↶ -10s</button>
+<button class="cb" data-a="play">▶/Ⅱ</button>
+<button class="cb" data-a="fwd30">+30s ↷</button>
+<button class="cb" data-a="next">CH +</button>
+</div>
+</section>
+<aside id="menu" class="hidden"><h2>MENU TÙY CHỌN</h2><div id="ml"></div><div id="menuHint">◀/Back mở · ↑↓ chọn · →/OK xác nhận</div></aside>
+<div id="dlg" class="hidden"><div id="box"></div></div>
+<div id="toast"></div>
 </div>
 <script>
 (function(){
+var VERSION='1.0.69';
 var SRC=[{id:'tv',name:'Truyền hình',url:'/api/playlist?source=tv'},{id:'sport',name:'Thể thao',url:'/api/playlist?source=sport'}];
-var S={source:0,list:[],groups:[],row:0,col:0,view:null,q:'',fav:[],recent:[],menu:0,mode:'home',player:false,ctrl:false,cp:2,dialog:null,current:null,candidateIndex:0,hls:null};
+var S={source:0,list:[],groups:[],row:0,col:0,view:null,q:'',fav:[],recent:[],menu:0,mode:'home',player:false,ctrl:false,cp:2,dialog:null,current:null,candidateIndex:0,hls:null,dash:null,playerGeneration:0,cacheAge:0};
 function $(id){return document.getElementById(id)}
 var toastTimer;
-function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-function toast(s){$('toast').textContent=s;$('toast').className='show';clearTimeout(toastTimer);toastTimer=setTimeout(function(){$('toast').className=''},2400)}
-function save(){try{localStorage.setItem('nm7:fav',JSON.stringify(S.fav));localStorage.setItem('nm7:recent',JSON.stringify(S.recent.slice(0,50)));localStorage.setItem('nm7:list:'+S.source,JSON.stringify(S.list))}catch(e){}}
-function restore(){try{S.fav=JSON.parse(localStorage.getItem('nm7:fav')||'[]');S.recent=JSON.parse(localStorage.getItem('nm7:recent')||'[]');var c=JSON.parse(localStorage.getItem('nm7:list:'+S.source)||'[]');if(c&&c.length)S.list=c}catch(e){}}
-function normalize(c){if(!c.candidates)c.candidates=c.url?[{url:c.url}]:[];return c}
-function rebuildGroups(){var seen={},i;S.groups=[];for(i=0;i<S.list.length;i++){var g=S.list[i].group||'Khác';if(!seen[g]){seen[g]=1;S.groups.push(g)}}S.row=0;S.col=0}
-function srcList(){var a=S.view||S.list;if(S.q){var q=S.q.toLowerCase(),b=[],i,c;for(i=0;i<a.length;i++){c=a[i];if((c.name+' '+c.group+' '+c.id).toLowerCase().indexOf(q)>=0)b.push(c)}return b}return a}
-function row(g){var a=srcList(),b=[],i;for(i=0;i<a.length;i++)if(a[i].group===g)b.push(a[i]);return b}
-function cur(){var a=row(S.groups[S.row]||'');return a[S.col]||a[0]}
-function activateLogos(){var imgs=document.querySelectorAll('img[data-src]'),i,im,ri;for(i=0;i<imgs.length;i++){im=imgs[i];ri=parseInt(im.getAttribute('data-row')||'0',10);if(Math.abs(ri-S.row)<=2&&im.getAttribute('data-src')){im.setAttribute('src',im.getAttribute('data-src'));im.removeAttribute('data-src')}}}
-function render(){var h=$('home'),html='',start=Math.max(0,S.row-2),end=Math.min(S.groups.length,S.row+5),r,g,a,i,c,focus;for(r=start;r<end;r++){g=S.groups[r];a=row(g);if(!a.length)continue;html+='<section class="row"><h2>'+esc(g)+'</h2><div class="cards">';for(i=0;i<a.length;i++){c=normalize(a[i]);focus=(r===S.row&&i===S.col);html+='<div class="card '+(focus?'focus':'')+'"><div class="thumb">';if(c.logo){html+='<img data-row="'+r+'" data-src="'+esc(c.logo)+'" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span>TV</span>\'">'}else html+='<span>TV</span>';html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</div>'}html+='</div></section>'}h.innerHTML=html||'<div class="empty">Không có kênh phù hợp</div>';activateLogos()}
-function setSourceLabel(){var n=S.source===1?'Thể thao':'Truyền hình';$('src').textContent=n+(S.list.length?' · '+S.list.length+' kênh':'')}
-function parseLegacy(t){var lines=String(t).replace(/^\uFEFF/,'').split(/\r?\n/),out=[],m=null,ua='',ref='',i,l,p,h,c;for(i=0;i<lines.length;i++){l=lines[i].trim();if(l.indexOf('#EXTINF:')===0){if(m&&m.candidates.length)out.push(m);p=l.indexOf(',');h=p<0?l:l.slice(0,p);m={name:p<0?'Kênh':l.slice(p+1).trim(),group:(/group-title="([^"]*)"/i.exec(h)||[])[1]||'Khác',logo:(/tvg-logo="([^"]*)"/i.exec(h)||[])[1]||'',id:(/tvg-id="([^"]*)"/i.exec(h)||[])[1]||'',candidates:[]};ua='';ref=''}else if(m&&l.indexOf('#EXTVLCOPT:')===0){var um=/http-user-agent=(?:"([^"]+)"|([^\s]+))/i.exec(l);var rm=/(?:http-referrer|http-referer)=(?:"([^"]+)"|([^\s]+))/i.exec(l);if(um)ua=um[1]||um[2];if(rm)ref=rm[1]||rm[2]}else if(m&&l.charAt(0)!=='#'&&/^(https?|rtsp|rtmp|udp):/i.test(l)){var parts=l.split('|'),url=parts[0],r2=ref,u2=ua,j;for(j=1;j<parts.length;j++){if(/^referer=/i.test(parts[j]))r2=parts[j].slice(parts[j].indexOf('=')+1);else if(/^http-user-agent=/i.test(parts[j]))u2=parts[j].slice(parts[j].indexOf('=')+1)}m.candidates.push({url:url,ref:r2,ua:u2})}}if(m&&m.candidates.length)out.push(m);for(i=0;i<out.length;i++){c=out[i];c.id=c.id||c.name}return out}
-function fetchSource(n){S.source=n;var cache=[];try{cache=JSON.parse(localStorage.getItem('nm7:list:'+n)||'[]')}catch(e){}if(cache.length){S.list=cache;S.view=null;S.q='';rebuildGroups();setSourceLabel();render();toast('Đã mở cache · đang cập nhật…')}else{S.list=[];$('home').innerHTML='<div class="empty">Đang tải danh sách '+(n?'thể thao':'truyền hình')+'…</div>'}
-fetch(SRC[n].url,{cache:'default'}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(data){S.list=data.channels||[];S.view=null;S.q='';for(var i=0;i<S.list.length;i++)normalize(S.list[i]);save();rebuildGroups();setSourceLabel();render();toast('Đã cập nhật '+S.list.length+' kênh')}).catch(function(){if(!S.list.length)toast('Không tải được playlist')})}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function toast(s){$('toast').textContent=s;$('toast').className='show';clearTimeout(toastTimer);toastTimer=setTimeout(function(){$('toast').className=''},2800)}
+function saveUser(){try{localStorage.setItem('nm7:fav',JSON.stringify(S.fav));localStorage.setItem('nm7:recent',JSON.stringify(S.recent.slice(0,80)));}catch(e){}}
+function restoreUser(){try{S.fav=JSON.parse(localStorage.getItem('nm7:fav')||'[]');S.recent=JSON.parse(localStorage.getItem('nm7:recent')||'[]')}catch(e){S.fav=[];S.recent=[]}}
+function cacheKey(){return 'nm7:web:'+S.source}
+function saveListCache(){try{localStorage.setItem(cacheKey(),JSON.stringify({at:Date.now(),channels:S.list}))}catch(e){}}
+function readListCache(){try{var x=JSON.parse(localStorage.getItem(cacheKey())||'null');return x&&x.channels&&x.channels.length?x:null}catch(e){return null}}
+function norm(c){c=c||{};if(!c.candidates)c.candidates=[];return c}
+function setLabel(){var n=SRC[S.source].name;$('src').textContent=n;$('count').textContent=S.list.length?('· '+S.list.length+' kênh'):''}
+function rebuildGroups(){var seen={},i,g;S.groups=[];for(i=0;i<S.list.length;i++){g=S.list[i].group||'Khác';if(!seen[g]){seen[g]=1;S.groups.push(g)}}S.row=Math.min(S.row,Math.max(0,S.groups.length-1));S.col=0}
+function currentRows(){return S.view||S.list}
+function channelsInGroup(g){var a=currentRows(),b=[],i;for(i=0;i<a.length;i++)if((a[i].group||'Khác')===g)b.push(a[i]);return b}
+function currentChannel(){var a=channelsInGroup(S.groups[S.row]||'');return a[S.col]||a[0]||null}
+function nearestColumn(oldCol,g){var n=channelsInGroup(g).length;return n?Math.min(oldCol,n-1):0}
+function focusElement(){var el=document.querySelector('.card.focus');if(el)el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}
+function activateLogos(){var imgs=document.querySelectorAll('img[data-src]'),i,im,r;for(i=0;i<imgs.length;i++){im=imgs[i];r=parseInt(im.getAttribute('data-row')||'0',10);if(Math.abs(r-S.row)<=2){im.src=im.getAttribute('data-src');im.removeAttribute('data-src')}}}
+function render(){
+ var h=$('home'),html='',start=Math.max(0,S.row-2),end=Math.min(S.groups.length,S.row+5),r,g,a,i,c;
+ for(r=start;r<end;r++){
+   g=S.groups[r];a=channelsInGroup(g);if(!a.length)continue;
+   html+='<section class="row"><h2>'+esc(g)+'</h2><div class="cards">';
+   for(i=0;i<a.length;i++){
+     c=norm(a[i]);html+='<div class="card '+(r===S.row&&i===S.col?'focus':'')+'"><div class="thumb">';
+     if(c.logo)html+='<img loading="lazy" data-row="'+r+'" data-src="'+esc(c.logo)+'" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span>TV</span>\'">';
+     else html+='<span>TV</span>';
+     html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</div>';
+   }
+   html+='</div></section>';
+ }
+ h.innerHTML=html||'<div class="empty">Không có kênh phù hợp</div>';activateLogos();focusElement()
+}
+function parseUserList(a){S.list=[];for(var i=0;i<a.length;i++)S.list.push(norm(a[i]));S.view=null;rebuildGroups();setLabel();render()}
+function fetchSource(n){
+ S.source=n;var cached=readListCache(),had=!!cached;
+ if(cached){S.list=cached.channels||[];S.view=null;rebuildGroups();setLabel();render();toast('Đã mở cache · đang cập nhật…')}
+ else {$('home').innerHTML='<div class="empty">Đang tải '+esc(SRC[n].name)+'…</div>';$('src').textContent=SRC[n].name;$('count').textContent=''}
+ fetch(SRC[n].url,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(data){
+   if(!data||!data.channels)throw new Error('Playlist response không hợp lệ');
+   parseUserList(data.channels);saveListCache();toast('Đã cập nhật '+S.list.length+' kênh');
+ }).catch(function(e){if(!had)toast('Không tải được playlist: '+e.message)})
+}
 function menuItems(){return ['▣ Truyền hình','⚽ Thể thao','★ Yêu thích','◷ Gần đây','⌕ Tìm kiếm','↻ Tải lại playlist'].concat(S.groups)}
 function drawMenu(){var a=menuItems(),h='',i;for(i=0;i<a.length;i++)h+='<div class="mi '+(i===S.menu?'focus':'')+'">'+esc(a[i])+'</div>';$('ml').innerHTML=h}
-function openMenu(){S.mode='menu';S.menu=Math.min(S.menu,menuItems().length-1);$('menu').className='';drawMenu()}
+function openMenu(){S.mode='menu';S.menu=Math.max(0,Math.min(S.menu,menuItems().length-1));$('menu').className='';drawMenu()}
 function closeMenu(){S.mode=S.player?'player':'home';$('menu').className='hidden';render()}
-function selectMenu(){var p=S.menu,a,ids,kind,i;if(p===0||p===1){closeMenu();fetchSource(p)}else if(p===2||p===3){ids=p===2?S.fav:S.recent;a=[];for(i=0;i<S.list.length;i++)if(ids.indexOf(S.list[i].id)>=0)a.push(S.list[i]);if(!a.length)return toast(p===2?'Yêu thích trống':'Gần đây trống');S.view=a;S.groups=[];var seen={};for(i=0;i<a.length;i++){kind=a[i].group||'Khác';if(!seen[kind]){seen[kind]=1;S.groups.push(kind)}}S.row=0;S.col=0;closeMenu()}else if(p===4){showSearch()}else if(p===5){closeMenu();fetchSource(S.source)}else{var g=S.groups[p-6];if(g){S.view=null;S.row=S.groups.indexOf(g);S.col=0;closeMenu()}}}
-function showSearch(){S.dialog='search';$('dlg').className='';$('box').innerHTML='<h2>Tìm kiếm kênh</h2><input id="qin" class="input" value="'+esc(S.q)+'" placeholder="Nhập tên kênh hoặc nhóm…"><p class="guide">Enter/Back đóng tìm kiếm.</p>';var i=$('qin');i.focus();i.oninput=function(){S.q=i.value.trim();S.row=0;S.col=0;render()}}
-function clearHls(){if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}}
-function candidateUrl(c){if(!c||!c.candidates||!c.candidates.length)return '';return c.candidates[S.candidateIndex].proxy||c.candidates[S.candidateIndex].url}
-function likelyHls(u){return /\.m3u8(?:$|\?)/i.test(u)||/playlist|index\.m3u|\.m3u(?:$|\?)/i.test(u)}
-function tryCandidate(c){if(!c||!c.candidates||!c.candidates.length){showStatus('Kênh không có URL phát');return}if(S.candidateIndex>=c.candidates.length){showStatus('Không phát được '+c.name+'\nĐã thử '+c.candidates.length+' nguồn');return}
-clearHls();var v=$('video'),cand=c.candidates[S.candidateIndex],u=cand.proxy||cand.url;showStatus('Đang thử '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length);v.pause();v.removeAttribute('src');v.load();
-if(window.Hls&&Hls.isSupported()&&likelyHls(cand,u)){S.hls=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30});S.hls.on(Hls.Events.ERROR,function(event,data){if(data&&data.fatal){setTimeout(function(){nextCandidate('HLS lỗi')},250)}});S.hls.on(Hls.Events.MANIFEST_PARSED,function(){var p=v.play();if(p&&p.catch)p.catch(function(){toast('Nhấn OK để phát')})});S.hls.loadSource(u);S.hls.attachMedia(v)}
-else{v.src=u;var p=v.play();if(p&&p.catch)p.catch(function(){toast('Nhấn OK để phát')})}
+function selectMenu(){
+ var p=S.menu,a=[],ids,i,g,seen;
+ if(p===0||p===1){closeMenu();fetchSource(p);return}
+ if(p===2||p===3){
+   ids=p===2?S.fav:S.recent;for(i=0;i<S.list.length;i++)if(ids.indexOf(S.list[i].id)>=0)a.push(S.list[i]);
+   if(!a.length){toast(p===2?'Yêu thích trống':'Gần đây trống');return}
+   S.view=a;seen={};S.groups=[];for(i=0;i<a.length;i++){g=a[i].group||'Khác';if(!seen[g]){seen[g]=1;S.groups.push(g)}}S.row=0;S.col=0;closeMenu();return
+ }
+ if(p===4){showSearch();return}
+ if(p===5){closeMenu();fetchSource(S.source);return}
+ g=S.groups[p-6];if(g){S.view=null;S.row=S.groups.indexOf(g);S.col=0;closeMenu()}
 }
-function nextCandidate(reason){if(!S.player||!S.current)return;S.candidateIndex++;toast((reason||'Nguồn lỗi')+' · thử nguồn dự phòng');tryCandidate(S.current)}
+function showSearch(){S.dialog='search';$('dlg').className='';$('box').innerHTML='<h2>Tìm kiếm kênh</h2><input id="qin" class="input" value="'+esc(S.q)+'" placeholder="Tên kênh, TVG-ID hoặc nhóm"><p class="guide">Gõ tìm kiếm rồi nhấn Enter. Back đóng.</p>';var i=$('qin');i.focus();i.oninput=function(){S.q=i.value.trim();S.row=0;S.col=0;render()}}
+function listForNavigation(){var a=S.list;if(S.q){var q=S.q.toLowerCase(),b=[],i,c;for(i=0;i<a.length;i++){c=a[i];if((c.name+' '+c.group+' '+c.id).toLowerCase().indexOf(q)>=0)b.push(c)}return b}return a}
+function refreshView(){var old=S.list;S.list=listForNavigation();rebuildGroups();S.list=old;render()}
+function clearPlayers(){if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}if(S.dash){try{S.dash.reset()}catch(e){}S.dash=null}}
+function getCandidate(){if(!S.current||!S.current.candidates||!S.current.candidates.length)return null;return S.current.candidates[S.candidateIndex]||null}
 function showStatus(s){$('status').textContent=s;$('status').style.display='flex'}
-function play(c){if(!c)return;S.current=c;S.candidateIndex=0;S.player=true;S.ctrl=false;$('player').className='';$('ctrl').className='hidden';S.recent=[c.id].concat(S.recent.filter(function(x){return x!==c.id})).slice(0,50);save();tryCandidate(c)}
-function stop(){clearHls();var v=$('video');v.pause();v.removeAttribute('src');v.load();S.current=null;S.player=false;S.ctrl=false;$('player').className='hidden';$('ctrl').className='hidden'}
+function classify(c){
+ var u=String(c.url||'').toLowerCase(),m=String(c.mime||'').toLowerCase(),o=String(c.type||'').toLowerCase();
+ if(c.dash||o==='dash'||m.indexOf('dash+xml')>=0||/\.mpd(?:$|\?)/i.test(u))return 'dash';
+ if(c.hls||o==='hls'||m.indexOf('mpegurl')>=0||/\.m3u8?(?:$|\?)/i.test(u))return 'hls';
+ if(o==='rtsp'||/^rtsps?:/i.test(u))return 'rtsp';
+ if(o==='rtmp'||/^rtmps?:/i.test(u))return 'rtmp';
+ if(o==='udp'||/^udp:/i.test(u))return 'udp';
+ if(/\.mp4(?:$|\?)/i.test(u))return 'mp4';
+ return 'http';
+}
+function proxiedUrl(c){
+ var u=c.url||'',t=classify(c);
+ if(t!=='hls'&&t!=='dash')return u;
+ if(c.proxy)return c.proxy;
+ var q='/api/stream?u='+encodeURIComponent(u);
+ if(c.ref)q+='&r='+encodeURIComponent(c.ref);
+ if(c.ua)q+='&ua='+encodeURIComponent(c.ua);
+ return q
+}
+function protectionData(c){
+ var d=c.drm||{},type=String(d.type||c.licenseType||'').toLowerCase(),key=String(d.key||c.licenseKey||'').trim();
+ if(!type||!key)return null;
+ var out={},proto=type.indexOf('widevine')>=0?'com.widevine.alpha':type.indexOf('playready')>=0?'com.microsoft.playready':'org.w3.clearkey';
+ if(proto==='org.w3.clearkey'){
+   if(/^https?:/i.test(key))out[proto]={serverURL:'/api/license?u='+encodeURIComponent(key),httpRequestHeaders:{'X-NM7-Client':'web-1.0.69'}};
+   else{
+     var map={},parts=key.split(/[;,]/),i,p,k,v;
+     for(i=0;i<parts.length;i++){p=parts[i].split(':');if(p.length===2){k=b64urlFromHex(p[0]);v=b64urlFromHex(p[1]);if(k&&v)map[k]=v}}
+     if(Object.keys(map).length)out[proto]={clearkeys:map};
+   }
+ }else if(/^https?:/i.test(key))out[proto]={serverURL:'/api/license?u='+encodeURIComponent(key),httpRequestHeaders:{'X-NM7-Client':'web-1.0.69'}};
+ return Object.keys(out).length?out:null
+}
+function b64urlFromHex(s){var h=String(s||'').replace(/^0x/i,'').replace(/-/g,'').trim(),bin='',i;if(!/^[0-9a-f]+$/i.test(h)||h.length%2)return '';for(i=0;i<h.length;i+=2)bin+=String.fromCharCode(parseInt(h.substr(i,2),16));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function setupDash(c,cand,v,u){
+ if(!window.dashjs){showStatus('Thiếu DASH player trên trình duyệt');return false}
+ try{
+   var p=dashjs.MediaPlayer().create();S.dash=p;
+   p.extend('RequestModifier',function(){return{
+     modifyRequestURL:function(url){if(/^https?:/i.test(url)&&url.indexOf(location.origin)===0)return url;var q='/api/stream?u='+encodeURIComponent(url);if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);return q},
+     modifyRequestHeader:function(xhr){if(cand.ua)try{xhr.setRequestHeader('User-Agent',cand.ua)}catch(e){}return xhr}
+   }});
+   var prot=protectionData(cand);if(prot&&p.setProtectionData)p.setProtectionData(prot);
+   p.on(dashjs.MediaPlayer.events.PLAYBACK_ERROR,function(e){nextCandidate('DASH playback error')});
+   p.on(dashjs.MediaPlayer.events.ERROR,function(e){if(e&&e.error){nextCandidate('DASH lỗi: '+(e.error.message||e.error.code||'unknown'))}});
+   p.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED,function(){hideStatus();var x=v.play();if(x&&x.catch)x.catch(function(){toast('Nhấn OK để phát '+c.name)})});
+   p.initialize(v,u,true);
+   return true
+ }catch(e){nextCandidate('DASH khởi tạo lỗi');return false}
+}
+function setupHls(c,cand,v,u){
+ if(window.Hls&&Hls.isSupported()){
+   S.hls=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,startFragPrefetch:true,maxBufferHole:0.3});
+   S.hls.on(Hls.Events.ERROR,function(ev,data){if(data&&data.fatal)nextCandidate('HLS lỗi '+(data.details||''))});
+   S.hls.on(Hls.Events.MANIFEST_PARSED,function(){hideStatus();var x=v.play();if(x&&x.catch)x.catch(function(){toast('Nhấn OK để phát '+c.name)})});
+   var conf={};if(cand.ua)conf.xhrSetup=function(xhr){try{xhr.setRequestHeader('User-Agent',cand.ua)}catch(e){}};if(cand.ref)conf.referrerPolicy='no-referrer';
+   S.hls.loadSource(u);S.hls.attachMedia(v);return true
+ }
+ if(v.canPlayType&&v.canPlayType('application/vnd.apple.mpegurl')){v.src=u;var x=v.play();if(x&&x.catch)x.catch(function(){});return true}
+ showStatus('Trình duyệt không hỗ trợ HLS/MSE');return false
+}
+function directPlayback(c,cand,v,u){
+ if(classify(cand)==='rtsp'||classify(cand)==='rtmp'||classify(cand)==='udp'){showStatus('Giao thức '+classify(cand).toUpperCase()+' không thể phát trực tiếp trong Web browser');return false}
+ try{v.src=u;var x=v.play();if(x&&x.catch)x.catch(function(){}) ;return true}catch(e){return false}
+}
+function hideStatus(){$('status').style.display='none'}
+function nextCandidate(reason){
+ if(!S.player)return;
+ S.candidateIndex++;
+ if(S.current&&S.candidateIndex<S.current.candidates.length){toast(reason||'Nguồn lỗi');setTimeout(function(){tryCurrent()},180);return}
+ showStatus('Không phát được '+(S.current?S.current.name:'kênh')+'\\nĐã thử '+(S.current&&S.current.candidates?S.current.candidates.length:0)+' nguồn');
+}
+function tryCurrent(){
+ var c=S.current,cand=getCandidate(),v=$('video'),u;
+ if(!cand){showStatus('Kênh chưa có URL phát');return}
+ clearPlayers();u=proxiedUrl(cand);
+ showStatus('Đang phát '+c.name+'\\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length);
+ v.pause();v.removeAttribute('src');try{v.load()}catch(e){}
+ var t=classify(cand),ok=false;
+ if(t==='dash')ok=setupDash(c,cand,v,u);
+ else if(t==='hls')ok=setupHls(c,cand,v,u);
+ else ok=directPlayback(c,cand,v,u);
+ if(!ok&&S.current===c)nextCandidate('Nguồn không tương thích');
+}
+function play(c){
+ if(!c)return;S.current=c;S.candidateIndex=0;S.playerGeneration++;S.player=true;S.ctrl=false;
+ $('player').className='';$('ctrl').className='hidden';$('playerTitle').textContent=c.name;$('playerMeta').textContent=c.url||'';
+ S.recent=[c.id].concat(S.recent.filter(function(x){return x!==c.id})).slice(0,80);saveUser();tryCurrent()
+}
+function stop(){
+ clearPlayers();var v=$('video');try{v.pause();v.removeAttribute('src');v.load()}catch(e){}
+ S.current=null;S.player=false;S.ctrl=false;$('player').className='hidden';$('ctrl').className='hidden'
+}
 function seek(sec){var v=$('video');if(!isFinite(v.duration)){toast('Luồng này không hỗ trợ tua');return}v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+sec))}
 function showCtrl(){S.ctrl=!S.ctrl;$('ctrl').className=S.ctrl?'':'hidden';if(S.ctrl)focusCtrl()}
 function focusCtrl(){var b=document.querySelectorAll('.cb'),i;for(i=0;i<b.length;i++)b[i].className='cb '+(i===S.cp?'focus':'')}
-function ctrlAction(){var b=document.querySelectorAll('.cb'),a=b[S.cp]?b[S.cp].getAttribute('data-a'):'';if(a==='back'){stop();render()}else if(a==='back10')seek(-10);else if(a==='fwd30')seek(30);else if(a==='play'){var v=$('video');v.paused?v.play():v.pause()}else if(a==='next'){switchRelative(1)}}
-function switchRelative(d){var c=S.current||cur(),i=S.list.indexOf(c);if(i<0)i=0;play(S.list[(i+d+S.list.length)%S.list.length])}
-$('video').addEventListener('playing',function(){$('status').style.display='none'});$('video').addEventListener('error',function(){nextCandidate('Trình phát không nhận nguồn')});$('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồng kết thúc')});
-document.addEventListener('keydown',function(e){var k=e.keyCode;
-if(S.dialog){if(k===461||k===10009||k===27||k===13){$('dlg').className='hidden';S.dialog=null;render();e.preventDefault()}return}
-if(S.player){if(k===461||k===10009||k===27){if(S.ctrl){S.ctrl=false;$('ctrl').className='hidden'}else{stop();render()}e.preventDefault();return}if(S.ctrl){if(k===37){S.cp=Math.max(0,S.cp-1);focusCtrl()}else if(k===39){S.cp=Math.min(4,S.cp+1);focusCtrl()}else if(k===13)ctrlAction()}else{if(k===13)showCtrl();else if(k===37)seek(-10);else if(k===39)seek(30);else if(k===38)switchRelative(-1);else if(k===40)switchRelative(1)}e.preventDefault();return}
-if(S.mode==='menu'){if(k===461||k===10009){closeMenu();e.preventDefault();return}if(k===38||k===40){var mi=menuItems(),d=k===38?-1:1;S.menu=Math.max(0,Math.min(mi.length-1,S.menu+d));drawMenu()}else if(k===13||k===39)selectMenu();e.preventDefault();return}
-if(k===461||k===10009||k===27){openMenu();e.preventDefault();return}
-if(k===37){if(S.col===0)openMenu();else S.col--;render()}else if(k===39){var a=row(S.groups[S.row]||'');S.col=Math.min(Math.max(0,a.length-1),S.col+1);render()}else if(k===38){S.row=Math.max(0,S.row-1);S.col=Math.min(S.col,Math.max(0,row(S.groups[S.row]||'').length-1));render()}else if(k===40){S.row=Math.min(S.groups.length-1,S.row+1);S.col=Math.min(S.col,Math.max(0,row(S.groups[S.row]||'').length-1));render()}else if(k===13)play(cur());else if(k===8||k===403){var c=cur();if(c){var fi=S.fav.indexOf(c.id);if(fi<0)S.fav.push(c.id);else S.fav.splice(fi,1);save();render();toast(fi<0?'Đã thêm yêu thích':'Đã bỏ yêu thích')}}e.preventDefault()});
-restore();S.list=S.list||[];rebuildGroups();setSourceLabel();render();fetchSource(0);setInterval(function(){var d=new Date();$('clock').textContent=d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})},1000);updateClock();
-function updateClock(){var d=new Date();$('clock').textContent=d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}
+function ctrlAction(){var b=document.querySelectorAll('.cb'),a=b[S.cp]?b[S.cp].getAttribute('data-a'):'';if(a==='back'){stop();render()}else if(a==='back10')seek(-10);else if(a==='fwd30')seek(30);else if(a==='play'){var v=$('video');v.paused?v.play():v.pause()}else if(a==='next'){switchChannelRelative(1)}}
+function switchChannelRelative(d){var c=S.current||currentChannel(),i=S.list.indexOf(c);if(i<0)i=0;play(S.list[(i+d+S.list.length)%S.list.length])}
+$('video').addEventListener('playing',hideStatus);
+$('video').addEventListener('canplay',function(){hideStatus()});
+$('video').addEventListener('error',function(){nextCandidate('Video error')});
+$('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồng kết thúc')});
+
+document.addEventListener('keydown',function(e){
+ var k=e.keyCode;
+ if(S.dialog){if(k===13||k===461||k===10009||k===27){$('dlg').className='hidden';S.dialog=null;render();e.preventDefault()}return}
+ if(S.player){
+   if(k===461||k===10009||k===27){if(S.ctrl){S.ctrl=false;$('ctrl').className='hidden'}else{stop();render()}e.preventDefault();return}
+   if(S.ctrl){if(k===37){S.cp=Math.max(0,S.cp-1);focusCtrl()}else if(k===39){S.cp=Math.min(4,S.cp+1);focusCtrl()}else if(k===13)ctrlAction()}
+   else{if(k===13)showCtrl();else if(k===37)seek(-10);else if(k===39)seek(30);else if(k===38)switchChannelRelative(-1);else if(k===40)switchChannelRelative(1)}
+   e.preventDefault();return
+ }
+ if(S.mode==='menu'){
+   if(k===461||k===10009||k===27){closeMenu();e.preventDefault();return}
+   if(k===38||k===40){var mi=menuItems();S.menu=Math.max(0,Math.min(mi.length-1,S.menu+(k===38?-1:1)));drawMenu()}
+   else if(k===13||k===39)selectMenu();
+   e.preventDefault();return
+ }
+ if(k===461||k===10009||k===27){openMenu();e.preventDefault();return}
+ var rows=channelsInGroup(S.groups[S.row]||'');
+ if(k===37){if(S.col===0)openMenu();else{S.col--;render()}}
+ else if(k===39){if(rows.length){S.col=(S.col+1)%rows.length;render()}}
+ else if(k===38){var old=S.col;S.row=Math.max(0,S.row-1);S.col=nearestColumn(old,S.groups[S.row]||'');render()}
+ else if(k===40){var old2=S.col;S.row=Math.min(S.groups.length-1,S.row+1);S.col=nearestColumn(old2,S.groups[S.row]||'');render()}
+ else if(k===13)play(currentChannel())
+ else if(k===8||k===403){var c=currentChannel();if(c){var fi=S.fav.indexOf(c.id);if(fi<0)S.fav.push(c.id);else S.fav.splice(fi,1);saveUser();render();toast(fi<0?'Đã thêm yêu thích':'Đã bỏ yêu thích')}}
+ e.preventDefault()
+});
+restoreUser();var cached=readListCache();if(cached){S.list=cached.channels||[];rebuildGroups();setLabel();render()}
+fetchSource(0);
+setInterval(function(){$('clock').textContent=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})},1000);
+$('clock').textContent=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
 })();
 </script>
-</body></html>
+</body>
+</html>

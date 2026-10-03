@@ -1,82 +1,72 @@
-# NM7 TV Web / Tizen 1.0.69
+# NM7 TV Web — Browser 1.0.69
 
-## Chuẩn nguồn
+## Chuẩn duy nhất
 
-Bản hiện tại lấy **Android NM7 TV 1.0.69** làm mốc UI/asset/player: release `v1.0.69-fast-vtvcab-logo-16`, commit `f79fc06009f20e0ac3a5859c0abcfd6ce70a6763`.
+Web App này lấy **Android NM7 TV 1.0.69** làm chuẩn UI/logic: release `v1.0.69-fast-vtvcab-logo-16`, commit `f79fc06009f20e0ac3a5859c0abcfd6ce70a6763`.
 
-Không lấy 1.0.39 làm baseline giao diện.
+Không dùng UI, logic hoặc cấu trúc 1.0.39 làm baseline.
 
-## UI 1.0.69
+## Mục tiêu triển khai
 
-- Layout TV theo mốc Android 1.0.69.
-- YouTube dùng đúng vector logo của Android 1.0.69.
-- Launcher/icon được dựng từ đúng vector `ic_launcher.xml` của Android 1.0.69.
-- Card kênh: logo tròn, halo/ring khi focus, điều hướng D-pad trái/phải/lên/xuống.
-- Side menu và các mục Trang chính / Truyền hình / Thể thao / Yêu thích / Gần đây / Tìm kiếm / Tải lại.
-- Giữ logo fallback riêng cho các kênh VTVCab đã xử lý ở Android 1.0.69.
+Đây là **Web App/PWA chạy trực tiếp trong trình duyệt Internet của Samsung TV**:
 
-## Playback
+1. Mở Samsung Internet.
+2. Nhập URL Web App.
+3. Dùng remote D-pad để điều khiển.
+4. Có thể thêm trang vào Home Screen của TV.
 
-### Tizen/Samsung TV
+Không yêu cầu cài WGT để chạy Web App.
 
-Trên Samsung TV, player ưu tiên **Samsung AVPlay** nếu `webapis.avplay` tồn tại:
+## UI / remote
 
-- HLS `.m3u8`
-- MPEG-DASH `.mpd`
-- User-Agent / Cookie qua AVPlay streaming properties
-- Display 1920x1080
-- Buffer callbacks, playback callbacks, seek, play/pause
-- PlayReady SetProperties khi playlist cung cấp license metadata
-- ClearKey/Widevine không ép qua AVPlay nếu TV API không hỗ trợ trực tiếp; ClearKey DASH vẫn giữ nhánh HTML5/EME fallback.
+- Bố cục TV bám Android 1.0.69.
+- YouTube dùng vector Android 1.0.69.
+- Launcher/logo và logo kênh theo asset 1.0.69.
+- Card logo tròn + halo/ring khi focus.
+- Side menu, search, favorites, recent, reload.
+- LEFT/RIGHT/UP/DOWN/OK.
+- RIGHT ở card ngoài cùng được xử lý wrap sang card đầu của cùng hàng.
 
-Samsung xác nhận AVPlay là API phù hợp cho adaptive streaming/DRM trên TV, hỗ trợ HLS/DASH và được cấu hình sau `open()` trước `prepare()/prepareAsync()`.
+## Playback browser
 
-### Browser fallback
+Samsung Tizen 3.0 (2017) có HTML5 `video`, MSE và EME; Samsung cũng liệt kê MPEG-DASH, HLS và ClearKey trong nền tảng streaming của Tizen 3.0.
 
-Nếu không có AVPlay:
+Implementation hiện tại:
 
-- hls.js cho HLS
-- dash.js cho DASH
-- mpegts.js cho MPEG-TS khi trình duyệt hỗ trợ
-- Resolver/probe cho URL không có đuôi `.m3u8/.mpd`
+- **HLS trên Samsung Tizen browser:** ưu tiên HTML5 `video` native, không ép qua JavaScript proxy nếu trình duyệt có native HLS.
+- **DASH:** dash.js 2.5.0, tương thích JavaScript cũ của Tizen 3.0/M47.
+- **Desktop/non-Tizen:** hls.js 0.14.17 cho HLS; dash.js cho DASH.
+- Browser proxy cùng origin tại `/api/stream` dùng khi MSE/JavaScript cần CORS và để rewrite HLS segment URLs.
+- Proxy sniff MIME để MPD/M3U8 không bị trả sai `text/html`.
+- Fallback đúng thứ tự: proxy → direct trên cùng candidate; chỉ sau đó mới chuyển candidate tiếp theo.
+- Không tự sinh URL stream ngoài playlist/metadata nguồn.
 
 ## Playlist
 
-Preview hiện đọc playlist động qua API. Smoke test gần nhất xác nhận:
+`/api/playlist?source=tv` tải nguồn playlist động và giữ metadata:
 
-- 483–494 kênh tùy thời điểm nguồn cập nhật
-- HLS / DASH / HTTP được phân loại
-- VTV1 có DASH + fallback HLS
-- ON Sports có DASH/ClearKey + fallback HLS
-- ON Football có DASH/ClearKey + fallback HLS
+- `tvg-id`
+- `tvg-logo`
+- group
+- URL headers
+- KODIPROP/DRM metadata
+- HLS/DASH/HTTP classification
+- nhiều candidate theo cùng kênh
 
-## Tizen WGT
+Smoke gần nhất đã đọc được khoảng 493 kênh / 521 candidates tùy thời điểm nguồn.
 
-Artifact build hiện tại:
+## Kiểm chứng
 
-`NM7-TV-Tizen-1.0.69-AVPlay-unsigned.wgt`
+- HTML/JS dùng cú pháp cũ phù hợp Tizen 3.0: PASS.
+- Playlist/protocol coverage: PASS.
+- Tizen browser routing smoke với UA Tizen 3.0: PASS.
+- Native HLS routing trên browser path: PASS ở mức routing test.
+- RIGHT-edge navigation: PASS.
+- Chromium full playback với nguồn live thực tế còn phụ thuộc quyền truy cập của CDN/Vercel runner; HTTP 403 từ runner không được coi là bằng chứng TV không phát được.
+- **TV Samsung UA49M5500 chưa được điều khiển trực tiếp từ môi trường phát triển này**, nên không ghi nhận "TV thực tế PASS" khi chưa có phiên test trực tiếp trên TV.
 
-SHA-256:
+## Nhánh
 
-`1ee0e3c48d44a57caa9caa0e30096fe18ba2a60efbd5837774a5526b0ed23524`
+`feature/web-tv-browser-1.0.69-android-exact`
 
-WGT gồm:
-
-- `config.xml` Tizen 2.3+ / profile `tv-samsung`
-- `index.html`
-- `dash.all.min.js`
-- `icon.png`
-
-### Tình trạng
-
-- Source branch: `feature/web-tv-browser-1.0.69-android-exact`
-- Android 1.0.69 baseline: đã chốt.
-- UI/runtime syntax: PASS.
-- Browser UI smoke: PASS.
-- Playlist smoke: PASS.
-- WGT build: PASS.
-- **TV thực tế:** chưa thể tự xác nhận hoàn toàn trong GitHub runner; cần sideload WGT lên Samsung TV M5500 và kiểm tra playback native AVPlay. WGT hiện là unsigned để Apps2Samsung re-sign theo DUID/certificate của TV.
-
-## Không merge main
-
-Nhánh này là nhánh phát triển riêng của mốc 1.0.69. `main` được giữ nguyên cho đến khi kiểm tra TV thật hoàn tất.
+Giữ nhánh riêng, không merge `main` cho tới khi người dùng xác nhận Web App chạy ổn định trên TV thật.

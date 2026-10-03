@@ -75,7 +75,7 @@ jobs:
             await p.waitForTimeout(100);
             if(await p.locator('#menu .mi.focus').count()!==1)throw new Error('DOWN did not move menu');
 
-            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:27,which:27,bubbles:true})));
+            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:461,which:461,bubbles:true})));
             await p.waitForTimeout(100);
             await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true})));
             await p.waitForSelector('#player:not(.hidden)',{timeout:3000});

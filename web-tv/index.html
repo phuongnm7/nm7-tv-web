@@ -267,15 +267,22 @@ function openMenu(){S.mode='menu';S.menu=Math.max(0,Math.min(S.menu,menuItems().
 function closeMenu(){S.mode=S.player?'player':'home';$('menu').className='hidden';render()}
 function selectMenu(){
  var p=S.menu,a=[],ids,i,g,seen;
- if(p===0||p===1){closeMenu();fetchSource(p);return}
- if(p===2||p===3){
-   ids=p===2?S.fav:S.recent;for(i=0;i<S.list.length;i++)if(ids.indexOf(S.list[i].id)>=0)a.push(S.list[i]);
-   if(!a.length){toast(p===2?'Yêu thích trống':'Gần đây trống');return}
-   S.view=a;seen={};S.groups=[];for(i=0;i<a.length;i++){g=a[i].group||'Khác';if(!seen[g]){seen[g]=1;S.groups.push(g)}}S.row=0;S.col=0;closeMenu();return
+ if(p===0){closeMenu();setTopFocus(0);return}
+ if(p===1){closeMenu();setTopFocus(0);toast('YouTube trên Web đang ở chế độ trình duyệt');return}
+ if(p===2){showSearch();return}
+ if(p===3){S.view=null;S.row=0;S.col=0;closeMenu();setTopFocus(0);return}
+ if(p===4){closeMenu();fetchSource(0);return}
+ if(p===5){closeMenu();fetchSource(1);return}
+ if(p===6||p===7){
+   ids=p===6?S.fav:S.recent;for(i=0;i<S.list.length;i++)if(ids.indexOf(S.list[i].id)>=0)a.push(S.list[i]);
+   if(!a.length){toast(p===6?'Yêu thích trống':'Gần đây trống');return}
+   S.view=a;seen={};S.groups=[];for(i=0;i<a.length;i++){g=a[i].group||'Khác';if(!seen[g]){seen[g]=1;S.groups.push(g)}}S.row=0;S.col=0;S.zone='channel';closeMenu();return
  }
- if(p===4){showSearch();return}
- if(p===5){closeMenu();fetchSource(S.source);return}
- g=S.groups[p-6];if(g){S.view=null;S.row=S.groups.indexOf(g);S.col=0;closeMenu()}
+ if(p===10){closeMenu();fetchSource(S.source);return}
+ if(p===11){closeMenu();toast('Đổi hình nền chỉ khả dụng trên Android TV');return}
+ if(p===12){closeMenu();toast('Cài đặt thiết bị chỉ khả dụng trên ứng dụng TV');return}
+ if(p===13){closeMenu();toast('Tùy chọn ứng dụng đang được giữ trên Android TV');return}
+ g=S.groups[p-14];if(g){S.view=null;S.row=S.groups.indexOf(g);S.col=0;S.zone='channel';closeMenu()}
 }
 function showSearch(){S.dialog='search';$('dlg').className='';$('box').innerHTML='<h2>Tìm kiếm kênh</h2><input id="qin" class="input" value="'+esc(S.q)+'" placeholder="Tên kênh, TVG-ID hoặc nhóm"><p class="guide">Gõ tìm kiếm rồi nhấn Enter. Back đóng.</p>';var i=$('qin');i.focus();i.oninput=function(){S.q=i.value.trim();S.row=0;S.col=0;render()}}
 function listForNavigation(){var a=S.list;if(S.q){var q=S.q.toLowerCase(),b=[],i,c;for(i=0;i<a.length;i++){c=a[i];if((c.name+' '+c.group+' '+c.id).toLowerCase().indexOf(q)>=0)b.push(c)}return b}return a}

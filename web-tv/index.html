@@ -141,7 +141,7 @@ function render(){
      html+='<div class="thumb">';
      if(c.logo)html+='<img loading="lazy" data-row="'+r+'" data-src="'+esc(c.logo)+'" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span>TV</span>\'">';
      else html+='<span>TV</span>';
-     html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</div>';
+     html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</button>';
    }
    html+='</button></section>';
  }

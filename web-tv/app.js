@@ -80,7 +80,7 @@ function parseM3U(text,base){
    um=/http-user-agent=(?:"([^"]+)"|([^\s]+))/i.exec(l);rm=/(?:http-referrer|http-referer)=(?:"([^"]+)"|([^\s]+))/i.exec(l);
    if(um)ua=um[1]||um[2];
    if(rm)ref=rm[1]||rm[2];
-   var om=/http-origin=(?:"([^"]+)"|([^\s]+))/i.exec(l);if(om)ref=ref||om[1]||om[2];
+   var om=/http-origin=(?:"([^"]+)"|([^\s]+))/i.exec(l);if(om){ if(om[1]||om[2]){ /* Origin is kept as a real header below. */ } }
    continue
   }
   if(l.indexOf('#KODIPROP:')===0){
@@ -596,13 +596,12 @@ function onKey(e){
    focusQuick();return
   }
   if(S.ctrl){
-   var cb=document.querySelectorAll('.cb');
-   if(k===37)S.ctrlIndex=Math.max(0,S.ctrlIndex-1);
-   else if(k===39)S.ctrlIndex=Math.min(cb.length-1,S.ctrlIndex+1);
-   else if(k===38)S.ctrlIndex=Math.max(0,S.ctrlIndex-1);
-   else if(k===40)S.ctrlIndex=Math.min(cb.length-1,S.ctrlIndex+1);
-   else if(k===13){controlAction();return}
-   focusControls();return
+   if(k===37){seek(-10);return}
+   if(k===39){seek(30);return}
+   if(k===38){switchRelative(1);return}
+   if(k===40){switchRelative(-1);return}
+   if(k===13){togglePlay();return}
+   return
   }
   if(k===13){showControls();return}
   if(k===37){showQuick();return}
@@ -618,7 +617,7 @@ function onKey(e){
  }
  if(k===37){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var a=channelsInGroup(S.groups[S.row]||'');if(S.col===0)openMenu();else setFocusCard(S.row,S.col-1,true)}return}
  if(k===39){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var a2=channelsInGroup(S.groups[S.row]||'');if(a2.length)setFocusCard(S.row,(S.col+1)%Math.min(20,a2.length),true)}return}
- if(k===38){e.preventDefault();e.stopPropagation();if(S.zone==='home'){if(S.row===0){openMenu()}else{var rr=Math.max(0,S.row-1),aa=channelsInGroup(S.groups[rr]||'');setFocusCard(rr,Math.min(S.col,Math.max(0,Math.min(19,aa.length-1))),true)}}return}
+ if(k===38){e.preventDefault();e.stopPropagation();if(S.zone==='home'){if(S.row===0){return}else{var rr=Math.max(0,S.row-1),aa=channelsInGroup(S.groups[rr]||'');setFocusCard(rr,Math.min(S.col,Math.max(0,Math.min(19,aa.length-1))),true)}}return}
  if(k===40){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var nr=Math.min(S.groups.length-1,S.row+1),bb=channelsInGroup(S.groups[nr]||'');if(bb.length)setFocusCard(nr,Math.min(S.col,Math.min(19,bb.length-1)),true)}return}
  if(k===13){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var c=channelsInGroup(S.groups[S.row]||'')[S.col];if(c)openPlayer(c)}return}
  if(k===8||k===403){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var c2=channelsInGroup(S.groups[S.row]||'')[S.col];if(c2){var ix=S.fav.indexOf(c2.id);if(ix<0){S.fav.push(c2.id);toast('Đã thêm yêu thích')}else{S.fav.splice(ix,1);toast('Đã bỏ yêu thích')}saveUser();renderHome()}}return}

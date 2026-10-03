@@ -385,8 +385,16 @@ function startCandidate(c,done){
        safePlay();
        setTimeout(function(){if(video.readyState>=2)ok()},700)
      });
-     if(dashjs.MediaPlayer.events.PLAYBACK_ERROR)p.on(dashjs.MediaPlayer.events.PLAYBACK_ERROR,function(){fail('dash-playback-error')});
-     if(dashjs.MediaPlayer.events.ERROR)p.on(dashjs.MediaPlayer.events.ERROR,function(){});
+     if(dashjs.MediaPlayer.events.PLAYBACK_ERROR)p.on(dashjs.MediaPlayer.events.PLAYBACK_ERROR,function(ev){
+       fail('dash-playback-error');
+       try{if(window.location.search.indexOf('e2e=1')>=0)console.log('NM7_DASH_PLAYBACK_ERROR '+JSON.stringify(ev))}catch(e){}
+     });
+     if(dashjs.MediaPlayer.events.ERROR)p.on(dashjs.MediaPlayer.events.ERROR,function(ev){
+       try{if(window.location.search.indexOf('e2e=1')>=0)console.log('NM7_DASH_ERROR '+JSON.stringify(ev))}catch(e){}
+     });
+     if(dashjs.MediaPlayer.events.FRAGMENT_LOADING_COMPLETED)p.on(dashjs.MediaPlayer.events.FRAGMENT_LOADING_COMPLETED,function(ev){
+       try{if(window.location.search.indexOf('e2e=1')>=0)console.log('NM7_DASH_FRAGMENT '+JSON.stringify(ev&&ev.request?{url:ev.request.url,responsecode:ev.responsecode}:ev))}catch(e){}
+     });
      p.initialize(video,u,true);
    }catch(e){fail('dash-init-error')}
    return

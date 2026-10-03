@@ -225,17 +225,32 @@ function nextCandidate(reason){
  if(S.current&&S.candidateIndex<S.current.candidates.length){toast(reason||'Nguồn lỗi');setTimeout(function(){tryCurrent()},180);return}
  showStatus('Không phát được '+(S.current?S.current.name:'kênh')+'\\nĐã thử '+(S.current&&S.current.candidates?S.current.candidates.length:0)+' nguồn');
 }
+function tryResolvedType(c,cand,v,u,t){
+ var ok=false;
+ if(t==='dash'){cand.dash=true;ok=setupDash(c,cand,v,u)}
+ else if(t==='hls'){cand.hls=true;ok=setupHls(c,cand,v,u)}
+ else ok=directPlayback(c,cand,v,u);
+ if(!ok&&S.current===c)nextCandidate('Nguồn không tương thích');
+}
+function probeUnknown(c,cand){
+ var pu='/api/probe?u='+encodeURIComponent(cand.url),self=c;
+ if(cand.ref)pu+='&r='+encodeURIComponent(cand.ref);
+ if(cand.ua)pu+='&ua='+encodeURIComponent(cand.ua);
+ fetch(pu,{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+   if(S.current!==self)return;
+   if(d&&d.type){cand.type=d.type;var v=$('video'),u=proxiedUrl(cand);showStatus('Đang phát '+self.name+'\\nNguồn '+(S.candidateIndex+1)+'/'+self.candidates.length);tryResolvedType(self,cand,v,u,d.type)}
+   else nextCandidate('Không xác định được định dạng');
+ }).catch(function(){nextCandidate('Không xác định được định dạng')})
+}
 function tryCurrent(){
- var c=S.current,cand=getCandidate(),v=$('video'),u;
+ var c=S.current,cand=getCandidate(),v=$('video'),u,t;
  if(!cand){showStatus('Kênh chưa có URL phát');return}
  clearPlayers();u=proxiedUrl(cand);
  showStatus('Đang phát '+c.name+'\\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length);
  v.pause();v.removeAttribute('src');try{v.load()}catch(e){}
- var t=classify(cand),ok=false;
- if(t==='dash')ok=setupDash(c,cand,v,u);
- else if(t==='hls')ok=setupHls(c,cand,v,u);
- else ok=directPlayback(c,cand,v,u);
- if(!ok&&S.current===c)nextCandidate('Nguồn không tương thích');
+ t=classify(cand);
+ if(t==='http'&&(!cand.mime||cand.type==='http')){probeUnknown(c,cand);return}
+ tryResolvedType(c,cand,v,u,t);
 }
 function play(c){
  if(!c)return;S.current=c;S.candidateIndex=0;S.playerGeneration++;S.player=true;S.ctrl=false;

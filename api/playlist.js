@@ -21,23 +21,9 @@ for(const c of out){
 for(const c of merged){addBuiltin(c);c.candidates.sort((a,b)=>score(b.url)-score(a.url));}
 return merged}
 const BUILTIN={
-  vtv1hd:[
-    {url:"https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8",ref:"",ua:"",hls:true},
-    {url:"https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd",type:"dash",hls:false,
-      options:[]}
-  ],
-  vtvcab3hd:[
-    {url:"https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true},
-    {url:"https://livezenatm.vtvprime.vn/live/data8/THETHAO_HD/Live_DASHDRM/THETHAO_HD.mpd",type:"dash",hls:false,
-      options:["inputstream.adaptive.license_type=org.w3.clearkey","inputstream.adaptive.license_key=f3d73b3a9b89462ebf7911004ea3b3b9:2e547a81ff90aa02648cb9e3f79e7339,bc5c30fc9f7e43e58887a2d8a7788a38:55bd66990fb745fd895f1aa71393e81f"]}
-  ],
-  vtvcab16hd:[
-    {url:"https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true},
-    {url:"https://livevliatmcdw.seenow.vn/live/data8/BONGDA_HD/Live_DASHDRM/BONGDA_HD.mpd",type:"dash",hls:false,
-      options:["inputstream.adaptive.license_type=org.w3.clearkey","inputstream.adaptive.license_key=f3d73b3a9b89462ebf7911004ea3b3b9:2e547a81ff90aa02648cb9e3f79e7339,5184162e30134a44afa1d591ffc2e736:09b20d5f9bbf41fdb8d3916c409470a8"]},
-    {url:"https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd",type:"dash",hls:false,
-      options:["inputstream.adaptive.license_type=org.w3.clearkey","inputstream.adaptive.license_key=f3d73b3a9b89462ebf7911004ea3b3b9:2e547a81ff90aa02648cb9e3f79e7339,5184162e30134a44afa1d591ffc2e736:09b20d5f9bbf41fdb8d3916c409470a8"]}
-  ]
+  vtv1hd:[{url:"https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8",ref:"",ua:"",hls:true}],
+  vtvcab3hd:[{url:"https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true}],
+  vtvcab16hd:[{url:"https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true}]
 };
 function addBuiltin(c){
   const key=(c.id||"").toLowerCase().trim();
@@ -51,8 +37,7 @@ function addBuiltin(c){
   for(const x of extra)if(!seen.has(x.url)){c.candidates.push(x);seen.add(x.url);}
 }
 function score(u){let s=0;if(/\.m3u8(?:$|\?)/i.test(u))s+=100;if(/\.m3u(?:$|\?)/i.test(u))s+=80;if(/\/hls\//i.test(u))s+=30;if(/playlist|index\.m3u|manifest/i.test(u))s+=20;if(/\.(mp4|ts)(?:$|\?)/i.test(u))s+=10;if(/tth\.vn\//i.test(u))s-=50;return s}
-function proxyUrl(c){const out=[];for(const x of c.candidates){if(!/^https?:/i.test(x.url))continue;let q="?u="+encodeURIComponent(x.url);if(x.ref)q+="&r="+encodeURIComponent(x.ref);if(x.ua)q+="&ua="+encodeURIComponent(x.ua);if(x.options&&x.options.length)q+="&o="+encodeURIComponent(JSON.stringify(x.options));out.push({url:x.url,ref:x.ref||"",ua:x.ua||"",hls:!!x.hls,type:x.type||"",options:x.options||[],proxy:(x.hls||x.type==="dash"||/\\.mpd(?:$|[?#])/i.test(x.url))?"/api/stream"+q:x.url})}c.candidates=out;return c}
-
+function proxyUrl(c){const out=[];for(const x of c.candidates){if(!/^https?:/i.test(x.url))continue;let q="?u="+encodeURIComponent(x.url);if(x.ref)q+="&r="+encodeURIComponent(x.ref);if(x.ua)q+="&ua="+encodeURIComponent(x.ua);out.push({url:x.url,ref:x.ref||"",ua:x.ua||"",hls:!!x.hls,proxy:x.hls?"/api/stream"+q:x.url})}c.candidates=out;return c}
 let cache={};
 export default async function handler(req,res){const source=new URL(req.url,"https://nm7-tv-web.vercel.app").searchParams.get("source");const target=SOURCES[source];if(!target)return res.status(400).json({channels:[]});
 try{const now=Date.now();if(cache[source]&&now-cache[source].time<30000)return res.status(200).json({channels:cache[source].channels,source:source||"tv",cached:true});

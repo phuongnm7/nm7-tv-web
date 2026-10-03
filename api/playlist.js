@@ -75,9 +75,28 @@ function parse(t){
 }
 
 const BUILTIN={
-  vtv1hd:[{url:"https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8",ref:"",ua:"",hls:true}],
-  vtvcab3hd:[{url:"https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true}],
-  vtvcab16hd:[{url:"https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true}]
+  vtv1hd:[
+    {url:"https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd",type:"dash",mime:"application/dash+xml",options:[]},
+    {url:"https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8",type:"hls",hls:true,ref:"",ua:""}
+  ],
+  vtvcab3hd:[
+    {url:"https://livezenatm.vtvprime.vn/live/data8/THETHAO_HD/Live_DASHDRM/THETHAO_HD.mpd",type:"dash",mime:"application/dash+xml",options:[
+      "inputstream.adaptive.license_type=org.w3.clearkey",
+      "inputstream.adaptive.license_key=f3d73b3a9b89462ebf7911004ea3b3b9:2e547a81ff90aa02648cb9e3f79e7339,bc5c30fc9f7e43e58887a2d8a7788a38:55bd66990fb745fd895f1aa71393e81f"
+    ]},
+    {url:"https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8",type:"hls",hls:true,ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3"}
+  ],
+  vtvcab16hd:[
+    {url:"https://livevliatmcdw.seenow.vn/live/data8/BONGDA_HD/Live_DASHDRM/BONGDA_HD.mpd",type:"dash",mime:"application/dash+xml",options:[
+      "inputstream.adaptive.license_type=org.w3.clearkey",
+      "inputstream.adaptive.license_key=f3d73b3a9b89462ebf7911004ea3b3b9:2e547a81ff90aa02648cb9e3f79e7339,5184162e30134a44afa1d591ffc2e736:09b20d5f9bbf41fdb8d3916c409470a8"
+    ]},
+    {url:"https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd",type:"dash",mime:"application/dash+xml",options:[
+      "inputstream.adaptive.license_type=org.w3.clearkey",
+      "inputstream.adaptive.license_key=f3d73b3a9b89462ebf7911004ea3b3b9:2e547a81ff90aa02648cb9e3f79e7339,5184162e30134a44afa1d591ffc2e736:09b20d5f9bbf41fdb8d3916c409470a8"
+    ]},
+    {url:"https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8",type:"hls",hls:true,ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3"}
+  ]
 };
 function addBuiltin(c){
   const key=(c.id||"").toLowerCase().trim();
@@ -114,4 +133,13 @@ let cache={};
 export default async function handler(req,res){const source=new URL(req.url,"https://nm7-tv-web.vercel.app").searchParams.get("source");const target=SOURCES[source];if(!target)return res.status(400).json({channels:[]});
 try{const now=Date.now();if(cache[source]&&now-cache[source].time<30000)return res.status(200).json({channels:cache[source].channels,source:source||"tv",cached:true});
 const r=await fetch(target,{cache:"no-store",headers:{"user-agent":"NM7-TV-Web/1.0"}});if(!r.ok)throw new Error("upstream "+r.status);const body=await r.text();let channels=parse(body);for(const c of channels)proxyUrl(c);cache[source]={time:now,channels};res.setHeader("Cache-Control","s-maxage=30, stale-while-revalidate=120");return res.status(200).json({channels,source:source||"tv",cached:false});}
-catch(e){return res.status(502).json({channels:[],error:String(e)})}}
+catch(e){
+  const fallback=Object.keys(BUILTIN).map(function(key){
+    const name=key==="vtv1hd"?"VTV1 HD":(key==="vtvcab3hd"?"VTVCab 3 - ON Sports HD":"VTVCab 16 - ON Football HD");
+    const group="Fallback Android 1.0.69";
+    const c={name:name,group:group,id:key,logo:"",candidates:BUILTIN[key].map(function(x){return Object.assign({},x)})};
+    c.candidates=withProxies(c.candidates);
+    return c
+  });
+  return res.status(200).json({channels:fallback,source:source||"tv",cached:false,fallback:true,error:String(e)})
+}}

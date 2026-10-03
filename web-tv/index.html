@@ -198,7 +198,7 @@ function parseMeta(line){
  return {name:name||a['tvg-name']||'',group:a['group-title']||'',logo:a['tvg-logo']||'',tvgId:a['tvg-id']||'',original:line}
 }
 function findComma(s){let q=false,ch='';for(let i=0;i<s.length;i++){const c=s[i];if((c==="'"||c==='"')&&(!q||ch===c)){q=!q;ch=q?c:''}else if(c===','&&!q)return i}return -1}
-function attrMap(s){const o={},re=/([w-]+)s*=s*(?:"([^"]*)"|'([^']*)'|([^s,]+))/g;let m;while((m=re.exec(s)))o[m[1].toLowerCase()]=m[2]??m[3]??m[4]??'';return o}
+function attrMap(s){const o={},re=/([\\w-]+)\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s,]+))/g;let m;while((m=re.exec(s))){o[m[1].toLowerCase()]=m[2]!=null?m[2]:(m[3]!=null?m[3]:m[4]);}return o}
 function resolve(u,b){try{if(/^https?:|^rtsp:|^rtsps:|^rtmp:|^rtmps:|^udp:|^rtp:|^srt:/i.test(u))return u;return new URL(u,b||location.href).toString()}catch(e){return u}}
 function fallbackName(u){try{const x=new URL(u),p=x.pathname;return p&&p!=='/'?p.split('/').filter(Boolean).pop()||x.host:x.host}catch(e){return 'Kênh'}}
 function hintMime(opts){for(const o of opts){const x=norm(o).replace(/s/g,'');if(x.includes('manifest_type=hls'))return'application/x-mpegURL';if(x.includes('manifest_type=mpd')||x.includes('manifest-type=dash'))return'application/dash+xml';if(x.includes('manifest_type=ism')||x.includes('smoothstreaming'))return'application/vnd.ms-sstr+xml';if(x.startsWith('#kodiprop:mimetype='))return o.slice(o.indexOf('=')+1).trim()}return''}

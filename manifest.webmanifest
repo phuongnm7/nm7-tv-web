@@ -1,0 +1,5 @@
+{
+"name":"NM7 TV 1.0.69","short_name":"NM7 TV","start_url":"/","display":"fullscreen","orientation":"landscape",
+"background_color":"#07111F","theme_color":"#07111F",
+"icons":[{"src":"https://raw.githubusercontent.com/phuongnm7/nm7-tv-android/f79fc06009f20e0ac3a5859c0abcfd6ce70a6763/app/src/main/res/mipmap-hdpi/ic_launcher.png","sizes":"72x72","type":"image/png"}]
+}

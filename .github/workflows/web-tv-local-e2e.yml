@@ -80,7 +80,27 @@ jobs:
               else {res.statusCode=404;return res.end('not found')}
             }
             const p=path.join(root,file);
-            try{const data=fs.createReadStream(p);res.setHeader('Content-Type',mime[path.extname(p)]||'application/octet-stream');data.pipe(res);data.on('error',()=>{res.statusCode=404;res.end()})}catch(e){res.statusCode=404;res.end()}
+            try{
+              const st=fs.statSync(p),ct=mime[path.extname(p)]||'application/octet-stream';
+              res.setHeader('Content-Type',ct);
+              res.setHeader('Accept-Ranges','bytes');
+              const range=req.headers.range;
+              if(range){
+                const m=/bytes=(\\d*)-(\\d*)/.exec(range);
+                if(m){
+                  const start=m[1]?parseInt(m[1],10):0;
+                  const end=m[2]?parseInt(m[2],10):st.size-1;
+                  const safeStart=Math.max(0,Math.min(start,st.size-1));
+                  const safeEnd=Math.max(safeStart,Math.min(end,st.size-1));
+                  res.statusCode=206;
+                  res.setHeader('Content-Range','bytes '+safeStart+'-'+safeEnd+'/'+st.size);
+                  res.setHeader('Content-Length',String(safeEnd-safeStart+1));
+                  return fs.createReadStream(p,{start:safeStart,end:safeEnd}).pipe(res);
+                }
+              }
+              res.setHeader('Content-Length',String(st.size));
+              fs.createReadStream(p).pipe(res);
+            }catch(e){res.statusCode=404;res.end()}
           });
           server.listen(4173,'127.0.0.1');
           NODE

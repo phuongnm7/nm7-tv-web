@@ -1,0 +1,95 @@
+name: NM7 TV Web 1.0.69 stable-base smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feature/web-tv-1.0.69-from-stable-old"]
+
+concurrency:
+  group: nm7-tv-web-stable-base-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate browser JavaScript syntax
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path("web-tv/index.html").read_text(encoding="utf-8")
+          scripts=re.findall(r"<script(?:[^>]*)>([\\s\\S]*?)</script>",s,re.I)
+          Path("/tmp/nm7-browser.js").write_text("\n;\n".join(scripts),encoding="utf-8")
+          print("script blocks:",len(scripts))
+          PY
+          node --check /tmp/nm7-browser.js
+          ! grep -nE "Chờ xác nhận phát|showController\\(\\)|focusController\\(\\)|controllerAction\\(\\)" /tmp/nm7-browser.js
+          grep -q "dashjs.MediaPlayer" /tmp/nm7-browser.js
+          grep -q "document.addEventListener('keydown'" /tmp/nm7-browser.js
+
+      - name: Check Vercel preview availability
+        run: |
+          set -euxo pipefail
+          for i in $(seq 1 30); do
+            if test -n "${PREVIEW_URL:-}"; then break; fi
+            sleep 1
+          done
+          echo "Set PREVIEW_URL in repository/project environment if using this job."
+
+      - name: Browser remote smoke
+        if: ${{ env.PREVIEW_URL != '' }}
+        env:
+          PREVIEW_URL: ${{ env.PREVIEW_URL }}
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install chromium >/dev/null 2>&1
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1920,height:1080}});
+            const errors=[];
+            page.on('pageerror',e=>errors.push(e.message));
+            await page.goto(process.env.PREVIEW_URL+'/?e2e=1',{waitUntil:'domcontentloaded',timeout:45000});
+            await page.waitForSelector('.card',{timeout:45000});
+            await page.evaluate(()=>document.activeElement&&document.activeElement.blur());
+
+            const initial=await page.locator('.card.focus').first().count();
+            if(!initial)throw new Error('No initial focused card');
+
+            const firstGroup=await page.locator('.card.focus').first().getAttribute('data-ci');
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',keyCode:39,which:39,bubbles:true})));
+            await page.waitForTimeout(150);
+            const right=await page.locator('.card.focus').first().getAttribute('data-ci');
+
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true})));
+            await page.waitForTimeout(150);
+            const menuOpen=await page.locator('#menu:not(.hidden)').count();
+            if(!menuOpen)throw new Error('LEFT from first card did not open menu');
+
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,which:40,bubbles:true})));
+            await page.waitForTimeout(100);
+            const focusedMenu=await page.locator('#menu .mi.focus').count();
+            if(!focusedMenu)throw new Error('Menu DOWN did not move selection');
+
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:27,which:27,bubbles:true})));
+            await page.waitForTimeout(120);
+
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true})));
+            await page.waitForTimeout(600);
+            const playerOpen=await page.locator('#player:not(.hidden)').count();
+            if(!playerOpen)throw new Error('OK did not open player');
+
+            const status=await page.locator('#status').textContent();
+            if(String(status).toLowerCase().includes('chờ xác nhận'))throw new Error('Old autoplay confirmation path still present');
+
+            console.log(JSON.stringify({firstGroup,right,menuOpen,focusedMenu,playerOpen,status,pageErrors:errors}));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

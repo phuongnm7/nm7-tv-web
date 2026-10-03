@@ -1,0 +1,152 @@
+name: NM7 TV Web 1.0.69 local browser E2E
+
+on:
+  push:
+    branches: ["feature/web-tv-1.0.69-from-stable-old"]
+  workflow_dispatch:
+
+concurrency:
+  group: nm7-tv-local-e2e
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate ES5 application script
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path("web-tv/index.html").read_text(encoding="utf-8")
+          scripts=re.findall(r"<script(?:[^>]*)>([\\s\\S]*?)</script>",s,re.I)
+          Path("/tmp/nm7-browser.js").write_text("\n;\n".join(scripts),encoding="utf-8")
+          PY
+          node --check /tmp/nm7-browser.js
+          if grep -q "Chờ xác nhận phát" /tmp/nm7-browser.js; then exit 1; fi
+          if grep -qE "\\b(const|let)\\b|=>" /tmp/nm7-browser.js; then exit 1; fi
+
+      - name: Install browser test dependencies
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 hls.js@0.14.17 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+
+      - name: Generate local HLS and DASH fixtures
+        run: |
+          set -euxo pipefail
+          mkdir -p e2e
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i sine=frequency=880:sample_rate=48000 -t 8 -c:v libx264 -pix_fmt yuv420p -preset veryfast -g 50 -c:a aac -b:a 96k -f hls -hls_time 2 -hls_list_size 0 e2e/test-hls.m3u8
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 8 -c:v libx264 -pix_fmt yuv420p -preset veryfast -g 50 -c:a aac -b:a 96k -seg_duration 2 -use_timeline 1 -use_template 1 -f dash e2e/test-dash.mpd
+          cp node_modules/hls.js/dist/hls.min.js e2e/hls.min.js
+          python3 - <<'PY'
+          import json
+          ch=[
+            {"id":"VTV1HD","name":"VTV1","group":"VTV","logo":"","candidates":[{"url":"/test-dash.mpd","type":"dash"}]},
+            {"id":"ONSPORTS","name":"VTVCab 3 - ON Sports HD","group":"VTVCab","logo":"","candidates":[{"url":"/test-hls.m3u8","type":"hls"}]},
+            {"id":"ONFOOTBALL","name":"VTVCab 16 - ON Football HD","group":"VTVCab","logo":"","candidates":[{"url":"/test-dash.mpd","type":"dash"}]}
+          ]
+          with open("e2e/playlist.json","w") as f: json.dump({"channels":ch},f)
+          PY
+
+      - name: Browser E2E with local fixtures
+        run: |
+          set -euxo pipefail
+          rm -rf e2e-web
+          mkdir -p e2e-web
+          cp web-tv/index.html e2e-web/index.html
+          cp web-tv/dash.all.min.js e2e-web/dash.all.min.js
+          cp e2e/hls.min.js e2e-web/hls.min.js
+          sed -i 's#src="/web-tv/dash.all.min.js"#src="/dash.all.min.js"#' e2e-web/index.html
+          sed -i 's#src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"#src="/hls.min.js"#' e2e-web/index.html
+          sed -i "s#'/api/playlist?source=tv'#'/playlist.json'#g; s#'/api/playlist?source=sport'#'/playlist.json'#g" e2e-web/index.html
+          cp e2e/test-hls.m3u8 e2e-web/test-hls.m3u8
+          cp e2e/test-dash.mpd e2e-web/test-dash.mpd
+          cp e2e/*.ts e2e-web/ 2>/dev/null || true
+          cp e2e/*.m4s e2e-web/ 2>/dev/null || true
+          cp e2e/*.mp4 e2e-web/ 2>/dev/null || true
+          cp e2e/*.mpd e2e-web/ 2>/dev/null || true
+          python3 - <<'PY'
+          import json
+          with open('e2e-web/playlist.json','w') as f:
+            json.dump({'channels':[
+              {'id':'VTV1HD','name':'VTV1','group':'VTV','logo':'','candidates':[{'url':'/test-dash.mpd','type':'dash'}]},
+              {'id':'ONSPORTS','name':'VTVCab 3 - ON Sports HD','group':'VTVCab','logo':'','candidates':[{'url':'/test-hls.m3u8','type':'hls'}]},
+              {'id':'ONFOOTBALL','name':'VTVCab 16 - ON Football HD','group':'VTVCab','logo':'','candidates':[{'url':'/test-dash.mpd','type':'dash'}]}
+            ]},f)
+          PY
+          find e2e -maxdepth 1 -type f -exec cp {} e2e-web/ \;
+          npx http-server e2e-web -p 4173 -c-1 --silent >/tmp/nm7-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173/test-dash.mpd | grep -q '<MPD'
+          echo "=== LOCAL DASH MPD ==="
+          cat e2e/test-dash.mpd
+          echo "=== END LOCAL DASH MPD ==="
+          node <<'NODE'
+          const { chromium }=require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            const page=await browser.newPage({viewport:{width:1920,height:1080}});
+            const errors=[];
+            page.on('pageerror',e=>errors.push('pageerror: '+e.message));
+            page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
+            page.on('requestfailed',r=>console.log('REQUEST_FAILED '+r.url()+' '+(r.failure()?r.failure().errorText:'')));
+            page.on('response',r=>{if(/test-dash|chunk-stream|init-stream|test-hls/i.test(r.url()))console.log('MEDIA_RESPONSE '+r.status()+' '+r.url())});
+            await page.goto('http://127.0.0.1:4173/?e2e=1',{waitUntil:'domcontentloaded',timeout:30000});
+            await page.waitForSelector('.card',{timeout:15000});
+            const count=await page.locator('.card').count();
+            if(count<3)throw new Error('card render failed: '+count);
+
+            // RIGHT changes channel, LEFT twice opens menu, DOWN changes menu selection.
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',keyCode:39,which:39,bubbles:true})));
+            await page.waitForTimeout(100);
+            await page.evaluate(()=>{
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
+            });
+            await page.waitForTimeout(100);
+            if(await page.locator('#menu:not(.hidden)').count()!==1)throw new Error('LEFT menu failed');
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,which:40,bubbles:true})));
+            await page.waitForTimeout(100);
+            if(await page.locator('#menu .mi.focus').count()!==1)throw new Error('DOWN menu failed');
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:27,which:27,bubbles:true})));
+            await page.waitForTimeout(100);
+
+            // VTV1 uses local DASH fixture.
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true})));
+            await page.waitForSelector('#player:not(.hidden)',{timeout:3000});
+            await page.waitForTimeout(5000);
+            const dash=await page.evaluate(()=>{var v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused,src:v.currentSrc||v.src,error:v.error?{code:v.error.code,message:v.error.message}:null}});
+            console.log('DASH_MEDIA='+JSON.stringify(dash));
+            if(!(dash.t>0&&dash.ready>=2))throw new Error('local DASH did not play: '+JSON.stringify(dash));
+
+            // Return home and test local HLS.
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:27,which:27,bubbles:true})));
+            await page.waitForTimeout(100);
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,which:40,bubbles:true})));
+            await page.waitForTimeout(100);
+            await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true})));
+            await page.waitForSelector('#player:not(.hidden)',{timeout:3000});
+            await page.waitForTimeout(5000);
+            const hls=await page.evaluate(()=>{var v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused,src:v.currentSrc||v.src,error:v.error?{code:v.error.code,message:v.error.message}:null}});
+            console.log('HLS_MEDIA='+JSON.stringify(hls));
+            if(!(hls.t>0&&hls.ready>=2))throw new Error('local HLS did not play: '+JSON.stringify(hls));
+            if(errors.length)throw new Error('browser errors: '+JSON.stringify(errors));
+            console.log('REMOTE_AND_PLAYER=PASS');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

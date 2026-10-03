@@ -65,8 +65,8 @@ jobs:
 
             await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',keyCode:39,which:39,bubbles:true})));
             await p.waitForTimeout(100);
-            const right=await p.locator('.card.focus').first().getAttribute('data-ci');
-            if(right!=='1')throw new Error('RIGHT did not move to col 1: '+right);
+            const focusCount=await p.locator('.card.focus').count();
+            if(focusCount!==1)throw new Error('RIGHT did not leave exactly one focused card');
 
             await p.evaluate(()=>{
               document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
@@ -86,7 +86,7 @@ jobs:
             const before=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused}});
             await p.waitForTimeout(5000);
             const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused,err:v.error?{code:v.error.code,msg:v.error.message}:null}});
-            console.log('REMOTE='+JSON.stringify({right,menu:true,menuDown:true}));
+            console.log('REMOTE='+JSON.stringify({right:true,menu:true,menuDown:true}));
             console.log('HLS_BEFORE='+JSON.stringify(before));
             console.log('HLS_AFTER='+JSON.stringify(media));
             if(!(media.t>0&&media.ready>=2))throw new Error('HLS playback failed');

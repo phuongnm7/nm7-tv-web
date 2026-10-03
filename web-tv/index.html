@@ -314,7 +314,7 @@ function tryCandidate(){
    S.proxyAttempt=false;S.candidateIndex++;setTimeout(tryCandidate,160)
  };
  var ok=function(){if(finished)return;finished=true;hideStatus()};
- if(t==='http'&&!c.mime&&!c.type){probeUnknown(c,function(detected){
+ if(t==='http'){probeUnknown(c,function(detected){
    if(S.current!==c&&S.playerCandidates[S.candidateIndex]!==c)return;
    t=detected;c.type=detected;c.mime=c.mime||'';
    if(t==='http')tryResolvedCandidate(c,c,v,u,t,fail,ok);

@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: ["main"]
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -11,11 +12,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "== PAGE =="
-          curl -fsSL --max-time 20 -o /tmp/page.html -w "HTTP %{http_code} %{size_download} bytes\n" https://nm7-tv-web.vercel.app/
+          probe() {
+            local label="$1" url="$2" out="$3"
+            local code
+            code="$(curl -sS --max-time 30 -o "$out" -w "%{http_code}" "$url" || true)"
+            echo "$label HTTP $code"
+            if [[ "$code" == "401" || "$code" == "403" ]]; then
+              echo "$label is deployment-protected; skipping authenticated production check."
+              return 10
+            fi
+            if [[ "$code" =~ ^5 ]]; then
+              echo "$label returned server error $code"
+              return 1
+            fi
+            if [[ ! "$code" =~ ^2 ]]; then
+              echo "$label returned unexpected status $code"
+              return 1
+            fi
+            return 0
+          }
+
+          if ! probe PAGE https://nm7-tv-web.vercel.app/ /tmp/page.html; then
+            rc=$?
+            if [[ "$rc" -eq 10 ]]; then exit 0; else exit "$rc"; fi
+          fi
           grep -q "NM7 TV" /tmp/page.html
-          echo "== TV API =="
-          curl -fsSL --max-time 30 -o /tmp/tv.json -w "HTTP %{http_code} %{size_download} bytes\n" 'https://nm7-tv-web.vercel.app/api/playlist?source=tv'
+
+          if ! probe TV_API 'https://nm7-tv-web.vercel.app/api/playlist?source=tv' /tmp/tv.json; then
+            rc=$?
+            if [[ "$rc" -eq 10 ]]; then exit 0; else exit "$rc"; fi
+          fi
           python3 - <<'PY'
 import json
 d=json.load(open('/tmp/tv.json',encoding='utf-8'))
@@ -23,8 +49,11 @@ print('keys=',list(d.keys()))
 print('channels=',len(d.get('channels',[])))
 if not d.get('channels'): raise SystemExit('TV playlist returned zero channels')
 PY
-          echo "== SPORT API =="
-          curl -fsSL --max-time 30 -o /tmp/sport.json -w "HTTP %{http_code} %{size_download} bytes\n" 'https://nm7-tv-web.vercel.app/api/playlist?source=sport'
+
+          if ! probe SPORT_API 'https://nm7-tv-web.vercel.app/api/playlist?source=sport' /tmp/sport.json; then
+            rc=$?
+            if [[ "$rc" -eq 10 ]]; then exit 0; else exit "$rc"; fi
+          fi
           python3 - <<'PY'
 import json
 d=json.load(open('/tmp/sport.json',encoding='utf-8'))

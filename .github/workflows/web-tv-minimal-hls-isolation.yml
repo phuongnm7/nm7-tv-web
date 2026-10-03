@@ -1,0 +1,58 @@
+name: NM7 TV Web 1.0.69 HLS isolation
+
+on:
+  push:
+    branches: ["feature/web-tv-1.0.69-minimal-from-production"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 hls.js@0.14.17 http-server@14.1.1 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+      - name: Generate HLS
+        run: |
+          mkdir -p e2e
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i sine=frequency=880:sample_rate=48000 -t 8 -c:v libx264 -pix_fmt yuv420p -preset veryfast -g 50 -c:a aac -b:a 96k -f hls -hls_time 2 -hls_list_size 0 e2e/test-hls.m3u8
+          cp node_modules/hls.js/dist/hls.min.js e2e/hls.min.js
+      - name: Isolated HLS player
+        run: |
+          mkdir -p e2e-site
+          cp e2e/test-hls.m3u8 e2e/*.ts e2e/hls.min.js e2e-site/
+          cat > e2e-site/index.html <<'HTML'
+          <!doctype html><video id="v" controls autoplay muted></video>
+          <script src="/hls.min.js"></script>
+          <script>
+          var v=document.getElementById('v');
+          window.ev=[];
+          window.hls=new Hls({enableWorker:false,autoStartLoad:true,maxBufferLength:30});
+          hls.on(Hls.Events.ERROR,function(e,d){window.ev.push({event:'error',fatal:d&&d.fatal,type:d&&d.type,details:d&&d.details})});
+          hls.on(Hls.Events.MANIFEST_PARSED,function(){window.ev.push({event:'manifest'});var p=v.play();if(p&&p.catch)p.catch(function(x){window.ev.push({event:'play-reject',msg:String(x)})})});
+          hls.attachMedia(v);
+          hls.loadSource('/test-hls.m3u8');
+          window.state=function(){return {t:v.currentTime,ready:v.readyState,paused:v.paused,error:v.error?{code:v.error.code,msg:v.error.message}:null,events:window.ev.slice(-20)}}
+          </script>
+          HTML
+          (cd e2e-site && npx http-server . -p 4173 -c-1 --silent >/tmp/hls.log 2>&1) &
+          PID=$!; trap 'kill $PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:4173/test-hls.m3u8 >/dev/null && break; sleep 1; done
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            const p=await b.newPage();
+            await p.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});
+            await p.waitForTimeout(7000);
+            const s=await p.evaluate(()=>window.state());
+            console.log('HLS_ISOLATED='+JSON.stringify(s));
+            if(!(s.t>0&&s.ready>=2))process.exit(1);
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

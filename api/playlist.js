@@ -107,15 +107,17 @@ function classify(url,mime,options){
 function addKnownFallbacks(channels){
  const defs=[
   {match:['vtv1hd','vtv1'],entries:[
+   {url:'https://live.fptplay53.net/live/media/vtv1/live247-hls-avc/index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'},
    {url:'https://kcdn-livestream.vtvgiaitri.vn/vtvgtlivestream/vtv1_720/index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'},
-   {url:'https://cdnw-liv02.todayplus.com.vn/hdb/smil:vtv1-sub.smil/chunklist_w28623972_b2289152.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'},
-   {url:'https://live-a.fptplay53.net/live/media/vtv1/live247-hls-avc/index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'}
+   {url:'https://cdnw-liv02.todayplus.com.vn/hdb/smil:vtv1-sub.smil/chunklist_w28623972_b2289152.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'}
   ]},
   {match:['onsports.vn','onsports','vtvcab3'],entries:[
-   {url:'https://livevlive.vtvcab.vn/hls/OS_THETHAO_HD/sc-gaFEAA/m40_index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0 (Linux; Android 10; KM6) AppleWebKit/537.36 Chrome/104.0.0.0 Mobile Safari/537.36'}
+   {url:'https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3',ref:'http://sctvonline.vn/'},
+   {url:'https://liveh34.vtvcab.vn/hls/THETHAO_HD/04.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0',ref:'https://sctvonline.vn/'}
   ]},
   {match:['onfootball.vn','onfootball','vtvcab16','bongdahd'],entries:[
-   {url:'https://livevlive.vtvcab.vn/hls/OS_BONGDA_HD/sc-gaFEAA/m40_index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0 (Linux; Android 10; KM6) AppleWebKit/537.36 Chrome/104.0.0.0 Mobile Safari/537.36'}
+   {url:'https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3',ref:'http://sctvonline.vn/'},
+   {url:'https://856175157.r.vtvcdn.com/ondrm/BONGDA_HD/m30_index.m3u8',type:'hls',mime:'application/x-mpegURL',ua:'Mozilla/5.0'}
   ]}
  ];
  function normId(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'')}

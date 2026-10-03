@@ -1,0 +1,49 @@
+name: NM7 TV Web 1.0.69 smoke
+on:
+  push:
+    branches: ["feature/web-tv-browser-1.0.69-android-exact"]
+  pull_request:
+    branches: ["main"]
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      PREVIEW_URL: https://nm7-tv-web-git-feature-web-tv-browser-1069-android-exact-phuongnm7.vercel.app
+    steps:
+      - name: Inspect Preview
+        run: |
+          set -euxo pipefail
+          curl -fsSL --max-time 30 "$PREVIEW_URL/" -o page.html
+          grep -q "NM7 TV" page.html
+          grep -q "1.0.69" page.html
+          grep -q "dash.all.min.js" page.html
+      - name: Inspect playlist and protocol coverage
+        run: |
+          set -euxo pipefail
+          curl -fsSL --max-time 60 "$PREVIEW_URL/api/playlist?source=tv" -o tv.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('tv.json','utf8'));
+          if(!d.channels?.length) throw new Error('empty playlist');
+          const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+          const all=d.channels.flatMap(c=>(c.candidates||[]).map(x=>({name:c.name,id:c.tvgId,type:x.type,url:x.url})));
+          const count={}; for(const x of all)count[x.type]=(count[x.type]||0)+1;
+          function find(parts){return all.find(x=>parts.some(p=>(norm(x.id)+' '+norm(x.name)).includes(norm(p))))}
+          const v1=find(['vtv1','vtv1hd']), sport=find(['onsport','vtvcab3']), football=find(['onfootball','vtvcab16','bongdahd']);
+          if(!v1||!/\.mpd(?:$|\?)/i.test(v1.url))throw new Error('VTV1 MPD missing');
+          if(!football||!all.some(x=>(norm(x.id)+' '+norm(x.name)).includes('onfootball')&&/\.mpd(?:$|\?)/i.test(x.url)))throw new Error('ON Football MPD missing');
+          if(!sport)throw new Error('ON Sports missing');
+          console.log('channels='+d.channels.length);
+          console.log('candidates='+all.length);
+          console.log(JSON.stringify(count,null,2));
+          console.log('VTV1='+v1.url);
+          console.log('ON Sports candidates='+JSON.stringify(all.filter(x=>(norm(x.id)+' '+norm(x.name)).includes('onsport')),null,2));
+          console.log('ON Football candidates='+JSON.stringify(all.filter(x=>(norm(x.id)+' '+norm(x.name)).includes('onfootball')),null,2));
+          NODE
+      - name: Probe browser media endpoints
+        run: |
+          set -euxo pipefail
+          curl -fsSL --max-time 30 "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o vtv1-probe.json
+          cat vtv1-probe.json
+          curl -fsSL --max-time 30 "$PREVIEW_URL/api/stream?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o vtv1.mpd || true
+          head -c 200 vtv1.mpd || true

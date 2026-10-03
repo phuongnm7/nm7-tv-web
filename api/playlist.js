@@ -18,8 +18,19 @@ for(const c of out){
     if(!byKey[key].logo&&c.logo)byKey[key].logo=c.logo;
   }
 }
-for(const c of merged){c.candidates.sort((a,b)=>score(b.url)-score(a.url));}
+for(const c of merged){addBuiltin(c);c.candidates.sort((a,b)=>score(b.url)-score(a.url));}
 return merged}
+const BUILTIN={
+  vtv1hd:[{url:"https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8",ref:"",ua:"",hls:true}],
+  vtvcab3hd:[{url:"https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true}],
+  vtvcab16hd:[{url:"https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true}]
+};
+function addBuiltin(c){
+  const key=(c.id||"").toLowerCase().trim(), extra=BUILTIN[key]||[];
+  if(!extra.length)return;
+  const seen=new Set((c.candidates||[]).map(x=>x.url));
+  for(const x of extra)if(!seen.has(x.url)){c.candidates.push(x);seen.add(x.url);}
+}
 function score(u){let s=0;if(/\.m3u8(?:$|\?)/i.test(u))s+=100;if(/\.m3u(?:$|\?)/i.test(u))s+=80;if(/\/hls\//i.test(u))s+=30;if(/playlist|index\.m3u|manifest/i.test(u))s+=20;if(/\.(mp4|ts)(?:$|\?)/i.test(u))s+=10;if(/tth\.vn\//i.test(u))s-=50;return s}
 function proxyUrl(c){const out=[];for(const x of c.candidates){if(!/^https?:/i.test(x.url))continue;let q="?u="+encodeURIComponent(x.url);if(x.ref)q+="&r="+encodeURIComponent(x.ref);if(x.ua)q+="&ua="+encodeURIComponent(x.ua);out.push({url:x.url,ref:x.ref||"",ua:x.ua||"",hls:!!x.hls,proxy:x.hls?"/api/stream"+q:x.url})}c.candidates=out;return c}
 let cache={};

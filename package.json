@@ -8,6 +8,6 @@
     "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
-    "wrangler": "^4.68.0"
+    "wrangler": "^4.102.0"
   }
 }

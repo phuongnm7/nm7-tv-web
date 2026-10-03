@@ -1,0 +1,36 @@
+name: NM7 1.0.69 stream access matrix
+on:
+  push:
+    branches: ["feature/web-tv-browser-1.0.69-android-exact"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ua:
+          - "Mozilla/5.0 (Linux; Android 10; NM7-TV) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36"
+          - "Mozilla/5.0 (SMART-TV; LINUX; Tizen 3.0) AppleWebKit/538.1 TV Safari/538.1"
+          - "ExoPlayerLib/2.18.1 (Linux; Android 10)"
+          - "VLC/3.0.21 LibVLC/3.0.21"
+          - "Mozilla/5.0"
+        ref:
+          - ""
+          - "https://vtvgo.vn/"
+          - "https://tv360.vn/"
+          - "https://sctvonline.vn/"
+    steps:
+      - shell: bash
+        run: |
+          set +e
+          UA='${{ matrix.ua }}'
+          REF='${{ matrix.ref }}'
+          echo "=== UA=$UA REF=$REF ==="
+          if [ -n "$REF" ]; then R=(--referer "$REF"); else R=(); fi
+          curl -sS -D headers-vtv1.txt -o vtv1.out --max-time 15 -A "$UA" "${R[@]}" "https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd"
+          echo "VTV1 status:"; head -n 1 headers-vtv1.txt
+          echo "VTV1 type:"; grep -i '^content-type:' headers-vtv1.txt || true
+          echo "VTV1 body:"; head -c 120 vtv1.out | tr '\n' ' '; echo
+          curl -sS -D headers-foot.txt -o foot.out --max-time 15 -A "$UA" "${R[@]}" "https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd"
+          echo "FOOT status:"; head -n 1 headers-foot.txt
+          echo "FOOT type:"; grep -i '^content-type:' headers-foot.txt || true
+          echo "FOOT body:"; head -c 120 foot.out | tr '\n' ' '; echo

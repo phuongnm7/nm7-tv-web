@@ -1,0 +1,125 @@
+name: NM7 Web 1.0.69 browser and CDN smoke
+on:
+  push:
+    branches: ["feature/web-tv-browser-1.0.69-android-exact"]
+  pull_request:
+    branches: ["main"]
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    env:
+      PREVIEW_URL: https://nm7-tv-web-git-feature-web-tv-browser-1069-and-8db876-phuongnm7.vercel.app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Browser UI smoke
+        run: |
+          set -euxo pipefail
+          node - <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('web-tv/index.html','utf8');
+          const a=html.indexOf('<script>'), b=html.lastIndexOf('</script>');
+          const js=html.slice(a+8,b);
+          new Function(js);
+          if(/\?\./.test(js)||/\?\?/.test(js))throw new Error('unsupported JS syntax remains');
+          if(!html.includes('viewBox="0 0 388.67627 83.90052"'))throw new Error('exact YouTube vector missing');
+          if(!html.includes('/web-tv/dash.all.min.js'))throw new Error('DASH asset path missing');
+          NODE
+          curl -fsSL "$PREVIEW_URL/" -o page.html
+          grep -q "NM7 TV" page.html
+      - name: Playlist smoke
+        run: |
+          set -euxo pipefail
+          curl -fsSL "$PREVIEW_URL/api/playlist?source=tv" -o tv.json
+          node - <<'NODE'
+          const d=require('./tv.json');
+          if(!d.channels || d.channels.length<400)throw new Error('too few channels: '+(d.channels||[]).length);
+          const n=s=>String(s||'').toLowerCase();
+          const find=x=>d.channels.find(c=>n(c.name).includes(x)||n(c.tvgId).includes(x));
+          const v=find('vtv1'),sp=find('on sports'),fo=find('on football');
+          if(!v||!sp||!fo)throw new Error('required channels missing');
+          if(!v.candidates.some(x=>x.type==='dash'))throw new Error('VTV1 DASH missing');
+          if(!fo.candidates.some(x=>x.type==='dash'))throw new Error('ON Football DASH missing');
+          console.log(JSON.stringify({channels:d.channels.length,VTV1:v,ON_SPORTS:sp,ON_FOOTBALL:fo},null,2));
+          NODE
+      - name: Browser playback smoke
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.52.0 >/dev/null 2>&1
+          npx playwright install chromium >/dev/null 2>&1
+          node - <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            async function test(name,fn){
+              const page=await browser.newPage({viewport:{width:1920,height:1080}});
+              const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+              await page.goto(process.env.PREVIEW_URL,{waitUntil:'domcontentloaded',timeout:60000});
+              await page.waitForTimeout(5000);
+              await fn(page);
+              await page.waitForTimeout(18000);
+              const out=await page.evaluate(()=>({
+                player:document.getElementById('player').className,
+                readyState:document.getElementById('video').readyState,
+                paused:document.getElementById('video').paused,
+                currentSrc:document.getElementById('video').currentSrc,
+                status:document.getElementById('playerStatus').textContent
+              }));
+              console.log(name,JSON.stringify({out,errors}));
+              await page.close();
+            }
+            await test('VTV1',async page=>{await page.locator('.card.focus').textContent();await page.keyboard.press('Enter')});
+            await test('ON Sports',async page=>{
+              const ok=await page.evaluate(()=>{
+                const cards=[...document.querySelectorAll('.card')];
+                const e=cards.find(x=>/ON Sports HD/i.test(x.textContent||''));
+                if(!e)return false;e.onclick();return true;
+              });
+              if(!ok)console.log('ON Sports card not rendered');
+            });
+            await test('ON Football',async page=>{
+              const ok=await page.evaluate(()=>{
+                const cards=[...document.querySelectorAll('.card')];
+                const e=cards.find(x=>/ON Football HD/i.test(x.textContent||''));
+                if(!e)return false;e.onclick();return true;
+              });
+              if(!ok)console.log('ON Football card not rendered');
+            });
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+  cdn:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        pair:
+          - "TIZEN|"
+          - "ANDROID|"
+          - "EXOPLAYER|"
+          - "VLC|"
+          - "ANDROID|https://vtvgo.vn/"
+          - "TIZEN|https://vtvgo.vn/"
+    steps:
+      - name: Probe Seenow
+        run: |
+          set +e
+          MODE='${{ matrix.pair }}'
+          UA_TYPE="\${MODE%%|*}"
+          REF="\${MODE#*|}"
+          case "$UA_TYPE" in
+            TIZEN) UA="Mozilla/5.0 (SMART-TV; LINUX; Tizen 3.0)";;
+            ANDROID) UA="Mozilla/5.0 (Linux; Android 10; NM7-TV)";;
+            EXOPLAYER) UA="ExoPlayerLib/2.18.1 (Linux; Android 10)";;
+            VLC) UA="VLC/3.0.21 LibVLC/3.0.21";;
+          esac
+          echo "=== $UA_TYPE ref=$REF ==="
+          if [ -n "$REF" ]; then
+            curl -sS -D h1 -o b1 --max-time 20 -A "$UA" --referer "$REF" "https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd"
+            curl -sS -D h2 -o b2 --max-time 20 -A "$UA" --referer "$REF" "https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd"
+          else
+            curl -sS -D h1 -o b1 --max-time 20 -A "$UA" "https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd"
+            curl -sS -D h2 -o b2 --max-time 20 -A "$UA" "https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd"
+          fi
+          echo "VTV1:"; head -n1 h1 2>/dev/null; grep -i '^content-type:' h1 || true; head -c120 b1 2>/dev/null | tr '\\n' ' '; echo
+          echo "FOOT:"; head -n1 h2 2>/dev/null; grep -i '^content-type:' h2 || true; head -c120 b2 2>/dev/null | tr '\\n' ' '; echo

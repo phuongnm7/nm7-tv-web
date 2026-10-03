@@ -1,0 +1,213 @@
+name: NM7 TV Web 1.0.69 smoke
+on:
+  push:
+    branches: ["feature/web-tv-browser-1.0.69-android-exact"]
+  pull_request:
+    branches: ["main"]
+concurrency:
+  group: nm7-tv-web-1.0.69-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      PREVIEW_URL: https://nm7-tv-web-git-feature-web-tv-browser-1069-and-8db876-phuongnm7.vercel.app
+    steps:
+      - name: Inspect Preview
+        run: |
+          set -euxo pipefail
+          curl -fsSL --max-time 30 "$PREVIEW_URL/" -o page.html
+          grep -q "NM7 TV" page.html
+          grep -q "1.0.69" page.html
+          grep -q "dash.all.min.js" page.html
+      - name: Inspect playlist and protocol coverage
+        run: |
+          set -euxo pipefail
+          curl -fsSL --max-time 60 "$PREVIEW_URL/api/playlist?source=tv" -o tv.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('tv.json','utf8'));
+          if(!d.channels?.length) throw new Error('empty playlist');
+          const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+          const all=d.channels.flatMap(c=>(c.candidates||[]).map(x=>({name:c.name,id:c.tvgId,type:x.type,url:x.url})));
+          const count={}; for(const x of all)count[x.type]=(count[x.type]||0)+1;
+          function find(parts){return all.find(x=>parts.some(p=>(norm(x.id)+' '+norm(x.name)).includes(norm(p))))}
+          const v1=find(['vtv1','vtv1hd']), sport=find(['onsport','vtvcab3']), football=find(['onfootball','vtvcab16','bongdahd']);
+          if(!v1||!/\.mpd(?:$|\?)/i.test(v1.url))throw new Error('VTV1 MPD missing');
+          if(!football||!all.some(x=>(norm(x.id)+' '+norm(x.name)).includes('onfootball')&&/\.mpd(?:$|\?)/i.test(x.url)))throw new Error('ON Football MPD missing');
+          if(!sport)throw new Error('ON Sports missing');
+          console.log('channels='+d.channels.length);
+          console.log('candidates='+all.length);
+          console.log(JSON.stringify(count,null,2));
+          console.log('VTV1='+JSON.stringify(v1,null,2));
+          console.log('ON Sports candidates='+JSON.stringify(all.filter(x=>(norm(x.id)+' '+norm(x.name)).includes('onsport')),null,2));
+          console.log('ON Football candidates='+JSON.stringify(all.filter(x=>(norm(x.id)+' '+norm(x.name)).includes('onfootball')),null,2));
+          NODE
+      - name: Probe browser media endpoints
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+          curl -fsSL --max-time 30 "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o vtv1-probe.json
+          cat vtv1-probe.json
+          curl -fsSL --max-time 30 "$PREVIEW_URL/api/stream?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Flivesnv2%2FVTV1_HD%2Fmanifest.mpd" -o vtv1.mpd || true
+          head -c 200 vtv1.mpd || true
+
+      - name: Home D-pad navigation smoke
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install chromium >/dev/null 2>&1
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1920,height:1080}});
+            await page.goto(process.env.PREVIEW_URL+'/?e2e=1',{waitUntil:'domcontentloaded',timeout:45000});
+            await page.waitForFunction(()=>window.__NM7_TEST__&&window.__NM7_TEST__.version,null,{timeout:30000});
+            await page.waitForFunction(()=>document.querySelectorAll('.card').length>0,null,{timeout:45000});
+            const result=await page.evaluate(()=>{
+              var rows=document.querySelectorAll('.hrow'),target=null;
+              for(var i=0;i<rows.length;i++){var cs=rows[i].querySelectorAll('.card');if(cs.length>=2){target=cs;break}}
+              if(!target)return {ok:false,reason:'no row with >=2 channels'};
+              target[0].focus();
+              var before=target[0].getAttribute('data-ci');
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',keyCode:0,which:0,bubbles:true}));
+              var focused=document.querySelector('.card.focus');
+              var after=focused?focused.getAttribute('data-ci'):null;
+              var s1=window.__NM7_TEST__.getState();
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:0,which:0,bubbles:true}));
+              var s2=window.__NM7_TEST__.getState();
+              return {ok:before==='0'&&after==='1'&&s1.colIndex===1&&s2.player===true,before,after,col:s1.colIndex,player:s2.player};
+            });
+            console.log('HOME_DPAD='+JSON.stringify(result));
+            if(!result.ok)throw new Error('Home D-pad test failed');
+            await page.evaluate(()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:0,which:0,bubbles:true}))});
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Tizen browser routing smoke
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install chromium >/dev/null 2>&1
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const context=await browser.newContext({
+              userAgent:'Mozilla/5.0 (SMART-TV; LINUX; Tizen 3.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/3.0 TV Safari/538.1',
+              viewport:{width:1920,height:1080}
+            });
+            await context.addInitScript(()=>{
+              const old=HTMLMediaElement.prototype.canPlayType;
+              HTMLMediaElement.prototype.canPlayType=function(type){
+                if(type==='application/vnd.apple.mpegurl'||type==='application/x-mpegURL')return'probably';
+                return old.call(this,type);
+              };
+            });
+            const page=await context.newPage();
+            const requests=[];
+            page.on('request',r=>{if(/\.m3u8(?:$|[?#])/i.test(r.url()))requests.push(r.url())});
+            await page.goto(process.env.PREVIEW_URL+'/?e2e=1',{waitUntil:'domcontentloaded',timeout:45000});
+            await page.waitForFunction(()=>window.__NM7_TEST__&&window.__NM7_TEST__.version,null,{timeout:30000});
+            await page.waitForFunction(()=>document.querySelectorAll('.card').length>0,null,{timeout:45000});
+            const list=await page.evaluate(()=>window.__NM7_TEST__.list());
+            const ch=list.find(c=>(c.candidates||[]).some(x=>String(x.type).toLowerCase()==='hls'));
+            if(!ch)throw new Error('No HLS channel');
+            const can=ch.candidates.find(x=>String(x.type).toLowerCase()==='hls');
+            await page.evaluate(({ch,can})=>window.__NM7_TEST__.playSingleCandidate(ch,can),{ch,can});
+            await page.waitForTimeout(1200);
+            if(!requests.some(u=>u===can.url))throw new Error('Tizen HLS did not use native direct URL');
+            const nav=await page.evaluate(()=>{
+              if(window.__NM7_TEST__.getState().player){
+                document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:461,which:461}));
+              }
+              if(!window.__NM7_TEST__.focusLastCard())return null;
+              var before=window.__NM7_TEST__.getState().colIndex;
+              document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:39,which:39}));
+              return {before,after:window.__NM7_TEST__.getState().colIndex,player:window.__NM7_TEST__.getState().player};
+            });
+            if(!nav||nav.after!==0)throw new Error('RIGHT at rightmost card did not wrap/process correctly: '+JSON.stringify(nav));
+            console.log('TIZEN_NATIVE_HLS=PASS '+can.url);
+            console.log('RIGHT_EDGE=PASS '+JSON.stringify(nav));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Actual browser playback (Chromium)
+        timeout-minutes: 5
+        run: |
+          set -euxo pipefail
+          for i in $(seq 1 40); do
+            if curl -fsSL --max-time 15 "$PREVIEW_URL/" | grep -q "__NM7_TEST__"; then break; fi
+            sleep 5
+          done
+          curl -fsSL --max-time 30 "$PREVIEW_URL/" | grep -q "__NM7_TEST__"
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const base = process.env.PREVIEW_URL;
+          (async()=>{
+            const browser = await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            const page = await browser.newPage({viewport:{width:1920,height:1080}});
+            const errors=[];
+            page.on('pageerror',e=>errors.push('pageerror: '+e.message));
+            page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
+            await page.goto(base+'/?e2e=1',{waitUntil:'domcontentloaded',timeout:45000});
+            await page.waitForFunction(()=>window.__NM7_TEST__&&window.__NM7_TEST__.version,null,{timeout:30000});
+            await page.waitForFunction(()=>document.querySelectorAll('.card').length>0,null,{timeout:45000});
+            const list=await page.evaluate(()=>window.__NM7_TEST__.list());
+            if(!list.length)throw new Error('playlist empty');
+            console.log('playlist channels='+list.length);
+
+            function find(parts){
+              return list.find(c=>{
+                const n=(String(c.name)+' '+String(c.tvgId)).toLowerCase();
+                return parts.some(p=>n.indexOf(p)>=0);
+              });
+            }
+            function candidate(ch,type){
+              return ch && (ch.candidates||[]).find(x=>String(x.type||'').toLowerCase()===type);
+            }
+            async function test(label,ch,type,timeout=50000){
+              const can=candidate(ch,type);
+              if(!can){console.log(label+'_'+type.toUpperCase()+'=MISSING');return false}
+              console.log(label+'_'+type.toUpperCase()+'='+JSON.stringify({name:ch.name,tvgId:ch.tvgId,url:can.url}));
+              await page.evaluate(({ch,can})=>window.__NM7_TEST__.playSingleCandidate(ch,can),{ch,can});
+              try{
+                await page.waitForFunction(()=>{
+                  const s=window.__NM7_TEST__.getState();
+                  return s.player&&s.video.readyState>=2&&!s.video.paused&&s.video.currentTime>0.75
+                },null,{timeout});
+                const s=await page.evaluate(()=>window.__NM7_TEST__.getState());
+                console.log(label+'_'+type.toUpperCase()+'_PLAYBACK='+JSON.stringify(s));
+                await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:461,which:461})));
+                return true;
+              }catch(e){
+                const s=await page.evaluate(()=>window.__NM7_TEST__.getState());
+                console.log(label+'_'+type.toUpperCase()+'_FAILED='+JSON.stringify(s));
+                await page.screenshot({path:'playback-'+label.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+type+'.png'});
+                return false;
+              }
+            }
+
+            const vtv1=find(['vtv1hd','vtv1']);
+            const sports=find(['onsports.vn','onsports','vtvcab3']);
+            const football=find(['onfootball.vn','onfootball','vtvcab16','bongdahd']);
+            const hls=list.find(c=>candidate(c,'hls') && !/vtvcab3|vtvcab16/i.test(String(c.tvgId)+' '+String(c.name)));
+            const results=[];
+            results.push(await test('VTV1',vtv1,'dash'));
+            results.push(await test('ONSPORTS',sports,'dash'));
+            results.push(await test('ONFOOTBALL',football,'dash'));
+            results.push(await test('HLS',hls,'hls'));
+            console.log('page_errors='+JSON.stringify(errors));
+            if(results.filter(Boolean).length===0)throw new Error('No browser stream played successfully');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

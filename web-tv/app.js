@@ -283,8 +283,17 @@ function loadSource(source,force){
   S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();toast('Đã cập nhật '+S.list.length+' kênh')
  }).catch(function(e){
   S.loading=false;
-  if(source==='tv')fallbackOriginal(cached,e);else toast('Không tải được playlist: '+e.message)
+  if(source==='tv')fallbackStaticPlaylist(cached,e);else toast('Không tải được playlist: '+e.message)
  })
+}
+function fallbackStaticPlaylist(cached,firstError){
+ var u='/web-tv/playlist.json?ts='+Date.now();
+ fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
+  if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error('fallback tĩnh rỗng');
+  S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();saveCache();toast('Đã mở playlist dự phòng · '+S.list.length+' kênh');
+ }).catch(function(e){
+  fallbackOriginal(cached,firstError);
+ });
 }
 function fallbackOriginal(cached,firstError){
  var u='https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u';

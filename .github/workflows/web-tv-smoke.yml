@@ -61,6 +61,26 @@ jobs:
           }
           NODE
 
+
+      - name: Probe ON Sports and ON Football HLS
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          import urllib.parse
+          base=__import__('os').environ['PREVIEW_URL']
+          urls={
+            'sports':'https://livevlive.vtvcab.vn/hls/OS_THETHAO_HD/sc-gaFEAA/m30_index.m3u8',
+            'football':'https://livevlive.vtvcab.vn/hls/OS_BONGDA_HD/sc-gaFEAA/m30_index.m3u8'
+          }
+          for n,u in urls.items():
+            q=urllib.parse.urlencode({'u':u,'ua':'Mozilla/5.0 (Linux; Android 10; KM6) AppleWebKit/537.36'})
+            print(n, f"{base}/api/probe?{q}")
+          PY
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlive.vtvcab.vn%2Fhls%2FOS_THETHAO_HD%2Fsc-gaFEAA%2Fm30_index.m3u8&ua=Mozilla%2F5.0" -o probe-sports.json
+          curl -fsSL -A "Mozilla/5.0" "$PREVIEW_URL/api/probe?u=https%3A%2F%2Flivevlive.vtvcab.vn%2Fhls%2FOS_BONGDA_HD%2Fsc-gaFEAA%2Fm30_index.m3u8&ua=Mozilla%2F5.0" -o probe-football.json
+          cat probe-sports.json
+          cat probe-football.json
+
       - name: Check stream proxy
         run: |
           set -euxo pipefail

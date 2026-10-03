@@ -67,7 +67,10 @@ jobs:
           const {chromium}=require('playwright');
           (async()=>{
             const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            p=null;
             const p=await b.newPage({viewport:{width:1920,height:1080}});
+            p.on('console',m=>console.log('BROWSER_CONSOLE='+m.type()+':'+m.text()));
+            p.on('pageerror',e=>console.log('BROWSER_PAGEERROR='+e.message));
             await p.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded',timeout:30000});
             await p.waitForSelector('.card',{timeout:15000});
             const cards=await p.locator('.card').count();
@@ -99,7 +102,7 @@ jobs:
             await p.keyboard.press('Enter');
             await p.waitForSelector('#player:not(.hidden)',{timeout:3000});
             await p.waitForTimeout(5000);
-            const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused,err:v.error?{code:v.error.code,msg:v.error.message}:null}});
+            const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused,src:v.currentSrc||v.src,network:v.networkState,readyState:v.readyState,err:v.error?{code:v.error.code,msg:v.error.message}:null,hls:!!window.Hls,hlsSupported:!!(window.Hls&&Hls.isSupported()),ms:!!window.MediaSource}});
             console.log('REMOTE_OK='+JSON.stringify({initial:init,right,menuDown:mi}));
             console.log('HLS='+JSON.stringify(media));
             if(!(media.t>0&&media.ready>=2))throw new Error('HLS playback failed '+JSON.stringify(media));

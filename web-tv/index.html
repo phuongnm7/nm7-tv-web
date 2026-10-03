@@ -250,7 +250,19 @@ function makeProxy(c,url){
  if(c.headers&&Object.keys(c.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(c.headers));
  return q
 }
-function candidateUrl(c,proxy){if(proxy)return makeProxy(c,c.url);return c.url}
+function isSamsungTizenBrowser(){
+ var ua=(typeof navigator!=='undefined'&&navigator.userAgent)?navigator.userAgent:'';
+ return /Tizen 3\.0|Tizen|SMART-TV/i.test(ua);
+}
+function candidateUrl(c,proxy){
+ var type=classify(c);
+ // Samsung Internet/Tizen 3.0 can use the TV's native HLS video pipeline.
+ // Do not force HLS through our proxy there; this also avoids CDN CORS restrictions
+ // that affect JavaScript/MSE clients. DASH still uses proxy when needed by dash.js.
+ if(type==='hls'&&isSamsungTizenBrowser())return c.url;
+ if(proxy)return makeProxy(c,c.url);
+ return c.url
+}
 function candidatesFor(ch){
  var out=[],seen={},i,j,c,q,baseId=norm(ch.tvgId),baseName=keyName(ch.name);
  for(i=0;i<S.list.length;i++){
@@ -394,7 +406,13 @@ function tryNext(reason){
    S.proxyAttempt=false;
    S.candidateIndex++;
  }else{
-   S.proxyAttempt=true;
+   var cc=S.candidates[S.candidateIndex];
+   if(cc&&classify(cc)==='hls'&&isSamsungTizenBrowser()){
+     S.candidateIndex++;
+     S.proxyAttempt=false;
+   }else{
+     S.proxyAttempt=true;
+   }
  }
  if(S.candidateIndex<S.candidates.length){
    toast((reason||'Nguồn lỗi')+(S.proxyAttempt?' · thử proxy':' · thử trực tiếp'));
@@ -420,7 +438,7 @@ function tryCurrent(){
 }
 function play(ch){
  if(!ch)return;
- S.current=ch;S.candidates=candidatesFor(ch);S.candidateIndex=0;S.proxyAttempt=/^(hls|dash)$/.test(classify(S.candidates[0]));S.player=true;S.controller=false;S.controllerIndex=2;
+ S.current=ch;S.candidates=candidatesFor(ch);S.candidateIndex=0;S.proxyAttempt=/^(hls|dash)$/.test(classify(S.candidates[0])) && !(classify(S.candidates[0])==='hls'&&isSamsungTizenBrowser());S.player=true;S.controller=false;S.controllerIndex=2;
  $('playerName').textContent=ch.name||'Kênh';openPlayer();$('controller').className='';tryCurrent();
  var id=ch.tvgId||ch.url;S.recent=[id].concat(S.recent.filter(function(x){return x!==id})).slice(0,80);saveUser()
 }
@@ -500,7 +518,7 @@ window.__NM7_TEST__={
     S.current=channel;
     S.candidates=[candidate];
     S.candidateIndex=0;
-    S.proxyAttempt=/^(hls|dash)$/.test(classify(candidate));
+    S.proxyAttempt=/^(hls|dash)$/.test(classify(candidate)) && !(classify(candidate)==='hls'&&isSamsungTizenBrowser());
     S.player=true;
     S.controller=false;
     S.controllerIndex=2;

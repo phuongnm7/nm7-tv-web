@@ -30,11 +30,12 @@ export default async function handler(req,res){
  cors(res);
  if(req.method==="OPTIONS")return res.status(204).send("");
  const q=new URL(req.url,"https://nm7-tv-web.vercel.app").searchParams;
- const target=q.get("u"),ref=q.get("r")||"",ua=q.get("ua")||"Mozilla/5.0 (NM7-TV/1.0.69)";
+ const target=q.get("u"),ref=q.get("r")||"",ua=q.get("ua")||"Mozilla/5.0 (NM7-TV/1.0.69)",rawHeaders=q.get("h")||"{}";
  if(!target||!/^(https?):/i.test(target))return res.status(400).send("bad url");
  try{
   var headers={"User-Agent":ua};
-  if(ref)headers.Referer=ref;
+  try{var extra=JSON.parse(rawHeaders);for(var hk in extra){if(extra.hasOwnProperty(hk)&&hk.toLowerCase()!=="host"&&hk.toLowerCase()!=="content-length"&&hk.toLowerCase()!=="connection")headers[hk]=String(extra[hk]);}}catch(e){}
+  if(ref&&!headers.Referer)headers.Referer=ref;
   if(req.headers&&req.headers.range)headers.Range=req.headers.range;
   if(req.headers&&req.headers["if-range"])headers["If-Range"]=req.headers["if-range"];
   const r=await fetch(target,{redirect:"follow",cache:"no-store",headers:headers});

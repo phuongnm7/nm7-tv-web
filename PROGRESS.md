@@ -32,3 +32,14 @@
 - Không merge `main`.
 - Không lấy 1.0.39 làm baseline.
 - Không coi WGT build là tiêu chí hoàn thành Web App.
+
+### Remote + autoplay fix (2026-10-03)
+- Đã loại bỏ các lời gọi tới controller/seek/switch hàm chưa tồn tại gây lỗi khi bấm remote.
+- Remote handler chạy ở `window` capture và nhận cả `keyCode` lẫn `event.key` (ArrowLeft/Right/Up/Down/Enter/Back/Escape).
+- Home D-pad navigation smoke: **PASS**.
+- Enter/OK chọn kênh chuyển sang player ngay.
+- URL stream không có extension được khởi động ngay trước khi probe bất đồng bộ, tránh mất user-activation.
+- Không còn thông báo/luồng chờ "Chờ xác nhận phát…".
+- Player Back/Return đóng player và trả focus về đúng card.
+- Samsung/Tizen browser routing smoke: **PASS**.
+- Deployment có code fix: `nm7-tv-laox6n5nz-phuongnm7.vercel.app`.

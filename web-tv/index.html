@@ -164,9 +164,8 @@ function classify(c){
  return 'http';
 }
 function playbackUrl(c){
- var u=c.url||'',t=classify(c);
- if(t!=='hls'&&t!=='dash')return u;
- if(!S.proxyAttempt)return u;
+ var u=c.url||'';
+ if(!S.proxyAttempt||!/^https?:/i.test(u))return u;
  if(c.proxy)return c.proxy;
  var q='/api/stream?u='+encodeURIComponent(u);
  if(c.ref)q+='&r='+encodeURIComponent(c.ref);

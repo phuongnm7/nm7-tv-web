@@ -1,14 +1,14 @@
 const SOURCES={tv:["https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/","https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u","https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u"],sport:["https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"]};
-function parse(t){const lines=String(t||"").replace(/^\uFEFF/,"").split(/\r?\n/),out=[];let m=null,ua="",ref="",manifestType="",licenseType="",licenseKey="";
+function parse(t){const lines=String(t||"").replace(/^\uFEFF/,"").split(/\r?\n/),out=[];let m=null,ua="",ref="",origin="",manifestType="",licenseType="",licenseKey="";
 for(const raw of lines){const l=raw.trim();
  if(l.indexOf("#EXTINF:")===0){
   if(m&&m.candidates.length)out.push(m);
   const p=l.indexOf(","),h=p<0?l:l.slice(0,p);
   m={name:p<0?"Kênh":l.slice(p+1).trim(),group:(/group-title="([^"]*)"/i.exec(h)||[])[1]||"Khác",logo:(/tvg-logo="([^"]*)"/i.exec(h)||[])[1]||"",id:(/tvg-id="([^"]*)"/i.exec(h)||[])[1]||"",candidates:[]};
-  ua="";ref="";manifestType="";licenseType="";licenseKey="";
+  ua="";ref="";origin="";manifestType="";licenseType="";licenseKey="";
  }else if(m&&l.indexOf("#EXTVLCOPT:")===0){
   const um=/http-user-agent=(?:"([^"]+)"|([^\s]+))/i.exec(l),rm=/(?:http-referrer|http-referer)=(?:"([^"]+)"|([^\s]+))/i.exec(l);
-  if(um)ua=um[1]||um[2];if(rm)ref=rm[1]||rm[2];
+  if(um)ua=um[1]||um[2];if(rm)ref=rm[1]||rm[2];const om=/http-origin=(?:"([^"]+)"|([^\s]+))/i.exec(l);if(om)origin=om[1]||om[2];
  }else if(m&&l.indexOf("#KODIPROP:")===0){
   const mt=/inputstream\.adaptive\.manifest_type=(.+)/i.exec(l),lt=/inputstream\.adaptive\.license_type=(.+)/i.exec(l),lk=/inputstream\.adaptive\.license_key=(.+)/i.exec(l);
   if(mt)manifestType=mt[1].trim();
@@ -16,10 +16,10 @@ for(const raw of lines){const l=raw.trim();
   if(lk)licenseKey=lk[1].trim();
  }else if(m&&l.charAt(0)!=="#"&&/^(https?|rtsp|rtmp|udp):/i.test(l)){
   const ps=l.split("|"),url=ps[0];let r=ref,u=ua;
-  for(let i=1;i<ps.length;i++){if(/^referer=/i.test(ps[i]))r=ps[i].slice(ps[i].indexOf("=")+1);if(/^http-user-agent=/i.test(ps[i]))u=ps[i].slice(ps[i].indexOf("=")+1);}
+  for(let i=1;i<ps.length;i++){if(/^referer(?:er)?=/i.test(ps[i]))r=ps[i].slice(ps[i].indexOf("=")+1);if(/^http-user-agent=/i.test(ps[i]))u=ps[i].slice(ps[i].indexOf("=")+1);if(/^origin=/i.test(ps[i]))origin=ps[i].slice(ps[i].indexOf("=")+1);}
   const lowerManifest=manifestType.toLowerCase();
   const drm=licenseType&&licenseKey?{type:licenseType,key:licenseKey}:null;
-  const cand={url,ref:r,ua:u,headers:{},type:lowerManifest==="mpd"?"dash":lowerManifest==="hls"?"hls":"",dash:lowerManifest==="mpd",hls:lowerManifest==="hls"||/\.m3u8(?:$|\?)/i.test(url)||/\.m3u(?:$|\?)/i.test(url)||/playlist|index\.m3u|manifest/i.test(url),drm};
+  const cand={url,ref:r,ua:u,headers:origin?{Origin:origin}:{},type:lowerManifest==="mpd"?"dash":lowerManifest==="hls"?"hls":"",dash:lowerManifest==="mpd",hls:lowerManifest==="hls"||/\.m3u8(?:$|\?)/i.test(url)||/\.m3u(?:$|\?)/i.test(url)||/playlist|index\.m3u|manifest/i.test(url),drm};
   m.candidates.push(cand);
  }
 }

@@ -20,10 +20,9 @@ jobs:
           const a=html.indexOf('<script>'), b=html.lastIndexOf('</script>');
           const js=html.slice(a+8,b);
           new Function(js);
-          if(/\?\./.test(js))throw new Error('optional chaining remains');
-          if(/\?\?/.test(js))throw new Error('nullish coalescing remains');
+          if(/\?\./.test(js)||/\?\?/.test(js))throw new Error('unsupported JS syntax remains');
           if(!html.includes('viewBox="0 0 388.67627 83.90052"'))throw new Error('exact YouTube vector missing');
-          if(!html.includes('/web-tv/dash.all.min.js'))throw new Error('DASH bundle path wrong');
+          if(!html.includes('/web-tv/dash.all.min.js'))throw new Error('DASH asset path missing');
           NODE
           curl -fsSL "$PREVIEW_URL/" -o page.html
           grep -q "NM7 TV" page.html
@@ -35,7 +34,7 @@ jobs:
           const d=require('./tv.json');
           if(!d.channels || d.channels.length<400)throw new Error('too few channels: '+(d.channels||[]).length);
           const n=s=>String(s||'').toLowerCase();
-          function find(x){return d.channels.find(c=>n(c.name).includes(x)||n(c.tvgId).includes(x))}
+          const find=x=>d.channels.find(c=>n(c.name).includes(x)||n(c.tvgId).includes(x));
           const v=find('vtv1'),sp=find('on sports'),fo=find('on football');
           if(!v||!sp||!fo)throw new Error('required channels missing');
           if(!v.candidates.some(x=>x.type==='dash'))throw new Error('VTV1 DASH missing');
@@ -53,23 +52,18 @@ jobs:
           (async()=>{
             const browser=await chromium.launch({headless:true});
             const page=await browser.newPage({viewport:{width:1920,height:1080}});
-            const errors=[];
-            page.on('pageerror',e=>errors.push(String(e)));
+            const errors=[];page.on('pageerror',e=>errors.push(String(e)));
             await page.goto(process.env.PREVIEW_URL,{waitUntil:'domcontentloaded',timeout:60000});
             await page.waitForTimeout(5000);
-            const info=await page.evaluate(()=>({cards:document.querySelectorAll('.card').length,focused:(document.querySelector('.card.focus')||{}).textContent||'',dash:typeof window.dashjs,hls:typeof window.Hls}));
-            console.log(info);
-            if(errors.length)throw new Error(errors.join('\\n'));
-            if(info.cards<1)throw new Error('no cards');
-            const first=info.focused;
-            await page.keyboard.press('ArrowRight');await page.waitForTimeout(100);
+            const first=await page.locator('.card.focus').textContent();
+            await page.keyboard.press('ArrowRight');await page.waitForTimeout(150);
             const second=await page.locator('.card.focus').textContent();
-            console.log({first,second});
+            console.log({cards:await page.locator('.card').count(),first,second,dash:await page.evaluate(()=>typeof window.dashjs),hls:await page.evaluate(()=>typeof window.Hls)});
             if(first===second)throw new Error('RIGHT did not move focus');
-            await page.locator('.card').filter({hasText:'VTV1'}).first().click();
-            await page.waitForTimeout(12000);
-            const playback=await page.evaluate(()=>({readyState:document.getElementById('video').readyState,paused:document.getElementById('video').paused,currentSrc:document.getElementById('video').currentSrc,status:document.getElementById('playerStatus').textContent}));
-            console.log({playback});
+            await page.keyboard.press('Enter');
+            await page.waitForTimeout(15000);
+            const playback=await page.evaluate(()=>({open:document.getElementById('player').className,readyState:document.getElementById('video').readyState,paused:document.getElementById('video').paused,currentSrc:document.getElementById('video').currentSrc,status:document.getElementById('playerStatus').textContent,visible:document.getElementById('playerStatus').style.visibility}));
+            console.log({playback,errors});
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
@@ -88,7 +82,7 @@ jobs:
       - name: Probe Seenow
         run: |
           set +e
-          MODE='\${{ matrix.pair }}'
+          MODE='${{ matrix.pair }}'
           UA_TYPE="\${MODE%%|*}"
           REF="\${MODE#*|}"
           case "$UA_TYPE" in

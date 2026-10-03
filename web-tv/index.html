@@ -8,23 +8,23 @@
 <link rel="manifest" href="/manifest.webmanifest"><title>NM7 TV 1.0.69</title>
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05070a;color:#fff;font-family:Arial,Helvetica,sans-serif}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07111f;color:#fff;font-family:Arial,Helvetica,sans-serif}
 body{user-select:none}
 button,input{font:inherit}
 button{cursor:pointer}
-#app{position:relative;width:100%;height:100%;background:#05070a}
-#top{position:absolute;z-index:20;left:0;right:0;top:0;height:78px;padding:18px 40px;display:flex;align-items:center;gap:20px;background:linear-gradient(#05070af2,rgba(5,7,10,.68),transparent)}
+#app{position:relative;width:100%;height:100%;background:#07111f url("/assets/nm7-web-bg.jpg") center/cover no-repeat fixed}
+#top{display:none}
 #brand{font-size:29px;font-weight:800;white-space:nowrap}
 #version{font-size:14px;color:#818b98;border:1px solid #39414d;border-radius:20px;padding:5px 9px}
 #src{font-size:18px;color:#c9ced6;white-space:nowrap}
 #count{font-size:16px;color:#828c98}
 #clock{margin-left:auto;color:#c9ced6;font-size:18px}
-#home{position:absolute;inset:0;padding:78px 18px 18px 22px;overflow:hidden}
+#home{position:absolute;inset:0;padding:0 18px 18px 22px;overflow:hidden;background:linear-gradient(180deg,rgba(5,12,20,.06),rgba(5,12,20,.28))}
 .row{margin:0}
-.row h2{margin:0;height:34px;padding:8px 2px 5px;font-size:18px;line-height:21px;font-weight:700}
-.cards{display:flex;gap:4px;height:80px;min-width:max-content;overflow-x:auto;overflow-y:hidden;padding:0 18px 4px 0;scroll-behavior:auto;scrollbar-width:none}
+.row h2{margin:0;height:34px;padding:8px 2px 5px;font-size:18px;line-height:21px;font-weight:700;text-shadow:0 2px 4px #000a}
+.cards{display:flex;gap:4px;height:76px;min-width:max-content;overflow-x:auto;overflow-y:hidden;padding:0 18px 2px 0;scroll-behavior:auto;scrollbar-width:none;overscroll-behavior:none}
 .cards::-webkit-scrollbar{display:none}
-.card{position:relative;flex:0 0 138px;width:138px;height:76px;border:1px solid #334f6a83;border-radius:22px;background:linear-gradient(90deg,#c72a3749,#d9182434);padding:6px 10px 2px;outline:none;display:flex;flex-direction:column;align-items:stretch;justify-content:stretch;transition:transform .12s ease,background .12s ease,border-color .12s ease;z-index:1}
+.card{position:relative;appearance:none;-webkit-appearance:none;flex:0 0 138px;width:138px;height:76px;border:1px solid #334f6a83;border-radius:22px;background:linear-gradient(90deg,#c72a3749,#d9182434);padding:6px 10px 2px;outline:none;display:flex;flex-direction:column;align-items:stretch;justify-content:stretch;transition:transform .12s ease,background .12s ease,border-color .12s ease;z-index:1;color:#fff;font:inherit;text-align:center;overflow:hidden;cursor:pointer}
 .card.focus,.card:focus{border:5px solid #37d6a6;background:linear-gradient(90deg,#e837d6a6,#d82aae8a);transform:scale(1.08);z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .thumb{height:0;flex:1 1 auto;min-height:0;border-radius:12px;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .thumb img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
@@ -33,6 +33,18 @@ button{cursor:pointer}
 .star{position:absolute;top:7px;right:10px;font-size:17px}
 .empty{padding:80px 5px;font-size:28px;color:#abb2bc}
 .hidden{display:none!important}
+
+#homeTabs{position:relative;height:64px;width:100%;display:flex;align-items:center;padding:6px 0;z-index:10}
+.homeTab{appearance:none;-webkit-appearance:none;border:0;outline:none;background:transparent;color:#fff;cursor:pointer}
+#ytTab{width:180px;height:52px;border-radius:16px;background:rgba(45,185,231,.86);border:2px solid rgba(205,245,255,.7);box-shadow:0 3px 12px #0015;display:flex;align-items:center;justify-content:center;gap:8px}
+#ytTab .ytPlay{width:46px;height:32px;border-radius:9px;background:#f11212;position:relative;box-shadow:0 0 0 1px #d80000 inset}
+#ytTab .ytPlay:after{content:"";position:absolute;left:18px;top:9px;border-left:13px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent}
+#ytTab .ytText{font-size:30px;font-weight:800;letter-spacing:-1.5px}
+#appShortcut{width:84px;height:52px;margin-left:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+#appShortcut .plus{width:34px;height:34px;border:3px solid #fff;border-radius:50%;font-size:28px;line-height:27px;font-weight:300}
+#appShortcut .label{font-size:11px;color:#fff;white-space:nowrap;text-shadow:0 1px 3px #000}
+#homeTitle{position:absolute;left:50%;top:0;transform:translateX(-50%);height:64px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#c1cad6;text-shadow:0 2px 4px #0007;pointer-events:none;white-space:nowrap}
+#ytTab:focus,#ytTab.focus,#appShortcut:focus,#appShortcut.focus{outline:3px solid #37d6a6;outline-offset:3px;transform:scale(1.04)}
 
 #player{position:absolute;z-index:60;inset:0;background:#000}
 #video{width:100%;height:100%;background:#000;object-fit:contain}
@@ -44,9 +56,9 @@ button{cursor:pointer}
 .cb{border:0;border-radius:8px;background:#303742;color:#fff;padding:11px 17px;font-size:18px}
 .cb.focus,.cb:focus{outline:3px solid #fff;background:#fff;color:#000}
 
-#menu{position:absolute;z-index:80;left:0;top:0;bottom:0;width:500px;background:#090c10fa;padding:92px 24px 26px;box-shadow:20px 0 60px #000}
+#menu{position:absolute;z-index:80;left:0;top:0;bottom:0;width:310px;background:#090c10fa;padding:18px 14px 26px;box-shadow:20px 0 60px #000}
 #menu h2{margin:0 0 15px;font-size:28px}
-.mi{height:57px;padding:13px 18px;margin:4px 0;border-radius:9px;font-size:21px}
+.mi{width:100%;height:48px;padding:10px 16px;margin:4px 0;border:0;border-radius:9px;background:transparent;color:#fff;text-align:left;font-size:18px;cursor:pointer;outline:none}.mi:focus,.mi.focus{background:#fff;color:#000}
 .mi.focus{background:#fff;color:#000}
 #menuHint{position:absolute;left:24px;bottom:18px;color:#949eab;font-size:14px}
 
@@ -65,7 +77,7 @@ button{cursor:pointer}
 <script src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
 </head>
-<body>
+<body id="nm7-body" tabindex="0" onkeydown="return window.NM7_REMOTE ? window.NM7_REMOTE(event) : true;">
 <div id="app">
 <header id="top"><div id="brand">NM7 TV</div><div id="version">1.0.69 Web</div><div id="src">Truyền hình</div><div id="count"></div><div id="clock"></div></header>
 <main id="home"><div class="empty">Đang tải danh sách kênh…</div></main>
@@ -108,6 +120,7 @@ function currentChannel(){var a=channelsInGroup(S.groups[S.row]||'');return a[S.
 function nearestColumn(oldCol,g){var n=channelsInGroup(g).length;return n?Math.min(oldCol,n-1):0}
 function focusElement(){
  var el=document.querySelector('.card.focus');
+ if(!el){var all=document.querySelectorAll('.card');el=all[0]||null;if(el)el.classList.add('focus')}
  if(!el)return;
  try{el.focus({preventScroll:true})}catch(e){try{el.focus()}catch(e2){}}
  try{el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}catch(e){}
@@ -115,20 +128,26 @@ function focusElement(){
 function activateLogos(){var imgs=document.querySelectorAll('img[data-src]'),i,im,r;for(i=0;i<imgs.length;i++){im=imgs[i];r=parseInt(im.getAttribute('data-row')||'0',10);if(Math.abs(r-S.row)<=2){im.src=im.getAttribute('data-src');im.removeAttribute('data-src')}}}
 function render(){
  var h=$('home'),html='',start=Math.max(0,S.row-2),end=Math.min(S.groups.length,S.row+5),r,g,a,i,c,selected;
+ html+='<div id="homeTabs">';
+ html+='<button id="ytTab" class="homeTab" type="button" aria-label="YouTube"><span class="ytPlay"></span><span class="ytText">YouTube</span></button>';
+ html+='<button id="appShortcut" class="homeTab" type="button" aria-label="Chọn ứng dụng"><span class="plus">+</span><span class="label">Chọn ứng dụng</span></button>';
+ html+='<div id="homeTitle">Danh sách kênh TV</div></div>';
  for(r=start;r<end;r++){
    g=S.groups[r];a=channelsInGroup(g);if(!a.length)continue;
    html+='<section class="row" data-row="'+r+'"><h2>'+esc(g)+'</h2><div class="cards">';
    for(i=0;i<a.length;i++){
      c=norm(a[i]);selected=(r===S.row&&i===S.col);
-     html+='<div class="card '+(selected?'focus':'')+'" tabindex="-1" role="button" data-row="'+r+'" data-col="'+i+'" aria-label="'+esc(c.name)+'">';
+     html+='<button type="button" class="card '+(selected?'focus':'')+'" tabindex="0" data-row="'+r+'" data-col="'+i+'" aria-label="'+esc(c.name)+'">';
      html+='<div class="thumb">';
      if(c.logo)html+='<img loading="lazy" data-row="'+r+'" data-src="'+esc(c.logo)+'" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span>TV</span>\'">';
      else html+='<span>TV</span>';
      html+='</div><div class="name">'+esc(c.name)+'</div>'+(S.fav.indexOf(c.id)>=0?'<span class="star">★</span>':'')+'</div>';
    }
-   html+='</div></section>';
+   html+='</button></section>';
  }
  h.innerHTML=html||'<div class="empty">Không có kênh phù hợp</div>';
+ var yt=$('ytTab');if(yt)yt.onclick=function(){toast('YouTube trên Web đang ở chế độ trình duyệt')};
+ var app=$('appShortcut');if(app)app.onclick=function(){toast('Chọn ứng dụng chỉ khả dụng trên Android TV')};
  h.querySelectorAll('.card').forEach(function(card){
    card.onclick=function(){
      var rr=Number(card.getAttribute('data-row')||0),cc=Number(card.getAttribute('data-col')||0),aa=channelsInGroup(S.groups[rr]||'');
@@ -420,9 +439,10 @@ function remoteCode(e){
  if(k===428||key==='channeldown')return 428;
  return k;
 }
-function stopRemoteEvent(e){try{e.preventDefault()}catch(x){}try{e.stopPropagation()}catch(x){}try{e.stopImmediatePropagation()}catch(x){}}
+function stopRemoteEvent(e){try{e.preventDefault()}catch(x){}try{e.stopPropagation()}catch(x){}}
 function handleRemote(e){
- if(e&&e.repeat)return;
+ if(e&&e.__nm7RemoteHandled)return false;
+ if(e&&e.repeat)return true;
  var k=remoteCode(e),handled=false;
  if(S.dialog){
    if(k===13||k===461||k===10009||k===27){$('dlg').className='hidden';S.dialog=null;render();handled=true}
@@ -458,12 +478,16 @@ function handleRemote(e){
      else if(k===8||k===403){var c=currentChannel();if(c){var fi=S.fav.indexOf(c.id);if(fi<0)S.fav.push(c.id);else S.fav.splice(fi,1);saveUser();render();toast(fi<0?'Đã thêm yêu thích':'Đã bỏ yêu thích')};handled=true}
    }
  }
- if(handled)stopRemoteEvent(e);
+ if(handled){if(e)e.__nm7RemoteHandled=true;stopRemoteEvent(e);return false}
+ return true;
 }
+window.NM7_REMOTE=handleRemote;
 window.addEventListener('keydown',handleRemote,true);
+document.addEventListener('keydown',handleRemote,false);
+document.addEventListener('focusin',function(e){var t=e&&e.target;if(!t||!t.classList||!t.classList.contains('card'))return;var rr=Number(t.getAttribute('data-row')||0),cc=Number(t.getAttribute('data-col')||0);if(isFinite(rr)&&isFinite(cc)){S.row=rr;S.col=cc;document.querySelectorAll('.card.focus').forEach(function(x){if(x!==t)x.classList.remove('focus')});t.classList.add('focus')}},true);
 window.addEventListener('focus',function(){if(S.mode==='home'&&!S.player&&!S.dialog)setTimeout(focusElement,0)},true);
 
-restoreUser();var cached=readListCache();if(cached){S.list=cached.channels||[];rebuildGroups();setLabel();render()}
+restoreUser();try{document.body.focus()}catch(e){}var cached=readListCache();if(cached){S.list=cached.channels||[];rebuildGroups();setLabel();render()}
 fetchSource(0);
 setInterval(function(){$('clock').textContent=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})},1000);
 $('clock').textContent=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});

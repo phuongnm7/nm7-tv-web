@@ -101,18 +101,19 @@ function candidateUrl(c){
  var cand=c.candidates[S.candidateIndex]||{};
  return cand.proxy||cand.url||''
 }
-function likelyHls(u){return /\.m3u8(?:$|[?#])/i.test(u)||/playlist|index\.m3u|chunklist|manifest\.m3u/i.test(u)}
-function likelyDash(u){return /\.mpd(?:$|[?#])/i.test(u)||/manifest\.mpd|dash/i.test(u)}
+function likelyHls(u){return /\\.m3u8(?:$|[?#])/i.test(u)||/playlist|index\\.m3u|chunklist|manifest\\.m3u/i.test(u)}
+function likelyDash(u){return /\\.mpd(?:$|[?#])/i.test(u)||/manifest\\.mpd|dash/i.test(u)}
 function decodeHexB64(s){
- var v=String(s||'').replace(/^0x/i,'').replace(/-/g,'');
+ var v=String(s||'').replace(/^0x/i,'').replace(/-/g,''),out='',i;
  if(!/^[0-9a-fA-F]+$/.test(v)||v.length%2)return s;
- var out='',i;for(i=0;i<v.length;i+=2)out+=String.fromCharCode(parseInt(v.substr(i,2),16));
- try{return btoa(out).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(e){return s}
+ for(i=0;i<v.length;i+=2)out+=String.fromCharCode(parseInt(v.substr(i,2),16));
+ try{return btoa(out).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'')}catch(e){return s}
 }
 function clearKeyData(c){
- var opts=c&&c.candidates&&c.candidates[S.candidateIndex]?c.candidates[S.candidateIndex].options||[]:[];
+ var opts=[],base=[],i,m,parts,map={},j;
+ if(c&&c.candidates&&c.candidates[S.candidateIndex]&&c.candidates[S.candidateIndex].options)opts=opts.concat(c.candidates[S.candidateIndex].options);
  if(c&&c.options)opts=opts.concat(c.options);
- var key='',i,m,parts,map={},j;
+ var key='';
  for(i=0;i<opts.length;i++){
    if(/license_key/i.test(opts[i])){m=opts[i].indexOf('=');if(m>=0)key=opts[i].slice(m+1)}
  }
@@ -125,13 +126,12 @@ function clearKeyData(c){
    var kid=decodeHexB64(parts[j].slice(0,m)),ck=decodeHexB64(parts[j].slice(m+1));
    if(kid&&ck)map[kid]=ck;
  }
- if(!Object.keys(map).length)return null;
+ for(i in map)base.push(i);
+ if(!base.length)return null;
  return {'org.w3.clearkey':{clearkeys:map}}
 }
 function drmProtection(c){
- var d=clearKeyData(c);
- if(d)return d;
- return null
+ return clearKeyData(c)
 }
 function tryCandidate(c){
  if(!c||!c.candidates||!c.candidates.length){showStatus('Kênh không có URL phát');return}
@@ -141,14 +141,14 @@ function tryCandidate(c){
  showStatus(show);
  v.pause();v.removeAttribute('src');v.load();
  var kind=String(cand.type||'').toLowerCase();
- if(!kind){kind=likelyDash(u)?'dash':(likelyHls(u)?'hls':'http')}
+ if(!kind)kind=likelyDash(u)?'dash':(likelyHls(u)?'hls':'http');
  if(kind==='dash'&&window.dashjs){
    try{
      S.dash=dashjs.MediaPlayer().create();
      var prot=drmProtection(c);
      if(prot&&S.dash.setProtectionData)S.dash.setProtectionData(prot);
      S.dash.initialize(v,u,true);
-     var p=v.play();if(p&&p.catch)p.catch(function(){});
+     try{var p=v.play();if(p&&p.catch)p.catch(function(){})}catch(e){}
      return
    }catch(e){setTimeout(function(){nextCandidate('DASH lỗi')},150);return}
  }
@@ -156,15 +156,14 @@ function tryCandidate(c){
    S.hls=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:45});
    S.hls.on(Hls.Events.ERROR,function(event,data){if(data&&data.fatal)setTimeout(function(){nextCandidate('HLS lỗi')},150)});
    S.hls.attachMedia(v);
-   /* Start immediately; manifest callback retries play after data is attached. */
    try{var p0=v.play();if(p0&&p0.catch)p0.catch(function(){})}catch(e){}
-   S.hls.on(Hls.Events.MANIFEST_PARSED,function(){try{var p=v.play();if(p&&p.catch)p.catch(function(){})}catch(e){}});
+   S.hls.on(Hls.Events.MANIFEST_PARSED,function(){try{var p1=v.play();if(p1&&p1.catch)p1.catch(function(){})}catch(e){}});
    S.hls.loadSource(u);
    return
  }
  v.autoplay=true;
  v.src=u;
- try{var p1=v.play();if(p1&&p1.catch)p1.catch(function(){})}catch(e){}
+ try{var p2=v.play();if(p2&&p2.catch)p2.catch(function(){})}catch(e){}
 }
 function nextCandidate(reason){if(!S.player||!S.current)return;S.candidateIndex++;toast((reason||'Nguồn lỗi')+' · thử nguồn dự phòng');tryCandidate(S.current)}
 function showStatus(s){$('status').textContent=s;$('status').style.display='flex'}

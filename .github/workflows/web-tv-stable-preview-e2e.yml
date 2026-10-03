@@ -32,19 +32,10 @@ jobs:
           grep -q 'src="/web-tv/dash.all.min.js"' web-tv/index.html
           grep -q 'src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"' web-tv/index.html
 
-      - name: Install Vercel CLI
-        run: npm install -g vercel@latest
-
-      - name: Link Vercel project
-        run: vercel link --project nm7-tv-web --scope phuongnm7 --yes --token="${{ secrets.VERCEL_TOKEN }}"
-
-      - name: Deploy preview
+      - name: Use Vercel branch preview
         id: deploy
         run: |
-          set -euo pipefail
-          url=$(vercel deploy --yes --token="${{ secrets.VERCEL_TOKEN }}")
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "PREVIEW_URL=$url"
+          echo "url=https://nm7-tv-web-git-feature-web-tv-1069-from-stable-old-phuongnm7.vercel.app" >> "$GITHUB_OUTPUT"
 
       - name: Wait for preview
         env:
@@ -52,9 +43,11 @@ jobs:
         run: |
           set -euxo pipefail
           for i in $(seq 1 30); do
-            if curl -fsSL --max-time 15 "$PREVIEW_URL/" | grep -q "NM7 TV"; then exit 0; fi
+            code=$(curl -sS -o /tmp/page.html -w "%{http_code}" --max-time 15 "$PREVIEW_URL/")
+            if [ "$code" = "200" ] && grep -q "NM7 TV" /tmp/page.html; then exit 0; fi
             sleep 2
           done
+          cat /tmp/page.html || true
           exit 1
 
       - name: Browser remote and player E2E

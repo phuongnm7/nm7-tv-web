@@ -1,0 +1,1 @@
+{"version":2,"rewrites":[{"source":"/","destination":"/web-tv/index.html"},{"source":"/tv","destination":"/web-tv/index.html"}]}

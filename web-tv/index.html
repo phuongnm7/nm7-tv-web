@@ -195,11 +195,11 @@ function setupDash(c,cand,v,u){
      modifyRequestURL:function(url){if(/^https?:/i.test(url)&&url.indexOf(location.origin)===0)return url;var q='/api/stream?u='+encodeURIComponent(url);if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);return q},
      modifyRequestHeader:function(xhr){if(cand.ua)try{xhr.setRequestHeader('User-Agent',cand.ua)}catch(e){}return xhr}
    }});
-   var prot=protectionData(cand);if(prot&&p.setProtectionData)p.setProtectionData(prot);
-   p.on(dashjs.MediaPlayer.events.PLAYBACK_ERROR,function(e){nextCandidate('DASH playback error')});
+   var prot=protectionData(cand);
    p.on(dashjs.MediaPlayer.events.ERROR,function(e){if(e&&e.error){nextCandidate('DASH lỗi: '+(e.error.message||e.error.code||'unknown'))}});
    p.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED,function(){hideStatus();var x=v.play();if(x&&x.catch)x.catch(function(){toast('Nhấn OK để phát '+c.name)})});
    p.initialize(v,u,true);
+   if(prot&&p.setProtectionData)p.setProtectionData(prot);
    return true
  }catch(e){nextCandidate('DASH khởi tạo lỗi');return false}
 }

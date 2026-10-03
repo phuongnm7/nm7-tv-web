@@ -37,8 +37,10 @@ button{cursor:pointer}
 
 #homeTabs{position:relative;height:64px;width:100%;display:flex;align-items:center;padding:6px 0;z-index:10}
 .homeTab{appearance:none;-webkit-appearance:none;border:0;outline:none;background:transparent;color:#fff;cursor:pointer}
-#ytTab{width:180px;height:52px;border-radius:0;background:transparent;border:0;box-shadow:none;display:flex;align-items:center;justify-content:center;padding:0 4px}
-#ytTab img{width:156px;height:34px;display:block;object-fit:contain}
+#ytTab{width:180px;height:52px;border-radius:0;background:transparent;border:0;box-shadow:none;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 4px}
+#ytTab .ytPlay{width:46px;height:32px;border-radius:9px;background:#f11212;position:relative}
+#ytTab .ytPlay:after{content:"";position:absolute;left:18px;top:9px;border-left:13px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent}
+#ytTab .ytText{font-size:30px;font-weight:800;letter-spacing:-1.5px}
 #ytTab.focus{outline:3px solid #37d6a6;outline-offset:3px}
 #appShortcut{width:84px;height:52px;margin-left:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:0;background:transparent}
 #appShortcut .plus{width:38px;height:38px;position:relative;border:1.8px solid #fff;border-radius:50%;display:block}
@@ -104,7 +106,7 @@ button{cursor:pointer}
 <button class="cb" tabindex="-1" data-a="next">CH +</button>
 </div>
 </section>
-<aside id="menu" class="hidden"><div id="menuHeader"><img src="/assets/nm7-main-logo.svg" alt="NM7 TV"><span>NM7 TV</span></div><div id="ml"></div><div id="menuHint">←/Back đóng · ↑↓ chọn · →/OK xác nhận</div></aside>
+<aside id="menu" class="hidden"><div id="menuHeader"><img src="/assets/nm7-main-logo.png" alt="NM7 TV"><span>NM7 TV</span></div><div id="ml"></div><div id="menuHint">←/Back đóng · ↑↓ chọn · →/OK xác nhận</div></aside>
 <div id="dlg" class="hidden"><div id="box"></div></div>
 <div id="toast"></div>
 </div>
@@ -179,7 +181,7 @@ function logoSource(c){
 function render(){
  var h=$('home'),html='',start=0,end=S.groups.length,r,g,a,i,c,selected;
  html+='<div id="homeTabs">';
- html+='<div id="ytTab" class="homeTab '+(S.zone==='top'&&S.top===0?'focus':'')+'" tabindex="-1" role="button" aria-label="YouTube"><img src="/assets/ic-youtube-logo-full.png" alt="YouTube"></div>';
+ html+='<div id="ytTab" class="homeTab '+(S.zone==='top'&&S.top===0?'focus':'')+'" tabindex="-1" role="button" aria-label="YouTube"><span class="ytPlay"></span><span class="ytText">YouTube</span></div>';
  html+='<div id="appShortcut" class="homeTab '+(S.zone==='top'&&S.top===1?'focus':'')+'" tabindex="-1" role="button" aria-label="Chọn ứng dụng"><span class="plus" aria-hidden="true"></span><span class="label">Chọn ứng dụng</span></div>';
  html+='<div id="homeTitle">Danh sách kênh TV</div></div>';
  for(r=start;r<end;r++){

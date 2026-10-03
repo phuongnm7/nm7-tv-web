@@ -78,12 +78,13 @@ jobs:
             await page.waitForTimeout(150);
             if(await page.locator('.card.focus').count()<1)throw new Error('RIGHT did not leave a focused card');
 
-            // Return to first card and open the side menu with LEFT.
+            // Return to first card, then LEFT again opens the side menu.
             await page.evaluate(()=>{
               document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
+              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
             });
-            await page.waitForTimeout(150);
-            if(await page.locator('#menu:not(.hidden)').count()<1)throw new Error('LEFT did not open menu');
+            await page.waitForTimeout(180);
+            if(await page.locator('#menu:not(.hidden)').count()<1)throw new Error('LEFT from first card did not open menu');
 
             // DOWN must move the menu selection.
             await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,which:40,bubbles:true})));

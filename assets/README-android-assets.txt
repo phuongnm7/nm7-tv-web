@@ -1,0 +1,1 @@
+Android 1.0.69 exact vector assets are mirrored as PNGs for Samsung/Tizen compatibility. Source: v1.0.69-fast-vtvcab-logo-16.

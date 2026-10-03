@@ -138,19 +138,29 @@ export default async function handler(req,res){
   const source=new URL(req.url,"https://nm7-tv-web.vercel.app").searchParams.get("source");
   const target=SOURCES[source||"tv"];
   if(!target)return res.status(400).json({channels:[],error:"Nguồn không hợp lệ"});
-  try{
-    const now=Date.now();
-    if(cache[source]&&now-cache[source].time<8000)return res.status(200).json({channels:cache[source].channels,source,cached:true});
-    const r=await fetch(target,{cache:"no-store",headers:{
-      "User-Agent":"NM7-TV/1.0.69 Android-TV",
-      "Accept":"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*",
-      "Cache-Control":"no-cache"
-    }});
-    if(!r.ok)throw new Error("HTTP "+r.status);
-    const channels=parse(await r.text(),r.url||target);addKnownFallbacks(channels);
-    cache[source]={time:now,channels};
-    return res.status(200).json({channels,source,cached:false});
-  }catch(e){
-    return res.status(502).json({channels:[],error:e&&e.message?e.message:"Không tải được playlist"});
+  const now=Date.now();
+  if(cache[source]&&now-cache[source].time<8000)return res.status(200).json({channels:cache[source].channels,source,cached:true});
+  let lastError="";
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      const r=await fetch(target,{cache:"no-store",headers:{
+        "User-Agent":"NM7-TV/1.0.69 Android-TV",
+        "Accept":"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*",
+        "Cache-Control":"no-cache"
+      }});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const channels=parse(await r.text(),r.url||target);addKnownFallbacks(channels);
+      if(!channels.length)throw new Error("Playlist rỗng");
+      cache[source]={time:Date.now(),channels};
+      return res.status(200).json({channels,source,cached:false});
+    }catch(e){
+      lastError=e&&e.message?e.message:String(e);
+      if(attempt<2)await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)));
+    }
   }
+  if(cache[source]&&cache[source].channels&&cache[source].channels.length){
+    return res.status(200).json({channels:cache[source].channels,source,cached:true,stale:true});
+  }
+  return res.status(502).json({channels:[],error:lastError||"Không tải được playlist"});
+
 }

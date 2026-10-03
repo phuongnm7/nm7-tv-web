@@ -5,10 +5,6 @@ on:
     branches: ["feature/web-tv-1.0.69-minimal-from-production"]
   workflow_dispatch:
 
-concurrency:
-  group: nm7-tv-minimal-hls-e2e
-  cancel-in-progress: true
-
 jobs:
   e2e:
     runs-on: ubuntu-latest

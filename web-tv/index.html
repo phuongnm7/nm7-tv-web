@@ -514,49 +514,51 @@ document.onkeydown=function(e){
  if(k===13){play(current());return}
  if(k===403||k===8)toggleFavorite()
 };
-window.__NM7_TEST__={
-  version:'1.0.69-browser',
-  getState:function(){
-    return {player:S.player,controller:S.controller,proxyAttempt:S.proxyAttempt,groupIndex:S.groupIndex,colIndex:S.colIndex,
-      channel:S.current?{name:S.current.name||'',tvgId:S.current.tvgId||'',url:S.current.url||''}:null,
-      video:{readyState:$('video').readyState,currentTime:$('video').currentTime,paused:$('video').paused,networkState:$('video').networkState,error:$('video').error?{code:$('video').error.code,message:$('video').error.message}:null}};
-  },
-  playById:function(id){
-    for(var i=0;i<S.list.length;i++){if(String(S.list[i].tvgId||'').toLowerCase()===String(id||'').toLowerCase()){play(S.list[i]);return true}}
-    return false
-  },
-  playByName:function(name){
-    var q=norm(name);
-    for(var i=0;i<S.list.length;i++){if(norm(S.list[i].name)===q||(norm(S.list[i].name).indexOf(q)>=0)){play(S.list[i]);return true}}
-    return false
-  },
-  playChannel:function(channel){if(!channel)return false;play(channel);return true},
-  playSingleCandidate:function(channel,candidate){
-    if(!channel||!candidate)return false;
-    S.current=channel;
-    S.candidates=[candidate];
-    S.candidateIndex=0;
-    S.proxyAttempt=/^(hls|dash)$/.test(classify(candidate)) && !canUseNativeHls(candidate);
-    S.player=true;
-    S.controller=false;
-    S.controllerIndex=2;
-    $('playerName').textContent=channel.name||'Kênh';
-    openPlayer();
-    $('controller').className='';
-    tryCurrent();
-    var id=channel.tvgId||channel.url;
-    S.recent=[id].concat(S.recent.filter(function(x){return x!==id})).slice(0,80);
-    saveUser();
-    return true
-  },
-  focusLastCard:function(){
-    if(!S.groups.length)return false;
-    var gi=S.groupIndex, row=S.groups[gi]?S.groups[gi][1]:[];
-    if(!row.length)return false;
-    focusCard(gi,row.length-1,false);return true
-  },
-  list:function(){return S.list.map(function(c){return{name:c.name||'',tvgId:c.tvgId||'',url:c.url||'',type:c.type||'',candidates:(c.candidates||[]).map(function(x){return{url:x.url||'',type:x.type||'',mime:x.mime||'',options:x.options||[]}})}})}
-};loadUser();updateHeader();setInterval(updateHeader,30000);fetchPlaylist(0);
+if(window.location.search.indexOf('e2e=1')>=0){
+ window.__NM7_TEST__={
+   version:'1.0.69-browser',
+   getState:function(){
+     return {player:S.player,controller:S.controller,proxyAttempt:S.proxyAttempt,groupIndex:S.groupIndex,colIndex:S.colIndex,
+       channel:S.current?{name:S.current.name||'',tvgId:S.current.tvgId||'',url:S.current.url||''}:null,
+       video:{readyState:$('video').readyState,currentTime:$('video').currentTime,paused:$('video').paused,networkState:$('video').networkState,error:$('video').error?{code:$('video').error.code,message:$('video').error.message}:null}};
+   },
+   playById:function(id){
+     for(var i=0;i<S.list.length;i++){if(String(S.list[i].tvgId||'').toLowerCase()===String(id||'').toLowerCase()){play(S.list[i]);return true}}
+     return false
+   },
+   playByName:function(name){
+     var q=norm(name);
+     for(var i=0;i<S.list.length;i++){if(norm(S.list[i].name)===q||(norm(S.list[i].name).indexOf(q)>=0)){play(S.list[i]);return true}}
+     return false
+   },
+   playChannel:function(channel){if(!channel)return false;play(channel);return true},
+   playSingleCandidate:function(channel,candidate){
+     if(!channel||!candidate)return false;
+     S.current=channel;
+     S.candidates=[candidate];
+     S.candidateIndex=0;
+     S.proxyAttempt=/^(hls|dash)$/.test(classify(candidate)) && !canUseNativeHls(candidate);
+     S.player=true;
+     S.controller=false;
+     S.controllerIndex=2;
+     $('playerName').textContent=channel.name||'Kênh';
+     openPlayer();
+     $('controller').className='';
+     tryCurrent();
+     var id=channel.tvgId||channel.url;
+     S.recent=[id].concat(S.recent.filter(function(x){return x!==id})).slice(0,80);
+     saveUser();
+     return true
+   },
+   focusLastCard:function(){
+     if(!S.groups.length)return false;
+     var gi=S.groupIndex, row=S.groups[gi]?S.groups[gi][1]:[];
+     if(!row.length)return false;
+     focusCard(gi,row.length-1,false);return true
+   },
+   list:function(){return S.list.map(function(c){return{name:c.name||'',tvgId:c.tvgId||'',url:c.url||'',type:c.type||'',candidates:(c.candidates||[]).map(function(x){return{url:x.url||'',type:x.type||'',mime:x.mime||'',options:x.options||[]}})}})}
+ };
+}loadUser();updateHeader();setInterval(updateHeader,30000);fetchPlaylist(0);
 })();
 </script>
 </body></html>

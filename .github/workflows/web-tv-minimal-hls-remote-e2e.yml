@@ -1,7 +1,9 @@
-name: NM7 TV Web 1.0.69 minimal HLS remote E2E
+name: NM7 TV Web Browser remote + HLS E2E
 
 on:
   push:
+    branches: ["main", "feat/**"]
+  pull_request:
     branches: ["main"]
   workflow_dispatch:
 
@@ -15,44 +17,52 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           npm init -y >/dev/null 2>&1
-          npm install --no-save playwright@1.55.0 hls.js@0.14.17 http-server@14.1.1 >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 hls.js@1.7.3 http-server@14.1.1 >/dev/null 2>&1
           npx playwright install --with-deps chromium >/dev/null 2>&1
+
       - name: Generate HLS fixture
         run: |
-          mkdir -p e2e
-          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -t 8 -c:v libx264 -pix_fmt yuv420p -preset veryfast -g 50 -f hls -hls_time 2 -hls_list_size 0 e2e/test-hls.m3u8
-          cp node_modules/hls.js/dist/hls.min.js e2e/hls.min.js
+          mkdir -p e2e-site/assets
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -t 8 -c:v libx264 -pix_fmt yuv420p -preset veryfast -g 50 -f hls -hls_time 2 -hls_list_size 0 e2e-site/test-hls.m3u8
+          cp e2e-site/test-hls*.ts e2e-site/ 2>/dev/null || true
+          cp node_modules/hls.js/dist/hls.min.js e2e-site/hls.min.js
+          cp web-tv/index.html e2e-site/index.html
+          cp web-tv/app.js e2e-site/app.js
+          cp web-tv/dash.all.min.js e2e-site/dash.all.min.js
+          cp assets/nm7-default-background.webp e2e-site/assets/nm7-default-background.webp
+          cp assets/nm7-main-logo.png e2e-site/assets/nm7-main-logo.png
+
+      - name: Write fixture playlist and adapt page
+        run: |
+          python3 - <<'PY'
+          import json
+          with open("e2e-site/playlist.json","w") as f:
+            json.dump({"channels":[
+              {"id":"A","name":"Kênh A","group":"Nhóm 1","logo":"","candidates":[{"url":"/test-hls.m3u8","hls":True}]},
+              {"id":"B","name":"Kênh B","group":"Nhóm 1","logo":"","candidates":[{"url":"/test-hls.m3u8","hls":True}]},
+              {"id":"C","name":"Kênh C","group":"Nhóm 2","logo":"","candidates":[{"url":"/test-hls.m3u8","hls":True}]}
+            ]},f,ensure_ascii=False)
+          p="e2e-site/index.html"
+          s=open(p,encoding="utf-8").read()
+          s=s.replace('<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>','<script src="/hls.min.js"></script>')
+          s=s.replace('<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.min.js"></script>','')
+          s=s.replace('<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.16.51/dist/shaka-player.compiled.js"></script>','')
+          open(p,"w",encoding="utf-8").write(s)
+          p="e2e-site/app.js"
+          s=open(p,encoding="utf-8").read()
+          s=s.replace("tv:'/api/playlist?source=tv'","tv:'/playlist.json'")
+          s=s.replace("sport:'/api/playlist?source=sport'","sport:'/playlist.json'")
+          open(p,"w",encoding="utf-8").write(s)
+          PY
+          node --check e2e-site/app.js
+
       - name: Browser remote + HLS
         run: |
           set -euxo pipefail
-          rm -rf e2e-site
-          mkdir -p e2e-site
-          cp web-tv/index.html e2e-site/index.html
-          cp e2e/hls.min.js e2e-site/hls.min.js
-          python3 - <<'PY'
-          import re
-          s=open("e2e-site/index.html",encoding="utf-8").read()
-          blocks=re.findall(r"<script>(.*?)</script>",s,re.S)
-          open("e2e/inline.js","w",encoding="utf-8").write(blocks[-1])
-          PY
-          node --check e2e/inline.js
-          cp e2e/test-hls.m3u8 e2e-site/test-hls.m3u8
-          cp e2e/*.ts e2e-site/ 2>/dev/null || true
-          sed -i 's#src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17/dist/hls.min.js"#src="/hls.min.js"#' e2e-site/index.html
-          sed -i "s#'/api/playlist?source=tv'#'/playlist.json'#g; s#'/api/playlist?source=sport'#'/playlist.json'#g" e2e-site/index.html
-          python3 - <<'PY'
-          import json
-          with open('e2e-site/playlist.json','w') as f:
-            json.dump({'channels':[
-              {'id':'A','name':'Kênh A','group':'Nhóm 1','logo':'','candidates':[{'url':'/test-hls.m3u8','hls':True}]},
-              {'id':'B','name':'Kênh B','group':'Nhóm 1','logo':'','candidates':[{'url':'/test-hls.m3u8','hls':True}]},
-              {'id':'C','name':'Kênh C','group':'Nhóm 2','logo':'','candidates':[{'url':'/test-hls.m3u8','hls':True}]}
-            ]},f)
-          PY
-          (cd e2e-site && npx http-server . -p 4173 -c-1 --silent >/tmp/nm7-hls.log 2>&1) &
-          PID=$!; trap 'kill $PID 2>/dev/null || true' EXIT
+          (cd e2e-site && npx http-server . -p 4173 -c-1 --silent >/tmp/nm7-browser-e2e.log 2>&1) &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
-          test -f /tmp/nm7-hls.log
           node <<'NODE'
           const {chromium}=require('playwright');
           (async()=>{
@@ -61,38 +71,38 @@ jobs:
             await p.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded',timeout:30000});
             await p.waitForSelector('.card',{timeout:15000});
             const cards=await p.locator('.card').count();
-            if(cards<3)throw new Error('cards='+cards);
+            if(cards!==3)throw new Error('cards='+cards);
 
-            const init=await p.locator('.card.focus').count();
-            if(!init)throw new Error('no initial focus');
+            let init=await p.evaluate(()=>({tag:document.activeElement?.tagName,row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
+            if(init.tag!=='BUTTON'||init.row!=='0'||init.col!=='0')throw new Error('initial focus '+JSON.stringify(init));
 
-            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',keyCode:39,which:39,bubbles:true})));
+            await p.keyboard.press('ArrowRight');
             await p.waitForTimeout(100);
-            const focusCount=await p.locator('.card.focus').count();
-            if(focusCount!==1)throw new Error('RIGHT did not leave exactly one focused card');
+            let right=await p.evaluate(()=>({row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
+            if(right.row!=='0'||right.col!=='1')throw new Error('RIGHT focus '+JSON.stringify(right));
 
-            await p.evaluate(()=>{
-              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
-              document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',keyCode:37,which:37,bubbles:true}));
-            });
+            await p.keyboard.press('ArrowLeft');
+            await p.waitForTimeout(50);
+            await p.keyboard.press('ArrowLeft');
             await p.waitForTimeout(100);
-            if(await p.locator('#menu:not(.hidden)').count()!==1)throw new Error('LEFT did not open menu');
+            if(await p.locator('#side:not(.hidden)').count()!==1)throw new Error('LEFT did not open menu');
 
-            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,which:40,bubbles:true})));
-            await p.waitForTimeout(100);
-            if(await p.locator('#menu .mi.focus').count()!==1)throw new Error('DOWN did not move menu');
+            await p.keyboard.press('ArrowDown');
+            await p.waitForTimeout(50);
+            let mi=await p.evaluate(()=>document.activeElement?.dataset?.menu);
+            if(mi!=='1')throw new Error('menu DOWN focus='+mi);
 
-            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:461,which:461,bubbles:true})));
+            await p.keyboard.press('Escape');
             await p.waitForTimeout(100);
-            await p.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true})));
+            if(await p.locator('#side:not(.hidden)').count()!==0)throw new Error('menu did not close');
+
+            await p.keyboard.press('Enter');
             await p.waitForSelector('#player:not(.hidden)',{timeout:3000});
-            const before=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused}});
             await p.waitForTimeout(5000);
             const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused,err:v.error?{code:v.error.code,msg:v.error.message}:null}});
-            console.log('REMOTE='+JSON.stringify({right:true,menu:true,menuDown:true}));
-            console.log('HLS_BEFORE='+JSON.stringify(before));
-            console.log('HLS_AFTER='+JSON.stringify(media));
-            if(!(media.t>0&&media.ready>=2))throw new Error('HLS playback failed');
+            console.log('REMOTE_OK='+JSON.stringify({initial:init,right,menuDown:mi}));
+            console.log('HLS='+JSON.stringify(media));
+            if(!(media.t>0&&media.ready>=2))throw new Error('HLS playback failed '+JSON.stringify(media));
             await b.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE

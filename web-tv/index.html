@@ -285,7 +285,7 @@ function probeUnknown(c,done){
  if(c.ua)q+='&ua='+encodeURIComponent(c.ua);
  if(c.headers&&Object.keys(c.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(c.headers));
  fetch(q,{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
-   if(d&&d.type&&d.type!=='http'){c.type=d.type;if(d.contentType)c.mime=d.contentType;done(d.type)}
+   if(d&&d.type&&d.type!=='http'){c.type=d.type;if(d.contentType)c.mime=d.contentType;if(d.finalUrl&&/^https?:/i.test(d.finalUrl))c.url=d.finalUrl;done(d.type)}
    else done('http')
  }).catch(function(){done('http')})
 }

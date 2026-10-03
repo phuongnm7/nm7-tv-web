@@ -392,20 +392,47 @@ function nextCandidate(reason){
  setStatus('Không phát được '+(c?c.name:'kênh')+'\nĐã thử '+(c&&c.candidates?c.candidates.length:0)+' nguồn');dbg(reason||'playback failed')
 }
 function tryCandidate(){
- var c=S.current,cand=getCandidate(),v=$('video'),kind;
+ var c=S.current,cand=getCandidate(),v=$('video'),kind,generation=S.generation;
  if(!cand){setStatus('Kênh chưa có URL phát');return}
- clearPlayers();kind=classify(cand);var url=makeProxy(cand.url,cand),generation=S.generation;
+ clearPlayers();kind=classify(cand);var url=makeProxy(cand.url,cand);
  setStatus('Đang mở '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
  v.style.display='block';v.autoplay=true;v.controls=false;
  if(kind==='rtsp'||kind==='rtmp'||kind==='udp'||kind==='srt'){
-  setStatus('Web Browser không phát trực tiếp '+kind.toUpperCase()+' .\nNguồn này cần máy chủ chuyển đổi sang HLS/DASH.');return
+  setStatus('Web Browser không phát trực tiếp '+kind.toUpperCase()+'.\nNguồn này cần máy chủ chuyển đổi sang HLS/DASH.');return
  }
- if(kind==='dash')startDash(c,cand,url,generation);
- else if(kind==='hls')startHls(c,cand,url,generation);
- else if(kind==='flv')startFlv(c,cand,url,generation);
- else if(kind==='mpegts')startMpegTs(c,cand,url,generation);
- else startDirect(c,cand,url,generation);
+ if(kind==='http'&&!cand.mime&&!cand.type){probeCandidate(c,cand,generation);return}
+ startByType(c,cand,url,kind,generation);
  S.watchdog=setTimeout(function(){if(S.generation!==generation||!S.player)return;if(v.readyState<2||v.paused)nextCandidate('Timeout phát 15s')},15000)
+}
+function startByType(c,cand,url,kind,gen){
+ if(kind==='dash')startDash(c,cand,url,gen);
+ else if(kind==='hls')startHls(c,cand,url,gen);
+ else if(kind==='flv')startFlv(c,cand,url,gen);
+ else if(kind==='mpegts')startMpegTs(c,cand,url,gen);
+ else startDirect(c,cand,url,gen);
+ S.watchdog=setTimeout(function(){if(S.generation!==gen||!S.player)return;if($('video').readyState<2||$('video').paused)nextCandidate('Timeout phát 15s')},15000)
+}
+function probeCandidate(c,cand,gen){
+ setStatus('Đang xác định định dạng '+c.name+'…');
+ var u='/api/probe?u='+encodeURIComponent(cand.url);
+ if(cand.ref)u+='&r='+encodeURIComponent(cand.ref);
+ if(cand.ua)u+='&ua='+encodeURIComponent(cand.ua);
+ if(cand.headers&&Object.keys(cand.headers).length)u+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
+ fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
+  if(gen!==S.generation||!S.player)return;
+  if(!d||!d.type||d.type==='http'){nextCandidate('Không xác định được định dạng');return}
+  cand.type=d.type;
+  cand.mime=d.contentType||cand.mime||'';
+  if(d.type==='dash')cand.dash=true;
+  if(d.type==='hls')cand.hls=true;
+  if(d.type==='flv')cand.flv=true;
+  if(d.type==='mpegts')cand.mpegts=true;
+  var resolved=d.finalUrl||cand.url;
+  var url=makeProxy(resolved,cand);
+  clearPlayers();
+  setStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':''));
+  startByType(c,cand,url,d.type,gen);
+ }).catch(function(e){if(gen===S.generation&&S.player){dbg('Probe '+(e&&e.message||e));nextCandidate('Probe lỗi')}})
 }
 function markPlaying(gen){if(gen!==S.generation||!S.player)return;if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}hideStatus()}
 function startDirect(c,cand,url,gen){

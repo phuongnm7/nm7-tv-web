@@ -398,6 +398,22 @@ function tryNext(reason){
  }
  status('Không phát được '+((S.current&&S.current.name)||'kênh')+'\\nĐã thử '+S.candidates.length+' nguồn trực tiếp/proxy')
 }
+function tryCurrent(){
+ var c=S.candidates[S.candidateIndex];
+ if(!c){status('Không phát được '+((S.current&&S.current.name)||'kênh')+'\\nĐã thử '+S.candidates.length+' nguồn');return}
+ clearPlayers();
+ var t=classify(c);
+ function begin(){startCandidate(c,function(success){if(success)hideStatus();else tryNext('Nguồn không phát được')})}
+ if(t==='http'){
+   probeUnknown(c,function(detected){
+     if(S.current!==c)return;
+     c.type=detected;
+     if(detected!=='http')begin();else begin()
+   });
+   return
+ }
+ begin()
+}
 function play(ch){
  if(!ch)return;
  S.current=ch;S.candidates=candidatesFor(ch);S.candidateIndex=0;S.proxyAttempt=false;S.player=true;S.controller=false;S.controllerIndex=2;

@@ -1,5 +1,11 @@
 import { Readable } from "node:stream";
 export default async function handler(req,res){
+  res.setHeader("Access-Control-Allow-Origin","*");
+  res.setHeader("Access-Control-Allow-Methods","GET,HEAD,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers","Range,Accept,Content-Type,Origin,Referer,User-Agent,X-Requested-With");
+  res.setHeader("Access-Control-Expose-Headers","Content-Length,Content-Range,Accept-Ranges,Content-Type");
+  res.setHeader("Cache-Control","no-store");
+  if(req.method==="OPTIONS")return res.status(204).end();
   const q=new URL(req.url,"https://nm7-tv-web.vercel.app").searchParams;
   const target=q.get("u"),ref=q.get("r")||"",ua=q.get("ua")||"Mozilla/5.0",extra=q.get("h")||"";
   if(!target||!/^https?:/i.test(target))return res.status(400).send("bad url");
@@ -8,7 +14,6 @@ export default async function handler(req,res){
     const ct=(r.headers.get("content-type")||"").toLowerCase(),finalUrl=r.url||target;
     res.setHeader("Access-Control-Allow-Origin","*");
     res.setHeader("Access-Control-Expose-Headers","Content-Length,Content-Range,Accept-Ranges,Content-Type");
-    res.setHeader("Cache-Control","no-store");
     if(ct.indexOf("mpegurl")>=0||/\.m3u8(?:$|\?)/i.test(finalUrl)){
       let t=await r.text();
       function px(u){

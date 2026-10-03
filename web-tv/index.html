@@ -244,44 +244,83 @@ function play(channel){
  $('playerName').textContent=channel.name||'Kênh';openPlayer();$('controller').className='';tryCandidate()
  S.recent=[channel.tvgId||channel.url].concat(S.recent.filter(x=>x!==(channel.tvgId||channel.url))).slice(0,80);saveUser()
 }
-function tryCandidate(){
- const c=S.playerCandidates[S.candidateIndex];if(!c){status('Không phát được '+((S.current&&S.current.name)||'Kênh')+'\nĐã thử '+S.playerCandidates.length+' nguồn');return}
- clearPlayers();const direct= S.attempt===0;const u=urlFor(c,!direct);status('Đang mở '+S.current.name+'\nNguồn '+(S.candidateIndex+1)+'/'+S.playerCandidates.length+(direct?' · trực tiếp':' · proxy'));
- const v=$('video');try{v.pause();v.removeAttribute('src');v.load()}catch(e){}
- const t=c.type||mimeType(c.url,c.headers||{},c.options||[]);
- let started=false;
- const fail=()=>{if(started)return;started=true;if(S.attempt===0){S.attempt=1;setTimeout(tryCandidate,120);return}S.attempt=0;S.candidateIndex++;setTimeout(tryCandidate,160)};
- const ok=()=>{started=true;hideStatus()};
+function probeUnknown(cand,done){
+ var q='/api/probe?u='+encodeURIComponent(cand.url);
+ if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);
+ if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);
+ fetch(q,{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+   if(d&&d.type){cand.type=d.type;if(d.contentType)cand.mime=d.contentType;done(d.type)}
+   else done('http')
+ }).catch(function(){done('http')})
+}
+function tryResolvedCandidate(c,c,v,u,t,fail,ok){
  if(t==='hls'){
    if(v.canPlayType&&(v.canPlayType('application/vnd.apple.mpegurl')||v.canPlayType('application/x-mpegURL'))&&/Tizen|SMART-TV/i.test(navigator.userAgent||'')){
      v.src=u;v.play().then(ok).catch(fail);v.oncanplay=ok;v.onerror=fail;return
    }
    if(window.Hls&&Hls.isSupported()){
-     const h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxBufferHole:0.3,startFragPrefetch:true});
-     S.hls=h;let fatalTimer=setTimeout(fail,9000);h.on(Hls.Events.MANIFEST_PARSED,()=>{clearTimeout(fatalTimer);v.play().then(ok).catch(()=>{});});h.on(Hls.Events.ERROR,(ev,d)=>{if(d&&d.fatal){clearTimeout(fatalTimer);fail()}});h.loadSource(u);h.attachMedia(v);return
+     var h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxBufferHole:0.3,startFragPrefetch:true});
+     S.hls=h;
+     var timer=setTimeout(fail,12000);
+     h.on(Hls.Events.MANIFEST_PARSED,function(){clearTimeout(timer);v.play().then(ok).catch(function(){ok()})});
+     h.on(Hls.Events.ERROR,function(ev,d){if(d&&d.fatal){clearTimeout(timer);fail()}});
+     h.loadSource(u);h.attachMedia(v);return
    }
+   if(v.canPlayType&&v.canPlayType('application/vnd.apple.mpegurl')){v.src=u;v.play().then(ok).catch(fail);return}
+   fail();return
  }
  if(t==='dash'){
    if(window.dashjs){
-     const p=dashjs.MediaPlayer().create();S.dash=p;
-     const cand=c;
+     var p=dashjs.MediaPlayer().create();S.dash=p;var cand=c;
      if(typeof p.extend==='function')p.extend('RequestModifier',function(){return{
        modifyRequestURL:function(url){
-         if(S.attempt===0)return url;
+         if(!S.proxyAttempt)return url;
          if(url.indexOf(location.origin)===0)return url;
-         let q='/api/stream?u='+encodeURIComponent(url);if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);if(cand.headers&&Object.keys(cand.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(cand.headers));return q
+         var q='/api/stream?u='+encodeURIComponent(url);
+         if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);
+         if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);
+         if(cand.headers&&Object.keys(cand.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
+         return q
        },
        modifyRequestHeader:function(xhr){try{if(cand.ua)xhr.setRequestHeader('User-Agent',cand.ua);if(cand.ref)xhr.setRequestHeader('Referer',cand.ref)}catch(e){}return xhr}
      }});
-     const drm=makeProtection(c);if(drm&&p.setProtectionData)p.setProtectionData(drm);
-     p.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED,()=>{v.play().then(ok).catch(()=>{})});
-     p.on(dashjs.MediaPlayer.events.ERROR,()=>{setTimeout(fail,500)});
-     try{p.initialize(v,u,true);setTimeout(()=>{if(!started)fail()},12000)}catch(e){fail()}return
+     var drm=makeProtection(cand);if(drm&&p.setProtectionData)p.setProtectionData(drm);
+     var timer2=setTimeout(fail,15000);
+     p.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED,function(){clearTimeout(timer2);v.play().then(ok).catch(function(){ok()})});
+     p.on(dashjs.MediaPlayer.events.ERROR,function(){clearTimeout(timer2);fail()});
+     try{p.initialize(v,u,true)}catch(e){clearTimeout(timer2);fail()}return
    }
+   fail();return
  }
- if(t==='ts'&&window.mpegts&&mpegts.isSupported()){const m=mpegts.createPlayer({type:'mpegts',url:u,isLive:true});S.mpegts=m;m.on(mpegts.Events.ERROR,fail);m.load();m.play().then(ok).catch(()=>{});return}
- if(t==='rtsp'||t==='rtmp'||t==='udp'||t==='rtp'||t==='srt'){status('Giao thức '+t.toUpperCase()+' không được trình duyệt Internet hỗ trợ trực tiếp.');return}
+ if(t==='ts'&&window.mpegts&&mpegts.isSupported()){
+   var mp=mpegts.createPlayer({type:'mpegts',url:u,isLive:true});S.mpegts=mp;var timer3=setTimeout(fail,12000);
+   mp.on(mpegts.Events.ERROR,function(){clearTimeout(timer3);fail()});
+   mp.load();mp.play().then(function(){clearTimeout(timer3);ok()}).catch(function(){clearTimeout(timer3);fail()});return
+ }
+ if(t==='rtsp'||t==='rtmp'||t==='udp'||t==='rtp'||t==='srt'){status('Giao thức '+t.toUpperCase()+' không thể phát trực tiếp bằng trình duyệt TV.');return}
  v.src=u;v.play().then(ok).catch(fail);v.oncanplay=ok;v.onerror=fail
+}
+function tryCandidate(){
+ var c=S.playerCandidates[S.candidateIndex];
+ if(!c){status('Không phát được '+((S.current&&S.current.name)||'Kênh')+'\\nĐã thử '+S.playerCandidates.length+' nguồn');return}
+ clearPlayers();
+ var direct=!S.proxyAttempt,u=urlFor(c,!direct),v=$('video');
+ status('Đang mở '+S.current.name+'\\nNguồn '+(S.candidateIndex+1)+'/'+S.playerCandidates.length+(direct?' · trực tiếp':' · proxy'));
+ try{v.pause();v.removeAttribute('src');v.load()}catch(e){}
+ var t=c.type||mimeType(c.url,c.headers||{},c.options||[]),finished=false;
+ var fail=function(){
+   if(finished)return;finished=true;
+   if(direct&&(t==='hls'||t==='dash'||t==='ts')){S.proxyAttempt=true;setTimeout(tryCandidate,120);return}
+   S.proxyAttempt=false;S.candidateIndex++;setTimeout(tryCandidate,160)
+ };
+ var ok=function(){if(finished)return;finished=true;hideStatus()};
+ if(t==='http'&&!c.mime&&!c.type){probeUnknown(c,function(detected){
+   if(S.current!==c&&S.playerCandidates[S.candidateIndex]!==c)return;
+   t=detected;c.type=detected;c.mime=c.mime||'';
+   if(t==='http')tryResolvedCandidate(c,c,v,u,t,fail,ok);
+   else{u=urlFor(c,!S.proxyAttempt);tryResolvedCandidate(c,c,v,u,t,fail,ok)}
+ });return}
+ tryResolvedCandidate(c,c,v,u,t,fail,ok)
 }
 function makeProtection(c){
  const opts=c.options||[];let type='',key='';for(const o of opts){const e=o.indexOf('=');if(e<0)continue;const k=norm(o.slice(0,e));const val=o.slice(e+1).trim();if(k.endsWith('license_type'))type=val;if(k.endsWith('license_key'))key=val}

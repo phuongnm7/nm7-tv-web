@@ -1,0 +1,9 @@
+{
+  "name":"NM7 TV Web 1.0.69",
+  "short_name":"NM7 TV",
+  "start_url":"/",
+  "display":"fullscreen",
+  "orientation":"landscape",
+  "background_color":"#05070a",
+  "theme_color":"#05070a"
+}

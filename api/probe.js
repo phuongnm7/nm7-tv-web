@@ -44,7 +44,7 @@ function extractBodyUrls(body,base){
   /<video[^>]+src=["']([^"']+)["']/gi,
   /<source[^>]+src=["']([^"']+)["']/gi,
   /<a[^>]+href=["']([^"']+\.(?:m3u8|m3u|mpd|ts|flv|mp4)(?:[?#][^"']*)?)["']/gi,
-  /(?:file|src|stream|manifest|playlist|playbackUrl)\s*[:=]\s*["'](https?:\\/\\/[^"']+)["']/gi
+  /(?:file|src|stream|manifest|playlist|playbackUrl)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/gi
  ];
  for(const re of htmlPatterns){
   let m;while((m=re.exec(text)))addCandidate(out,m[1],base);

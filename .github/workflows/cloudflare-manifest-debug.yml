@@ -44,7 +44,7 @@ jobs:
             return null;
           }
           (async()=>{
-            const purl=base+'/__nm7/stream?u='+encodeURIComponent(master);
+            const purl=base+'/api/stream?u='+encodeURIComponent(master);
             const m=await get(purl);
             console.log('MASTER='+JSON.stringify({status:m.status,ct:m.ct,len:m.text.length}));
             console.log(m.text.slice(0,5000));
@@ -52,7 +52,7 @@ jobs:
             const v=firstVariant(m.text,m.url);
             console.log('VARIANT_URL='+v);
             if(!v)throw new Error('no variant found');
-            const vu=new URL(base+'/__nm7/stream');vu.searchParams.set('u',v);
+            const vu=new URL(base+'/api/stream');vu.searchParams.set('u',v);
             const vr=await get(vu.toString());
             console.log('VARIANT='+JSON.stringify({status:vr.status,ct:vr.ct,len:vr.text.length,url:vr.url}));
             console.log(vr.text.slice(0,3000));

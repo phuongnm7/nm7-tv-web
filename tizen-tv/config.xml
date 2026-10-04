@@ -15,7 +15,6 @@
                  background-support="disable"
                  encryption="disable"
                  install-location="auto"
-                 hwkey-event="enable"
                  pointing-device-support="disable"/>
   <access origin="*" subdomains="true"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>

@@ -544,6 +544,7 @@ function tryHlsJs(c,cand,url,gen){
   h.on(Hls.Events.MEDIA_ATTACHED,function(){
    if(gen!==S.generation||!S.player)return;
    if(S.debug)console.log('NM7 HLS MEDIA_ATTACHED');
+   h.loadSource(url);
   });
   h.on(Hls.Events.MANIFEST_LOADING,function(ev,data){
    if(S.debug)console.log('NM7 HLS MANIFEST_LOADING',data&&data.url||'');
@@ -571,7 +572,10 @@ function tryHlsJs(c,cand,url,gen){
     fatal:!!(data&&data.fatal),
     response:data&&data.response?{code:data.response.code,text:data.response.text||''}:null,
     url:data&&data.url||'',
-    networkDetails:data&&data.networkDetails&&data.networkDetails.url||''
+    networkDetails:data&&data.networkDetails&&data.networkDetails.url||'',
+    mimeType:data&&data.mimeType||'',
+    reason:data&&data.reason||'',
+    error:data&&data.error&&data.error.message||''
    }));
    if(data&&data.fatal){
     if(data.type===Hls.ErrorTypes.MEDIA_ERROR){
@@ -580,7 +584,6 @@ function tryHlsJs(c,cand,url,gen){
     nextCandidate('HLS '+(data.details||data.type||'lỗi'))
    }
   });
-  h.loadSource(url);
   h.attachMedia(v);
  }catch(e){dbg('HLS.js '+(e&&e.message||e));nextCandidate('HLS.js khởi tạo lỗi')}
 }

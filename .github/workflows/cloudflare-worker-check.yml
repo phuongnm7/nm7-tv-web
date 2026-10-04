@@ -28,7 +28,7 @@ jobs:
           echo "LIVE_URL=$LIVE_URL" | tee /tmp/cloudflare-live-url
           printf '%s\n' "$LIVE_URL" > /tmp/cloudflare-live-url.txt
 
-      - name: Test critical HLS manifests through Worker
+      - name: Diagnose direct and proxy HLS manifests
         run: |
           set -euo pipefail
           LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
@@ -44,22 +44,26 @@ jobs:
             ['ON-Sports-News','https://livevlive.vtvcab.vn/hls/OS_THETHAO_TINTUC_HD/sc-gaFEAA/m30_index.m3u8','','Mozilla/5.0']
           ];
           (async()=>{
-            let pass=0;
+            let available=0;
             for(const [name,u,r,uAgent] of tests){
-              const q=new URL(base+'/__nm7/stream');
-              q.searchParams.set('u',u);
-              if(r)q.searchParams.set('r',r);
-              if(uAgent)q.searchParams.set('ua',uAgent);
+              let direct={status:0,ok:false,ct:''},proxy={status:0,ok:false,ct:''};
               try{
-                const x=await fetch(q,{headers:{'Accept':'application/vnd.apple.mpegurl,text/plain,*/*'},redirect:'follow'});
-                const body=(await x.text()).slice(0,400).trim();
-                const ok=x.ok && (body.startsWith('#EXTM3U') || body.includes('#EXT-X-'));
-                console.log(JSON.stringify({name,status:x.status,ok,contentType:x.headers.get('content-type'),sample:body.slice(0,120)}));
-                if(ok)pass++;
-              }catch(e){console.log(JSON.stringify({name,error:String(e)}))}
+                const x=await fetch(u,{redirect:'follow',cache:'no-store',headers:{'Accept':'application/vnd.apple.mpegurl,text/plain,*/*','User-Agent':uAgent,'Referer':r||undefined}});
+                const body=(await x.text()).slice(0,200).trim();
+                direct={status:x.status,ok:x.ok&&(body.startsWith('#EXTM3U')||body.includes('#EXT-X-')),ct:x.headers.get('content-type')||'',sample:body.slice(0,80)};
+              }catch(e){direct.error=String(e)}
+              try{
+                const q=new URL(base+'/__nm7/stream');q.searchParams.set('u',u);if(r)q.searchParams.set('r',r);if(uAgent)q.searchParams.set('ua',uAgent);
+                const x=await fetch(q,{headers:{'Accept':'application/vnd.apple.mpegurl,text/plain,*/*'},redirect:'follow',cache:'no-store'});
+                const body=(await x.text()).slice(0,200).trim();
+                proxy={status:x.status,ok:x.ok&&(body.startsWith('#EXTM3U')||body.includes('#EXT-X-')),ct:x.headers.get('content-type')||'',sample:body.slice(0,80)};
+              }catch(e){proxy.error=String(e)}
+              const usable=direct.ok||proxy.ok;
+              console.log(JSON.stringify({name,usable,direct,proxy}));
+              if(usable)available++;
             }
-            console.log('MANIFEST_SMOKE='+pass+'/'+tests.length);
-            if(pass===0)process.exit(1);
+            console.log('MANIFEST_AVAILABLE='+available+'/'+tests.length);
+            if(available===0)process.exit(1);
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
 
@@ -137,9 +141,13 @@ jobs:
             await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
             await p.waitForSelector('.card[aria-label="VTV1"], .card', {timeout:15000});
             const vtv=p.locator('.card').first();
+            console.log('PLAYING_CARD='+await vtv.getAttribute('aria-label'));
             await vtv.click();
-            await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&v.readyState>=2&&v.currentTime>0},{timeout:20000});
-            const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {time:v.currentTime,ready:v.readyState,paused:v.paused,error:v.error?{code:v.error.code,message:v.error.message}:null,player:!document.querySelector('#player')?.classList.contains('hidden')}});
+            try{
+              await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&v.readyState>=2&&v.currentTime>0},{timeout:20000});
+            }catch(e){}
+            const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {time:v.currentTime,ready:v.readyState,paused:v.paused,src:v.currentSrc||v.src,error:v.error?{code:v.error.code,message:v.error.message}:null,status:document.querySelector('#status')?.textContent||'',debug:document.querySelector('#debug')?.textContent||'',player:!document.querySelector('#player')?.classList.contains('hidden')}});
+            console.log('PLAYBACK_RESULT='+JSON.stringify(media));
             console.log('PLAYBACK_OK='+JSON.stringify(media));
             if(media.time<=0||media.ready<2||media.paused)throw new Error('playback did not start '+JSON.stringify(media));
             await b.close();

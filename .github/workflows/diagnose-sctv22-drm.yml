@@ -51,3 +51,32 @@ jobs:
                 if st is not None: break
             print("ADAPT",a.attrib.get('contentType'),"TEMPLATE",st.attrib if st is not None else None)
           PY
+
+      - name: Inspect SCTV22 KIDs over live refresh
+        shell: bash
+        run: |
+          set +euo pipefail
+          ENTRY='https://liveatmvng.vtvprime.vn/live/data8/SCTV22/Live_DASHDRM/SCTV22.mpd'
+          BASE='https://nm7-tv-web.phuongnm7-iptv.workers.dev'
+          ENC="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=""))' "$ENTRY")"
+          for n in 1 2 3 4; do
+            echo "===== REFRESH $n ====="
+            curl -sS --max-time 20 -o "/tmp/s$n.mpd" "$BASE/api/stream?u=$ENC"
+            python3 "/tmp/s$n.mpd" <<'PY'
+          PY
+            python3 - "/tmp/s$n.mpd" <<'PY'
+          import sys,re,xml.etree.ElementTree as ET,hashlib
+          b=open(sys.argv[1],'rb').read()
+          root=ET.fromstring(b);ns={'d':'urn:mpeg:dash:schema:mpd:2011'}
+          print("TYPE",root.attrib.get('type'),"UPDATE",root.attrib.get('minimumUpdatePeriod'),"AST",root.attrib.get('availabilityStartTime'))
+          kids=[]
+          for cp in root.findall('.//d:ContentProtection',ns):
+            for k,v in cp.attrib.items():
+              if 'default_KID' in k or 'default-kid' in k.lower() or 'kid'==k.lower():
+                kids.append(v)
+          print("KIDS",kids)
+          for a in root.findall('.//d:AdaptationSet',ns):
+            print("ADAPT",a.attrib.get('contentType'),a.attrib.get('mimeType'),a.attrib.get('codecs'))
+          PY
+            sleep 2
+          done

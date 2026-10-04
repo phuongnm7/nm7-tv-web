@@ -20,4 +20,4 @@ jobs:
       - name: Check Worker syntax
         run: node --check src/index.js
       - name: Validate and create temporary Cloudflare preview
-        run: npx wrangler deploy --temporary --yes
+        run: npx wrangler deploy --temporary

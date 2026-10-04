@@ -1,0 +1,29 @@
+name: Find live replacement sources
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan TV source playlists for VTV1 ON Football and FLV
+        shell: bash
+        run: |
+          set +e
+          urls=(
+            "https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u"
+            "https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u"
+            "https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/"
+            "https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"
+          )
+          i=0
+          for u in "${urls[@]}"; do
+            i=$((i+1)); echo "=== SOURCE $i $u ==="
+            curl -L --max-time 40 -A "Mozilla/5.0" -sS "$u" -o "/tmp/src$i.txt"
+            echo "SIZE=$(wc -c < /tmp/src$i.txt)"
+            echo "-- VTV1 --"; grep -i -A4 -B2 'VTV1' "/tmp/src$i.txt" | head -80
+            echo "-- ON FOOTBALL --"; grep -i -A5 -B2 'ON FOOTBALL\|ON Football\|vtvcab16\|football' "/tmp/src$i.txt" | head -120
+            echo "-- FLV --"; grep -iE -A3 -B2 '\.flv([?|]|$)' "/tmp/src$i.txt" | head -120
+          done

@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-var VERSION='1.0.69';
+var VERSION='1.0.69'; // Native 1.0.69 wallpaper asset restored from APK.
 var PLAYLISTS={
  tv:'/api/playlist?source=tv&default=android1069',
  sport:'/api/playlist?source=sport'

@@ -810,6 +810,24 @@ $('video').addEventListener('canplay',function(){if(S.player)markPlaying(S.gener
 $('video').addEventListener('error',function(){if(S.player&&!S.proxyAttempt)nextCandidate('Video error')});
 $('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồng kết thúc')});
 
+function bindTizenRemoteBridge(){
+ window.addEventListener('message',function(ev){
+  var d=ev&&ev.data;
+  if(!d||d.type!=='nm7-remote')return;
+  var key=String(d.key||''),code=Number(d.keyCode||0);
+  var e={
+   key:key,
+   code:key||'',
+   keyCode:code,
+   which:code,
+   repeat:!!d.repeat,
+   preventDefault:function(){},
+   stopPropagation:function(){}
+  };
+  onKey(e);
+ },false);
+}
+
 function bindPointerNavigation(){
  var home=$('home'),last=0;
  if(!home||home.__nm7Pointer)return;
@@ -842,6 +860,7 @@ function bindPointerNavigation(){
 function startup(){
  restoreUser();
  bindPointerNavigation();
+ bindTizenRemoteBridge();
  window.addEventListener('keydown',onKey,true);
  document.addEventListener('keydown',onKey,true);
  window.addEventListener('focus',function(){if(!S.dialog&&!S.menuOpen){setTimeout(function(){if(S.player)playerFocus();else focusHome(false)},30)}},true);

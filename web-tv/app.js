@@ -331,18 +331,9 @@ function loadSource(source,force){
   if(source==='tv'){
    S.loading=false;
    if(S.list.length)toast('API không phản hồi · giữ playlist hiện tại');
-   else fallbackStaticPlaylist(cached,e);
+   else fallbackOriginal(cached,e);
   }else{S.loading=false;toast('Không tải được playlist: '+e.message)}
  })
-}
-function fallbackStaticPlaylist(cached,firstError){
- var u='/web-tv/playlist.json?ts='+Date.now();
- fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
-  if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error('fallback tĩnh rỗng');
-  S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();saveCache();toast('Đã mở playlist dự phòng · '+S.list.length+' kênh');
- }).catch(function(e){
-  fallbackOriginal(cached,firstError);
- });
 }
 function fallbackOriginal(cached,firstError){
  var u='https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/';

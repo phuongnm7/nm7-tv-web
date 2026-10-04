@@ -47,6 +47,7 @@ jobs:
           open(p,"w",encoding="utf-8").write(s)
           p="e2e-site/app.js"
           s=open(p,encoding="utf-8").read()
+          s=s.replace("tv:'/api/playlist?source=tv&default=android1069'","tv:'/playlist.json'")
           s=s.replace("tv:'/api/playlist?source=tv'","tv:'/playlist.json'")
           s=s.replace("sport:'/api/playlist?source=sport'","sport:'/playlist.json'")
           open(p,"w",encoding="utf-8").write(s)

@@ -755,6 +755,35 @@ $('video').addEventListener('canplay',function(){if(S.player)markPlaying(S.gener
 $('video').addEventListener('error',function(){if(S.player&&!S.proxyAttempt)nextCandidate('Video error')});
 $('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồng kết thúc')});
 
+function bindPointerNavigation(){
+ var home=$('home'),last=0;
+ if(!home||home.__nm7Pointer)return;
+ home.__nm7Pointer=true;
+ home.addEventListener('pointermove',function(e){
+  var now=Date.now();
+  if(now-last<40)return;
+  last=now;
+  var t=document.elementFromPoint(e.clientX,e.clientY);
+  var card=t&&t.closest?t.closest('.card'):null;
+  if(card){
+   var rr=Number(card.dataset.row||0),cc=Number(card.dataset.col||0);
+   if(S.zone==='home'&&!S.menuOpen&&S.player!==true){
+    S.row=rr;S.col=cc;
+    try{card.focus({preventScroll:true})}catch(x){card.focus()}
+   }
+  }
+  var edge=72;
+  if(e.clientY<edge)home.scrollTop=Math.max(0,home.scrollTop-35);
+  else if(e.clientY>window.innerHeight-edge)home.scrollTop=Math.min(home.scrollHeight-home.clientHeight,home.scrollTop+35);
+  if(card){
+   var cards=card.closest('.cards');
+   if(cards){
+    if(e.clientX<edge)cards.scrollLeft=Math.max(0,cards.scrollLeft-40);
+    else if(e.clientX>window.innerWidth-edge)cards.scrollLeft=Math.min(cards.scrollWidth-cards.clientWidth,cards.scrollLeft+40);
+   }
+  }
+ });
+}
 function startup(){
  restoreUser();
  window.addEventListener('keydown',onKey,true);

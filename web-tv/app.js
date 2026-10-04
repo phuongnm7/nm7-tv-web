@@ -353,18 +353,18 @@ function isOwnProxyUrl(u,kind){
  try{
   var x=new URL(u,location.origin);
   if(x.origin!==location.origin)return false;
-  if(x.pathname==='/__nm7/stream')return !kind||kind==='stream';
-  if(x.pathname==='/__nm7/license')return !kind||kind==='license';
-  if(x.pathname==='/__nm7/probe')return !kind||kind==='probe';
-  if(x.pathname==='/__nm7/image')return !kind||kind==='image';
+  if(x.pathname==='/api/stream')return !kind||kind==='stream';
+  if(x.pathname==='/api/license')return !kind||kind==='license';
+  if(x.pathname==='/api/probe')return !kind||kind==='probe';
+  if(x.pathname==='/api/image')return !kind||kind==='image';
   return false;
  }catch(e){return false}
 }
 function makeProxy(u,cand){
  if(!isHttp(u))return u;
  cand=normalizeCandidate(cand||{});
- if(u.indexOf(location.origin+'/__nm7/stream')===0)return u;
- var q='/__nm7/stream?u='+encodeURIComponent(u);
+ if(u.indexOf(location.origin+'/api/stream')===0)return u;
+ var q='/api/stream?u='+encodeURIComponent(u);
  if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);
  if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);
  if(cand.headers&&Object.keys(cand.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
@@ -372,7 +372,7 @@ function makeProxy(u,cand){
 }
 function makeLicenseProxy(u,cand){
  if(!isHttp(u))return u;
- cand=normalizeCandidate(cand||{});var q='/__nm7/license?u='+encodeURIComponent(u);
+ cand=normalizeCandidate(cand||{});var q='/api/license?u='+encodeURIComponent(u);
  if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);
  if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);
  if(cand.headers&&Object.keys(cand.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(cand.headers));

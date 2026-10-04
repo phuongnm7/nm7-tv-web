@@ -1,0 +1,24 @@
+name: Test VTVcab16 SCTVOnline source
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe SCTVOnline VTVcab16
+        shell: bash
+        run: |
+          set +e
+          U='https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8'
+          for p in 1 2; do
+            if [ "$p" = 1 ]; then UA='ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'; REF='http://sctvonline.vn/'; else UA='Mozilla/5.0'; REF=''; fi
+            echo "=== PROFILE $p ==="
+            if [ -n "$REF" ]; then curl -L --max-time 20 -A "$UA" -e "$REF" -sS -D /tmp/h -o /tmp/b "$U"; else curl -L --max-time 20 -A "$UA" -sS -D /tmp/h -o /tmp/b "$U"; fi
+            echo "HTTP=$(head -1 /tmp/h)"
+            grep -iE '^(content-type|content-length|access-control-allow-origin|location|server):' /tmp/h | head -20
+            echo "BYTES=$(wc -c < /tmp/b)"
+            head -c 500 /tmp/b | strings | head -12
+          done

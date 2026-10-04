@@ -393,7 +393,7 @@ function startupCandidateIndex(c){
  if(!a.length)return 0;
  if(isAppleTouchDevice()){
   var rt=getAppleDrmRuntime();
-  if(rt.webCrypto&&window.shaka){
+  if(rt.webCrypto&&window.shaka&&(window.MediaSource||window.ManagedMediaSource)){
    for(var d=0;d<a.length;d++){
     if(isDashDrmCandidate(a[d]))return d;
    }

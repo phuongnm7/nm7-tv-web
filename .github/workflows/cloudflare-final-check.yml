@@ -38,9 +38,7 @@ jobs:
           const fs=require('fs');
           const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
           const channels=[];
-          for(let i=0;i<30;i++)channels.push({id:'e2e-vtv-'+i,name:'E2E '+(i+1),group:'VTV',logo:'',candidates:[{url:'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]});
-          channels.push({id:'e2e-other',name:'Other 1',group:'SCTV',logo:'',candidates:[{url:'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]});
-          channels.push({id:'e2e-other2',name:'Other 2',group:'Sports',logo:'',candidates:[{url:'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]});
+          for(let g=0;g<12;g++)for(let i=0;i<30;i++)channels.push({id:'e2e-'+g+'-'+i,name:'E2E '+(g+1)+'-'+(i+1),group:'GROUP '+String(g+1).padStart(2,'0'),logo:'',candidates:[{url:'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]});
           const body=JSON.stringify({channels});
           (async()=>{
             const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});

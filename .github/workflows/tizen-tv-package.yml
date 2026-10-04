@@ -34,6 +34,60 @@ jobs:
           grep -q "type:'nm7-remote'" web-tv/app.js
           echo "Tizen remote contract OK"
 
+
+      - name: Test remote bridge in Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          cat > /tmp/nm7-tizen-echo.html <<'EOF'
+          <!doctype html><html><body>
+          <div id="received">NONE</div>
+          <script>
+          window.addEventListener('message',e=>{
+            if(e.data&&e.data.type==='nm7-remote'){
+              document.getElementById('received').textContent=e.data.key+':'+e.data.keyCode;
+            }
+          });
+          </script>
+          </body></html>
+          EOF
+          cat > /tmp/nm7-tizen-server.cjs <<'EOF'
+          const http=require('http'),fs=require('fs'),path=require('path');
+          const root=path.resolve('tizen-tv');
+          const echo=fs.readFileSync('/tmp/nm7-tizen-echo.html','utf8');
+          http.createServer((req,res)=>{
+            const u=new URL(req.url,'http://127.0.0.1:4174');
+            if(u.pathname==='/echo.html'){res.writeHead(200,{'content-type':'text/html'});return res.end(echo)}
+            const p=path.join(root,u.pathname.replace(/^\//,''));
+            if(!p.startsWith(root)||!fs.existsSync(p)){res.writeHead(404);return res.end('not found')}
+            const ext=path.extname(p);
+            res.writeHead(200,{'content-type':ext==='.html'?'text/html':'application/javascript'});res.end(fs.readFileSync(p));
+          }).listen(4174,'127.0.0.1');
+          EOF
+          node /tmp/nm7-tizen-server.cjs >/tmp/nm7-tizen-server.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage();
+            await p.addInitScript(()=>{window.tizen={tvinputdevice:{registered:[],registerKey(k){this.registered.push(k)}}}});
+            await p.goto('http://127.0.0.1:4174/index.html?url='+encodeURIComponent('http://127.0.0.1:4174/echo.html'),{waitUntil:'load'});
+            await p.locator('#remoteCapture').focus();
+            for(const key of ['ArrowRight','ArrowDown','ArrowLeft','ArrowUp','Enter','Escape']){
+              if(key==='Escape')continue;
+              await p.keyboard.press(key);
+              const wanted=key+':'+({ArrowRight:39,ArrowDown:40,ArrowLeft:37,ArrowUp:38,Enter:13}[key]);
+              await p.waitForFunction(w=>document.querySelector('#nm7')?.contentDocument?.querySelector('#received')?.textContent===w,w,{timeout:2000});
+            }
+            const registered=await p.evaluate(()=>window.tizen.tvinputdevice.registered);
+            if(registered.length!==6)throw new Error('registered='+JSON.stringify(registered));
+            console.log('TIZEN_REMOTE_BRIDGE_OK='+JSON.stringify({registered}));
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)})
+          NODE
+
       - name: Create unsigned WGT archive
         run: |
           cd tizen-tv

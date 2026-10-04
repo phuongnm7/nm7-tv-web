@@ -469,7 +469,6 @@ function tryCandidate(){
  }
  if(kind==='http'&&!cand.mime&&!cand.type){probeCandidate(c,cand,generation);return}
  startByType(c,cand,url,kind,generation);
- S.watchdog=setTimeout(function(){if(S.generation!==generation||!S.player)return;if(v.readyState<2||v.paused)nextCandidate('Timeout phát 15s')},15000)
 }
 function startByType(c,cand,url,kind,gen){
  if(kind==='dash')startDash(c,cand,url,gen);
@@ -581,10 +580,20 @@ function tryHlsJs(c,cand,url,gen){
     error:data&&data.error&&data.error.message||''
    }));
    if(data&&data.fatal){
+    var details=data.details||'';
+    var ed=Hls.ErrorDetails||{};
+    var codecFatal=details===ed.BUFFER_ADD_CODEC_ERROR||
+      details===ed.BUFFER_INCOMPATIBLE_CODECS_ERROR||
+      details===ed.BUFFER_APPEND_ERROR||
+      details===ed.BUFFER_APPENDING_ERROR;
+    if(codecFatal){
+     nextCandidate('HLS codec/MSE '+details);
+     return
+    }
     if(data.type===Hls.ErrorTypes.MEDIA_ERROR){
      try{h.recoverMediaError();return}catch(e){}
     }
-    nextCandidate('HLS '+(data.details||data.type||'lỗi'))
+    nextCandidate('HLS '+(details||data.type||'lỗi'))
    }
   });
   h.attachMedia(v);

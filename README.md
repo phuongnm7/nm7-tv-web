@@ -5,7 +5,7 @@ Web Browser version follows the Android TV 1.0.69 TV layout and behavior.
 ## Current test baseline
 - Date: 2026-10-04
 - Branch: `feat/tvdrm-player-integration-20261004`
-- Stable functional baseline: `0e50b38bdd0bc1c242a9f73b5d2cdb74300636e1`
+- Stable functional baseline: `4fff84e7cfe495311c3623179b87b9e8a97c0acc`
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Deployment target: Cloudflare Workers.
 - This baseline is currently in an extended real-device testing phase. Avoid unrelated UI changes until the test round identifies a reproducible issue.
@@ -32,6 +32,11 @@ Web Browser version follows the Android TV 1.0.69 TV layout and behavior.
 - Mobile menu and two-stage Back/exit handling remain available.
 - The TV remote/keyboard navigation path is preserved separately from mobile touch behavior.
 
+## Source management
+- The default **Thể thao** source uses the live `sports-auto.m3u` playlist as the primary source and keeps the previous `thethaonm7.../playlist.m3u` endpoint as fallback.
+- **Thêm nguồn IPTV** uses the same-origin `/api/source` gateway instead of browser-direct fetching, avoiding CORS failures on normal M3U sources.
+- The Worker parses custom M3U sources server-side, preserves playlist metadata, and resolves relative stream URLs against the source URL.
+
 ## Browser playback
 - HLS: native HLS where appropriate; Hls.js 1.7.3 on Chromium/MSE browsers.
 - MPEG-TS/FLV: mpegts.js / FLV MSE path where the browser supports it.
@@ -47,10 +52,12 @@ Web Browser version follows the Android TV 1.0.69 TV layout and behavior.
 Samsung documents that ArrowLeft, ArrowUp, ArrowRight, ArrowDown, Enter and Back are mandatory remote keys and can be received as DOM keyboard events. Samsung also documents that special color/playback keys cannot be made functional in the Smart TV Web Browser because the browser does not expose the Samsung Product/Tizen APIs. The Web version therefore treats Arrow/Enter/Back as the portable TV remote control surface; optional media key mappings are handled when the browser exposes them.
 
 ## Validation
-The latest baseline passed the repository's automated validation at commit `0e50b38bdd0bc1c242a9f73b5d2cdb74300636e1`:
+The latest baseline passed the repository's automated validation at commit `4fff84e7cfe495311c3623179b87b9e8a97c0acc`:
 - JavaScript syntax/validation checks: success.
 - Browser validation workflow: success.
 - Cloudflare deployment and deployed-worker smoke test: success.
+- Sport playlist smoke test: success (566 channels).
+- Custom-source proxy smoke test: success (566 channels).
 
 The Web project is separate from the native Samsung Tizen WGT. The Browser URL stays a normal web application and does not require installing a WGT.
 

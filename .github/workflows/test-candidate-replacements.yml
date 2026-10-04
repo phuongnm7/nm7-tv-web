@@ -1,0 +1,30 @@
+name: Test candidate replacement streams
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test replacement URLs
+        shell: bash
+        run: |
+          set +e
+          urls=(
+            "VTV1_FPT|https://vips-livecdn.fptplay.net/live/media/vtv1/live247-hls-avc/index.m3u8"
+            "VTV1_ONSPORTS|https://cdnet-cdn-01.onsports.vn/onplus/VTV1_HD/manifest.mpd"
+            "VTV1_SEENOW|https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd"
+            "ONFOOT_FREEM3U|https://freem3u.xyz/api/live/play.m3u8?vid=9934"
+            "ONFOOT_VIETANHTV|https://vietanhtv.id.vn/tv360/174/index.m3u8"
+          )
+          for item in "${urls[@]}"; do
+            n="${item%%|*}"; u="${item#*|}"
+            echo "=== $n ==="
+            curl -L --max-time 20 -A "Dalvik/2.1.0" -sS -D /tmp/h -o /tmp/b "$u"
+            echo "HTTP=$(head -1 /tmp/h)"
+            grep -iE '^(content-type|content-length|location|access-control-allow-origin|server):' /tmp/h | head -20
+            echo "BYTES=$(wc -c < /tmp/b)"
+            head -c 500 /tmp/b | strings | head -10
+          done

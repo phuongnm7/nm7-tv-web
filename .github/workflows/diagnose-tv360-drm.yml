@@ -15,9 +15,9 @@ jobs:
         run: |
           set +euo pipefail
           for id in $(seq 1 10); do
-            U="https://vmttv.dpdns.org/tv360/?id=tv360-$id"
+            U="https://vmttv.dpdns.org/tv360/"
             echo "===== TV360-$id ====="
-            curl -L --max-time 20 -sS -D "/tmp/h$id" -o "/tmp/b$id" -A "Dalvik/2.1.0"
+            curl -L --max-time 20 --get --data-urlencode "id=tv360-$id" -sS -D "/tmp/h$id" -o "/tmp/b$id" -A "Dalvik/2.1.0"
             echo "HTTP=$(grep -m1 -E '^HTTP/' /tmp/h$id | tail -1)"
             echo "FINAL=$(grep -i '^location:' /tmp/h$id | tail -1 | sed 's/\r//')"
             echo "BYTES=$(wc -c < /tmp/b$id)"

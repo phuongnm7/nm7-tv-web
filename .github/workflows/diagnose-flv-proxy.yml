@@ -1,0 +1,42 @@
+name: Diagnose FLV playback proxy
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test current FLV candidates
+        shell: bash
+        run: |
+          set +e
+          for url in \
+            "https://live2.zktsva.app/live/432017.flv" \
+            "https://live2.zktsva.app/live/289650.flv" \
+            "https://playback.livetl004.com/live/6a9a5525864ea536c2577392.flv"; do
+            echo "=== $url ==="
+            curl -L --max-time 20 -A "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36" -sS -D /tmp/h -o /tmp/b "$url"
+            echo "HTTP=$(head -1 /tmp/h)"
+            grep -iE '^(content-type|content-length|access-control-allow-origin|server|location):' /tmp/h | head -20
+            echo "BYTES=$(wc -c < /tmp/b)"
+            head -c 16 /tmp/b | xxd -p
+          done
+      - name: Test through Cloudflare stream proxy
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.parse,subprocess
+          urls=[
+            "https://live2.zktsva.app/live/432017.flv",
+            "https://live2.zktsva.app/live/289650.flv",
+            "https://playback.livetl004.com/live/6a9a5525864ea536c2577392.flv"
+          ]
+          for u in urls:
+            p="https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u="+urllib.parse.quote(u,safe='')+"&ua="+urllib.parse.quote("Mozilla/5.0",safe='')
+            print("=== PROXY",u,"===")
+            subprocess.run(["curl","-L","--max-time","20","-sS","-D","/tmp/ph","-o","/tmp/pb",p])
+            print(open("/tmp/ph").read().split("\r\n\r\n")[0][:1200])
+            print("BYTES",len(open("/tmp/pb","rb").read()),"HEAD",open("/tmp/pb","rb").read(16).hex())
+          PY

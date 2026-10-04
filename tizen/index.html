@@ -300,7 +300,8 @@ function clearPlayers(){
  if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}
  if(S.dash){try{S.dash.reset()}catch(e){}S.dash=null}
  if(S.flv){try{S.flv.destroy()}catch(e){}S.flv=null}
- S.dashBase=''
+ S.dashBase='';
+ S.avplay=false;
 }
 function getCandidate(){if(!S.current||!S.current.candidates||!S.current.candidates.length)return null;return S.current.candidates[S.candidateIndex]||null}
 function showStatus(s){$('status').textContent=s;$('status').style.display='flex'}
@@ -477,6 +478,10 @@ function tizenLicense(url,cand,body,done){
    x.send(b64)
  }catch(e){done(-1,null)}
 }
+function isClearKeyCandidate(cand){
+ var t=String(cand&&cand.drm&&cand.drm.type||'').toLowerCase();
+ return t.indexOf('clearkey')>=0;
+}
 function setupTizenDrm(c,cand,av){
  var d=cand.drm||{},type=String(d.type||'').toLowerCase(),license=String(d.key||'').trim();
  if(!license)return false;
@@ -487,7 +492,11 @@ function setupTizenDrm(c,cand,av){
    av.setDrm('PLAYREADY','SetProperties',JSON.stringify(p));return true
  }
  if(type.indexOf('widevine')>=0){
-   av.setDrm('WIDEVINE_CDM','SetProperties',JSON.stringify({AppSession:'nm7-1.0.69',DataType:'MPEG-DASH'}));return true
+   var props=JSON.stringify({AppSession:'nm7-1.0.69',DataType:'MPEG-DASH'});
+   var names=['EME_WIDEVINE_CDM','WIDEVINE_CDM'];
+   for(var i=0;i<names.length;i++){
+     try{av.setDrm(names[i],'SetProperties',props);S.widevineDrmType=names[i];return true}catch(e){}
+   }
  }
  return false
 }
@@ -507,8 +516,11 @@ function playTizen(c,cand,attempt){
          var raw='';try{raw=atob(d.challenge||'')}catch(e){raw=d.challenge||''}
          tizenLicense(String((cand.drm||{}).key||''),cand,raw,function(status,response){
            if(status){nextCandidate('DRM license HTTP '+status);return}
-           try{av.setDrm('WIDEVINE_CDM','widevine_license_data',String(d.session_id||'')+'PARAM_START_POSITION'+tizenB64(response)+'PARAM_START_POSITION')}
-           catch(e){nextCandidate('DRM license cài lỗi')}
+           try{av.setDrm(S.widevineDrmType||'EME_WIDEVINE_CDM','widevine_license_data',String(d.session_id||'')+'PARAM_START_POSITION'+tizenB64(response)+'PARAM_START_POSITION')}
+           catch(e){
+             try{av.setDrm('WIDEVINE_CDM','widevine_license_data',String(d.session_id||'')+'PARAM_START_POSITION'+tizenB64(response)+'PARAM_START_POSITION')}
+             catch(e2){nextCandidate('DRM license cài lỗi')}
+           }
          })
        }
      }
@@ -526,8 +538,10 @@ function tryCurrent(){
  var c=S.current,cand=getCandidate(),v=$('video'),u,t,attempt=++S.attemptNo;
  if(!cand){showStatus('Kênh chưa có URL phát');return}
  S.advanceBusy=false;
- if(isTizenAvplay()){clearPlayers();showStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));return playTizen(c,cand,attempt)}
- clearPlayers();u=playbackUrl(cand);
+ if(isTizenAvplay()&&!isClearKeyCandidate(cand)){clearPlayers();showStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));return playTizen(c,cand,attempt)}
+ clearPlayers();
+ S.avplay=false;
+ u=playbackUrl(cand);
  showStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
  v.style.display='block';v.pause();v.removeAttribute('src');try{v.load()}catch(e){}
  t=classify(cand);
@@ -545,7 +559,7 @@ function stop(){
  clearPlayers();var v=$('video');try{v.pause();v.removeAttribute('src');v.load()}catch(e){}
  v.style.display='block';S.current=null;S.player=false;S.ctrl=false;S.proxyAttempt=false;S.attemptNo++;$('player').className='hidden';$('ctrl').className='hidden'
 }
-function seek(sec){if(isTizenAvplay()&&S.player){try{if(sec<0)webapis.avplay.jumpBackward(Math.abs(sec)*1000);else webapis.avplay.jumpForward(sec*1000);return}catch(e){toast('Luồng này không hỗ trợ tua')}}var v=$('video');if(!isFinite(v.duration)){toast('Luồng này không hỗ trợ tua');return}v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+sec))}
+function seek(sec){if(S.avplay&&isTizenAvplay()&&S.player){try{if(sec<0)webapis.avplay.jumpBackward(Math.abs(sec)*1000);else webapis.avplay.jumpForward(sec*1000);return}catch(e){toast('Luồng này không hỗ trợ tua')}}var v=$('video');if(!isFinite(v.duration)){toast('Luồng này không hỗ trợ tua');return}v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+sec))}
 function showCtrl(){S.ctrl=!S.ctrl;$('ctrl').className=S.ctrl?'':'hidden';if(S.ctrl)focusCtrl()}
 function focusCtrl(){
  var b=document.querySelectorAll('.cb'),i;
@@ -553,7 +567,7 @@ function focusCtrl(){
  var el=b[S.cp];if(el)try{el.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'})}catch(e){}
  focusRemoteSink();
 }
-function ctrlAction(){var b=document.querySelectorAll('.cb'),a=b[S.cp]?b[S.cp].getAttribute('data-a'):'';if(a==='back'){stop();render();setTopFocus(0)}else if(a==='back10')seek(-10);else if(a==='fwd30')seek(30);else if(a==='play'){if(isTizenAvplay()&&S.player){try{var st=webapis.avplay.getState();if(st==='PLAYING')webapis.avplay.pause();else webapis.avplay.play()}catch(e){}}else{var v=$('video');v.paused?v.play():v.pause()}}else if(a==='next'){switchChannelRelative(1)}}
+function ctrlAction(){var b=document.querySelectorAll('.cb'),a=b[S.cp]?b[S.cp].getAttribute('data-a'):'';if(a==='back'){stop();render();setTopFocus(0)}else if(a==='back10')seek(-10);else if(a==='fwd30')seek(30);else if(a==='play'){if(S.avplay&&isTizenAvplay()&&S.player){try{var st=webapis.avplay.getState();if(st==='PLAYING')webapis.avplay.pause();else webapis.avplay.play()}catch(e){}}else{var v=$('video');v.paused?v.play():v.pause()}}else if(a==='next'){switchChannelRelative(1)}}
 function switchChannelRelative(d){var c=S.current||currentChannel(),i=S.list.indexOf(c);if(i<0)i=0;play(S.list[(i+d+S.list.length)%S.list.length])}
 $('video').addEventListener('playing',function(){if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}hideStatus()});
 $('video').addEventListener('canplay',function(){if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}hideStatus()});

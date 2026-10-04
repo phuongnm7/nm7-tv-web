@@ -13,9 +13,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07111f;col
 body{user-select:none;-webkit-user-select:none}
 button,input{font:inherit}
 button{cursor:pointer}
-#app{position:relative;width:100%;height:100%;background:#07111f url("/assets/nm7-default-background.webp") center/cover no-repeat fixed}
-#home{position:absolute;inset:0;padding:0 18px 0 22px;overflow:hidden;background:transparent;scrollbar-width:none;display:flex;flex-direction:column}
-#homeTabs{position:relative;flex:0 0 64px;height:64px;display:flex;align-items:center;padding:6px 0;z-index:4}
+#app{position:relative;width:100%;height:100%;background:#07111f url("/assets/nm7-default-background.webp") center center/100% 100% no-repeat}
+#home{position:absolute;inset:0;padding:0 18px 0 72px;overflow:hidden;background:transparent;scrollbar-width:none;display:flex;flex-direction:column}
+#homeTabs{display:none;position:relative;flex:0 0 64px;height:64px;display:flex;align-items:center;padding:6px 0;z-index:4}
 #homeTitle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c8d2dd;font-size:18px;font-weight:700;pointer-events:none}
 #btnYouTubeTab{width:180px;height:52px;border:0;border-radius:10px;background:transparent;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;outline:none;font-size:17px;font-weight:700}
 #btnYouTubeTab:focus,#appShortcut:focus{outline:3px solid #37d6a6;background:#ffffff18}
@@ -31,10 +31,10 @@ button{cursor:pointer}
 .cards{display:flex;gap:4px;height:90px;min-width:max-content;overflow-x:auto;overflow-y:hidden;padding:0 18px 0 0;scroll-behavior:auto;scrollbar-width:none;overscroll-behavior:contain;scroll-snap-type:none}
 .card{position:relative;appearance:none;-webkit-appearance:none;flex:0 0 128px;width:128px;height:70px;margin:0;box-sizing:border-box;border:0;border-radius:0;background:transparent;padding:0;outline:none;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .12s ease;z-index:1;color:#fff;text-align:center;overflow:visible}
 .card:focus{border:0;background:transparent;transform:scale(1.12);z-index:5;box-shadow:none}
-.card::before{content:"";position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;background:rgba(64,169,255,.33);border:5px solid #2f9bff;opacity:0;pointer-events:none;z-index:0}
-.card::after{content:"";position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;border:2px solid #fff;opacity:0;pointer-events:none;z-index:3}
+.card::before{content:"";position:absolute;left:50%;top:26px;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;background:rgba(64,169,255,.33);border:5px solid #2f9bff;opacity:0;pointer-events:none;z-index:0}
+.card::after{content:"";position:absolute;left:50%;top:26px;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;border:2px solid #fff;opacity:0;pointer-events:none;z-index:3}
 .card:focus::before,.card:focus::after{opacity:1}
-.thumb{position:relative;width:48px;height:48px;flex:0 0 48px;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden;z-index:1}
+.thumb{position:relative;width:100%;height:52px;flex:0 0 52px;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden;z-index:1}
 .thumb img{display:block;width:48px;height:48px;max-width:48px;max-height:48px;object-fit:contain;border-radius:50%}
 .thumb img.noClip{border-radius:0}
 .thumb span{color:#37d6a6;font-size:18px;font-weight:700}

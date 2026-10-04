@@ -62,6 +62,13 @@ jobs:
               got=names(g)
               if got[:len(want)] != want:
                   raise SystemExit(f'{g} order mismatch: {got[:len(want)]}')
+          ons=[c for c in channels if c.get('name')=='On Sports 50fps']
+          if ons:
+              candidates=ons[0].get('candidates') or []
+              if not any((x.get('type') or '').lower()=='hls' or x.get('hls') for x in candidates):
+                  raise SystemExit('On Sports 50fps has no HLS fallback candidate')
+              if not any(str(x.get('url','')).lower().endswith('.m3u8') or '.m3u8?' in str(x.get('url','')).lower() for x in candidates):
+                  raise SystemExit('On Sports 50fps has no real m3u8 candidate')
           print('CLOUDFLARE_SMOKE_OK channels=',len(channels),'groups=',groups[:8])
           PY
 

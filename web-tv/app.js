@@ -307,9 +307,10 @@ function filterFavorite(c){return S.fav.indexOf(c.id)>=0}
 
 function loadCustom(url){
  S.source='custom';S.loading=true;toast('Đang tải nguồn…');
- fetch(url,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(function(t){
-  var p=parseM3U(t,url);if(!p.channels.length)throw new Error('Playlist rỗng');
-  S.list=p.channels;S.query='';S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();toast('Đã tải '+S.list.length+' kênh')
+ var api='/api/source?u='+encodeURIComponent(url);
+ fetch(api,{cache:'no-store'}).then(function(r){return r.json().catch(function(){return {error:'HTTP '+r.status}}).then(function(d){if(!r.ok)throw new Error(d&&d.error||'HTTP '+r.status);return d})}).then(function(d){
+  if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error(d&&d.error||'Playlist rỗng');
+  S.list=d.channels.map(norm);S.query='';S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();toast('Đã tải '+S.list.length+' kênh')
  }).catch(function(e){S.loading=false;toast('Không tải được nguồn: '+e.message)})
 }
 function fetchJsonTimeout(url,ms){

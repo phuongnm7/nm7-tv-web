@@ -118,8 +118,30 @@ jobs:
             if(n<1)throw new Error('no channel cards rendered');
             if(active.tag!=='BUTTON'||active.row!=='0'||active.col!=='0')throw new Error('initial focus incorrect '+JSON.stringify(active));
             await p.keyboard.press('ArrowRight'); await p.waitForTimeout(100);
-            const right=await p.evaluate(()=>({row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
+            const right=await p.evaluate(()=>({row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col,scrollLeft:document.querySelector('.cards')?.scrollLeft||0}));
             if(right.row!=='0'||right.col!=='1')throw new Error('RIGHT navigation failed '+JSON.stringify(right));
+
+            // Move beyond the visible viewport; focus must continue and the row must scroll horizontally.
+            for(let i=0;i<25;i++)await p.keyboard.press('ArrowRight');
+            const farRight=await p.evaluate(()=>({row:document.activeElement?.dataset?.row,col:Number(document.activeElement?.dataset?.col||0),scrollLeft:document.querySelector('.cards')?.scrollLeft||0}));
+            if(farRight.col<20||farRight.scrollLeft<=0)throw new Error('horizontal scroll failed '+JSON.stringify(farRight));
+
+            // Move down; the page container itself must scroll to keep the focused row visible.
+            await p.keyboard.press('ArrowDown'); await p.waitForTimeout(100);
+            const down=await p.evaluate(()=>({row:Number(document.activeElement?.dataset?.row||0),homeScroll:document.querySelector('#home')?.scrollTop||0}));
+            if(down.row<1||down.homeScroll<=0)throw new Error('vertical scroll failed '+JSON.stringify(down));
+
+            // Playback smoke test with the first TV channel.
+            await p.evaluate(()=>{window.scrollTo?.(0,0);});
+            await p.keyboard.press('Home').catch?.(()=>{});
+            await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
+            await p.waitForSelector('.card[aria-label="VTV1"], .card', {timeout:15000});
+            const vtv=p.locator('.card').first();
+            await vtv.click();
+            await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&v.readyState>=2&&v.currentTime>0},{timeout:20000});
+            const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {time:v.currentTime,ready:v.readyState,paused:v.paused,error:v.error?{code:v.error.code,message:v.error.message}:null,player:!document.querySelector('#player')?.classList.contains('hidden')}});
+            console.log('PLAYBACK_OK='+JSON.stringify(media));
+            if(media.time<=0||media.ready<2||media.paused)throw new Error('playback did not start '+JSON.stringify(media));
             await b.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE

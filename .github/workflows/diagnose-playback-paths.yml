@@ -1,0 +1,45 @@
+name: Diagnose direct and proxy playback paths
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test VTV1 and ON Football upstreams
+        shell: bash
+        run: |
+          set +e
+          VTV1="https://vips-livecdn.fptplay.net/live/media/vtv1/live247-hls-avc/vtv1-avc1_5600000=10000-mp4a_131600=20000.m3u8"
+          VTV1B="https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8"
+          ONF="https://tv.vietanhtv.top/tv360/tv360.php?id=174&expires=1788503111&token=8323e5fe6e4c1b45c4040a739b062396"
+          for name_url in "VTV1|$VTV1" "VTV1_BUILTIN|$VTV1B" "ON_FOOTBALL|$ONF"; do
+            name="${name_url%%|*}"; url="${name_url#*|}"
+            echo "=== $name ==="
+            curl -L --max-time 20 -A "Mozilla/5.0 (Linux; Tizen 7.0) AppleWebKit/537.36 SamsungBrowser/5.0 TV" -sS -D "/tmp/$name.h" -o "/tmp/$name.b" "$url"
+            echo "HTTP=$(head -1 /tmp/$name.h)"
+            grep -iE '^(content-type|content-length|location|access-control-allow-origin|server):' /tmp/$name.h | head -20
+            wc -c "/tmp/$name.b"
+            head -c 300 "/tmp/$name.b" | strings | head -5
+          done
+      - name: Test Cloudflare proxy paths
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY'
+          import urllib.parse, subprocess
+          base='https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u='
+          urls={
+           'VTV1':'https://vips-livecdn.fptplay.net/live/media/vtv1/live247-hls-avc/vtv1-avc1_5600000=10000-mp4a_131600=20000.m3u8',
+           'ON_FOOTBALL':'https://tv.vietanhtv.top/tv360/tv360.php?id=174&expires=1788503111&token=8323e5fe6e4c1b45c4040a739b062396',
+          }
+          for k,u in urls.items():
+            p=base+urllib.parse.quote(u,safe='')
+            print('=== PROXY',k,'===')
+            subprocess.run(['curl','-L','--max-time','20','-A','Mozilla/5.0','-sS','-D','/tmp/ph','-o','/tmp/pb',p])
+            print(open('/tmp/ph').read().split('\r\n\r\n')[0][:1500])
+            print('BODY_BYTES',len(open('/tmp/pb','rb').read()))
+            print('BODY_HEAD',open('/tmp/pb','rb').read(500)[:500])
+          PY

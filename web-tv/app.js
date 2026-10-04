@@ -306,7 +306,7 @@ function applyPlaylist(d,source,message){
 function loadSource(source,force){
  S.source=source;S.query='';S.loading=true;
  var cached=readCache();if(cached&&!force){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome();toast('Đã mở cache · đang cập nhật…')}
- else $('home').innerHTML='<div class="empty">Đang tải '+(source==='sport'?'thể thao':'truyền hình')+'…</div>';
+ else $('homeRows').innerHTML='<div class="empty">Đang tải '+(source==='sport'?'thể thao':'truyền hình')+'…</div>';
 
  fetchJsonTimeout(PLAYLISTS[source],12000).then(function(d){
   applyPlaylist(d,source,'Đã cập nhật '+d.channels.length+' kênh');

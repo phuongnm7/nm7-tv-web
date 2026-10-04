@@ -28,8 +28,10 @@ jobs:
           echo "LIVE_URL=$LIVE_URL" | tee /tmp/cloudflare-live-url
           printf '%s\n' "$LIVE_URL" > /tmp/cloudflare-live-url.txt
 
-      - name: Install browser for live UI smoke test
-        run: npx playwright install chromium --with-deps
+      - name: Install Playwright package and browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install chromium --with-deps
 
       - name: Smoke test live Worker
         run: |

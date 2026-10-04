@@ -10,6 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Probe additional ON Sports resolvers
+        shell: bash
+        run: |
+          set +e
+          for U in \
+            'https://code.vthanhtivi.pw/getlink/onlive/onsports/84867.m3u8' \
+            'https://liveh34.vtvcab.vn/hls/THETHAO_HD/04.m3u8' \
+            'https://live2onsport.vtvcab.vn/onplus/THETHAO_HD/m40_index.m3u8'
+          do
+            echo "=== $U ==="
+            curl -L --max-time 25 -sS -D /tmp/ah -o /tmp/ab -A 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36'
+            rc=$?
+            echo "CURL_RC=$rc"
+            test -f /tmp/ah && head -20 /tmp/ah || true
+            test -f /tmp/ab && { echo "BYTES=$(wc -c < /tmp/ab)"; head -c 1000 /tmp/ab | tr '\n' ' '; echo; } || true
+          done
+
       - name: Probe dynamic VTVcab3 resolver
         shell: bash
         run: |

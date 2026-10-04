@@ -2,7 +2,7 @@ name: Diagnose VTVcab3 ON Sports playback
 
 on:
   push:
-    branches: ["feat/tvdrm-player-integration-20261004"]
+    branches: ["fix/safari-drm-final-20261005"]
   workflow_dispatch:
 
 jobs:

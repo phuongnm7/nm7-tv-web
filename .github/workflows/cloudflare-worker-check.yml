@@ -68,7 +68,7 @@ jobs:
           LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
           node <<'NODE'
           const {chromium}=require('playwright');
-          const base=process.env.LIVE_URL;
+          const fs=require('fs'); const base=fs.readFileSync('/tmp/cloudflare-live-url.txt','utf8').trim();
           (async()=>{
             const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
             const p=await b.newPage({viewport:{width:1920,height:1080}});

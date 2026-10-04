@@ -64,3 +64,25 @@ jobs:
                   raise SystemExit(f'{g} order mismatch: {got[:len(want)]}')
           print('CLOUDFLARE_SMOKE_OK channels=',len(channels),'groups=',groups[:8])
           PY
+
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-sport.json',encoding='utf-8'))
+          channels=d.get('channels') or []
+          if not channels:
+              raise SystemExit(f"sport playlist returned zero channels: {d.get('error')}")
+          print('CLOUDFLARE_SPORT_SMOKE_OK channels=',len(channels),'upstream=',d.get('upstream'))
+          PY
+
+          CUSTOM_URL='https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com'
+          ENCODED_CUSTOM="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$CUSTOM_URL")"
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/source?u=$ENCODED_CUSTOM" -o /tmp/nm7-custom.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-custom.json',encoding='utf-8'))
+          channels=d.get('channels') or []
+          if not channels:
+              raise SystemExit(f"custom source proxy returned zero channels: {d.get('error')}")
+          print('CLOUDFLARE_CUSTOM_SOURCE_SMOKE_OK channels=',len(channels),'upstream=',d.get('upstream'))
+          PY

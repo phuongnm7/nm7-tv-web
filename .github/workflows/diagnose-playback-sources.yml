@@ -1,0 +1,37 @@
+name: Diagnose playback sources
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe live VTV1, ON Football and FLV candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, urllib.request
+          u='https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/playlist?source=tv&default=android1069'
+          d=json.load(urllib.request.urlopen(u,timeout=30))
+          targets=[]
+          for c in d.get('channels',[]):
+              if c.get('name') in ['VTV1','ON FOOTBALL'] or any('.flv' in str(x.get('url','')).lower() for x in c.get('candidates',[])):
+                  for x in c.get('candidates',[]): targets.append((c.get('name'),x))
+          print(json.dumps(targets[:20],ensure_ascii=False,indent=2))
+          with open('/tmp/targets.json','w') as f: json.dump(targets[:20],f)
+          PY
+          python3 - <<'PY'
+          import json,urllib.parse,urllib.request
+          targets=json.load(open('/tmp/targets.json'))
+          for name,c in targets:
+              u=c.get('url','')
+              q='/api/probe?u='+urllib.parse.quote(u,safe='')
+              if c.get('ua'): q+='&ua='+urllib.parse.quote(c['ua'],safe='')
+              print('\n===',name,'DIRECT===',u)
+              try:
+                  print(urllib.request.urlopen('https://nm7-tv-web.phuongnm7-iptv.workers.dev'+q,timeout=30).read().decode()[:1500])
+              except Exception as e: print('PROBE_ERR',e)
+          PY

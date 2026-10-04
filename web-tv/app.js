@@ -438,7 +438,7 @@ function nextCandidate(reason){
 function tryCandidate(){
  var c=S.current,cand=getCandidate(),v=$('video'),kind,generation=S.generation;
  if(!cand){setStatus('Kênh chưa có URL phát');return}
- clearPlayers();kind=classify(cand);var url=makeProxy(cand.url,cand);
+ clearPlayers();kind=classify(cand);var sourceUrl=cand.resolvedUrl||cand.url;var url=makeProxy(sourceUrl,cand);
  setStatus('Đang mở '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
  v.style.display='block';v.autoplay=true;v.controls=false;
  if(kind==='rtsp'||kind==='rtmp'||kind==='udp'||kind==='srt'){
@@ -458,13 +458,13 @@ function startByType(c,cand,url,kind,gen){
 }
 function probeCandidate(c,cand,gen){
  setStatus('Đang xác định định dạng '+c.name+'…');
- var u='/api/probe?u='+encodeURIComponent(cand.url);
+ var u='/api/probe?u='+encodeURIComponent(cand.resolvedUrl||cand.url);
  if(cand.ref)u+='&r='+encodeURIComponent(cand.ref);
  if(cand.ua)u+='&ua='+encodeURIComponent(cand.ua);
  if(cand.headers&&Object.keys(cand.headers).length)u+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
  fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
   if(gen!==S.generation||!S.player)return;
-  if(!d||!d.type||d.type==='http' && !d.resolvedUrl && !d.finalUrl){nextCandidate('Không xác định được định dạng');return}
+  if(!d||!d.type||(d.type==='http'&&!d.resolvedUrl)){nextCandidate('Không xác định được định dạng');return}
   cand.type=d.type;
   cand.mime=d.contentType||cand.mime||'';
   cand.resolvedUrl=d.resolvedUrl||d.finalUrl||cand.url;

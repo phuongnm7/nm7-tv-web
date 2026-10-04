@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920,height=1080,initial-scale=1,user-scalable=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob: https: http: 'unsafe-inline' 'unsafe-eval'; frame-src https: http:; connect-src https: http: ws: wss:;">
+<title>NM7 TV</title>
+<style>
+html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}
+#app{position:fixed;inset:0;background:#000}
+#nm7{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+#remoteCapture{position:fixed;inset:0;z-index:10;background:transparent;outline:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <iframe id="nm7" title="NM7 TV"></iframe>
+  <div id="remoteCapture" tabindex="0" aria-label="NM7 TV remote capture"></div>
+</div>
+<script src="tizen.js"></script>
+</body>
+</html>

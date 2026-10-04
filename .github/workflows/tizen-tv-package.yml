@@ -1,0 +1,98 @@
+name: NM7 Tizen TV Package Check
+
+on:
+  push:
+    branches: ["feat/tizen-remote-navigation"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Tizen project files
+        run: |
+          test -f tizen-tv/config.xml
+          test -f tizen-tv/index.html
+          test -f tizen-tv/tizen.js
+          test -f tizen-tv/icon.svg
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          ET.parse("tizen-tv/config.xml")
+          print("config.xml OK")
+          PY
+          node --check tizen-tv/tizen.js
+
+      - name: Validate remote bridge contract
+        run: |
+          grep -q 'pointing-device-support="disable"' tizen-tv/config.xml
+          grep -q 'tv.inputdevice' tizen-tv/config.xml
+          grep -q "tizen.tvinputdevice.registerKey" tizen-tv/tizen.js
+          grep -q "d.type!=='nm7-remote'" web-tv/app.js
+          echo "Tizen remote contract OK"
+
+
+      - name: Test remote bridge in Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          cat > /tmp/nm7-tizen-echo.html <<'EOF'
+          <!doctype html><html><body>
+          <div id="received">NONE</div>
+          <script>
+          window.addEventListener('message',e=>{
+            if(e.data&&e.data.type==='nm7-remote'){
+              document.getElementById('received').textContent=e.data.key+':'+e.data.keyCode;
+            }
+          });
+          </script>
+          </body></html>
+          EOF
+          cat > /tmp/nm7-tizen-server.cjs <<'EOF'
+          const http=require('http'),fs=require('fs'),path=require('path');
+          const root=path.resolve('tizen-tv');
+          const echo=fs.readFileSync('/tmp/nm7-tizen-echo.html','utf8');
+          http.createServer((req,res)=>{
+            const u=new URL(req.url,'http://127.0.0.1:4174');
+            if(u.pathname==='/echo.html'){res.writeHead(200,{'content-type':'text/html'});return res.end(echo)}
+            const p=path.join(root,u.pathname.replace(/^\//,''));
+            if(!p.startsWith(root)||!fs.existsSync(p)){res.writeHead(404);return res.end('not found')}
+            const ext=path.extname(p);
+            res.writeHead(200,{'content-type':ext==='.html'?'text/html':'application/javascript'});res.end(fs.readFileSync(p));
+          }).listen(4174,'127.0.0.1');
+          EOF
+          node /tmp/nm7-tizen-server.cjs >/tmp/nm7-tizen-server.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage();
+            await p.addInitScript(()=>{window.tizen={tvinputdevice:{registered:[],registerKey(k){this.registered.push(k)}}}});
+            await p.goto('http://127.0.0.1:4174/index.html?url='+encodeURIComponent('http://127.0.0.1:4174/echo.html'),{waitUntil:'load'});
+            await p.locator('#remoteCapture').focus();
+            for(const key of ['ArrowRight','ArrowDown','ArrowLeft','ArrowUp','Enter','Escape']){
+              if(key==='Escape')continue;
+              await p.keyboard.press(key);
+              const wanted=key+':'+({ArrowRight:39,ArrowDown:40,ArrowLeft:37,ArrowUp:38,Enter:13}[key]);
+              await p.waitForFunction(w=>document.querySelector('#nm7')?.contentDocument?.querySelector('#received')?.textContent===w,wanted,{timeout:2000});
+            }
+            const registered=await p.evaluate(()=>window.tizen.tvinputdevice.registered);
+            if(registered.length!==6)throw new Error('registered='+JSON.stringify(registered));
+            console.log('TIZEN_REMOTE_BRIDGE_OK='+JSON.stringify({registered}));
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)})
+          NODE
+
+      - name: Create unsigned WGT archive
+        run: |
+          cd tizen-tv
+          zip -qr ../NM7-TV-Tizen-Remote-unsigned.wgt .
+          cd ..
+          unzip -t NM7-TV-Tizen-Remote-unsigned.wgt
+          ls -lh NM7-TV-Tizen-Remote-unsigned.wgt

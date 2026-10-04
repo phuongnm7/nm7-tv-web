@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://phuongnm7.com/nm7tv"
+        version="1.0.0"
+        viewmodes="maximized">
+  <tizen:application id="Pn7Nm7Tv" package="Pn7Nm7Tv" required_version="8.0"/>
+  <content src="index.html"/>
+  <icon src="icon.svg"/>
+  <name>NM7 TV</name>
+  <description>NM7 TV Samsung Tizen remote-navigation shell</description>
+  <tizen:profile name="tv-samsung"/>
+  <tizen:setting screen-orientation="landscape"
+                 context-menu="enable"
+                 background-support="disable"
+                 encryption="disable"
+                 install-location="auto"
+                 pointing-device-support="disable"/>
+  <access origin="*" subdomains="true"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+</widget>

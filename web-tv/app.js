@@ -116,8 +116,7 @@ function renderHome(){
  for(var r=0;r<shownGroups;r++){
   var g=S.groups[r],a=channelsInGroup(g);if(!a.length)continue;
   html+='<section class="row" data-row="'+r+'"><h2>'+esc(g)+'</h2><div class="cards">';
-  var shown=Math.min(20,a.length);
-  for(var i=0;i<shown;i++){
+  for(var i=0;i<a.length;i++){
    var c=a[i],selected=(S.zone==='home'&&!S.menuOpen&&r===S.row&&i===S.col),logo=logoSource(c),star=S.fav.indexOf(c.id)>=0;
    html+='<button class="card" type="button" tabindex="'+(selected?'0':'-1')+'" data-row="'+r+'" data-col="'+i+'" aria-label="'+esc(c.name)+'" aria-selected="'+(selected?'true':'false')+'">';
    html+='<div class="thumb">';
@@ -170,6 +169,21 @@ function rebuildGroups(){
  var count=channelsInGroup(g[S.row]||'').length;
  if(S.col>=count)S.col=Math.max(0,count-1);
 }
+function ensureFocusVisible(el){
+ if(!el)return;
+ var home=$('home'),cards=el.closest('.cards'),row=el.closest('.row');
+ if(cards){
+  var left=el.offsetLeft,right=left+el.offsetWidth;
+  if(left<cards.scrollLeft+8)cards.scrollLeft=Math.max(0,left-12);
+  else if(right>cards.scrollLeft+cards.clientWidth-8)cards.scrollLeft=Math.max(0,right-cards.clientWidth+12);
+ }
+ if(row){
+  var top=row.offsetTop,bottom=top+row.offsetHeight;
+  if(top<home.scrollTop+24)home.scrollTop=Math.max(0,top-18);
+  else if(bottom>home.scrollTop+home.clientHeight-24)home.scrollTop=Math.max(0,bottom-home.clientHeight+24);
+ }
+ try{el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'auto'})}catch(e){}
+}
 function setFocusCard(rr,cc,focusNow){
  var a=channelsInGroup(S.groups[rr]||'');if(!a.length)return false;
  cc=Math.max(0,Math.min(a.length-1,cc));S.zone='home';S.row=rr;S.col=cc;
@@ -179,8 +193,7 @@ function setFocusCard(rr,cc,focusNow){
   var all=document.querySelectorAll('.card');for(var i=0;i<all.length;i++){all[i].tabIndex=-1;all[i].setAttribute('aria-selected','false')}
   el.tabIndex=0;el.setAttribute('aria-selected','true');
   if(focusNow)try{el.focus({preventScroll:true})}catch(e){try{el.focus()}catch(e2){}}
-  try{el.scrollIntoView({block:'nearest',inline:'center',behavior:'auto'})}catch(e3){}
-  var section=el.closest('.row');if(section)try{section.scrollIntoView({block:'nearest',inline:'nearest',behavior:'auto'})}catch(e4){}
+  ensureFocusVisible(el);
   activateLogos();
  }
  return true
@@ -210,7 +223,7 @@ function logoOverride(c){
  return ''
 }
 function logoSource(c){
- var u=logoOverride(c)||c.logo||'';return isHttp(u)?'/api/image?u='+encodeURIComponent(u)+'&r='+encodeURIComponent(c.ref||'')+'&ua='+encodeURIComponent(c.ua||''):u
+ var u=logoOverride(c)||c.logo||'';return isHttp(u)?'/api/playlist?proxy=image&u='+encodeURIComponent(u)+'&r='+encodeURIComponent(c.ref||'')+'&ua='+encodeURIComponent(c.ua||''):u
 }
 
 function renderMenu(){
@@ -312,13 +325,15 @@ function loadSource(source,force){
  })
 }
 function fallbackStaticPlaylist(cached,firstError){
- var u='/web-tv/playlist.json?ts='+Date.now();
- fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
-  if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error('fallback tĩnh rỗng');
-  S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();saveCache();toast('Đã mở playlist dự phòng · '+S.list.length+' kênh');
- }).catch(function(e){
-  fallbackOriginal(cached,firstError);
- });
+ var urls=['/playlist.json?ts='+Date.now(),'/web-tv/playlist.json?ts='+Date.now()];
+ function tryOne(i){
+  if(i>=urls.length){fallbackOriginal(cached,firstError);return}
+  fetch(urls[i],{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
+   if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error('fallback tĩnh rỗng');
+   S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();saveCache();toast('Đã mở playlist dự phòng · '+S.list.length+' kênh');
+  }).catch(function(){tryOne(i+1)})
+ }
+ tryOne(0)
 }
 function fallbackOriginal(cached,firstError){
  var u='https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u';
@@ -333,6 +348,17 @@ function normalizeCandidate(cand){
  if(!cand.ref&&!cand.headers.Referer&&!cand.headers.referer)cand.ref='';
  if(!cand.ua&&!cand.headers['User-Agent'])cand.ua='';
  return cand
+}
+function isOwnProxyUrl(u,kind){
+ try{
+  var x=new URL(u,location.origin);
+  if(x.origin!==location.origin)return false;
+  if(x.pathname==='/api/stream')return !kind||kind==='stream';
+  if(x.pathname==='/api/license')return !kind||kind==='license';
+  if(x.pathname==='/api/probe')return !kind||kind==='probe';
+  if(x.pathname==='/api/image')return !kind||kind==='image';
+  return false;
+ }catch(e){return false}
 }
 function makeProxy(u,cand){
  if(!isHttp(u))return u;
@@ -433,7 +459,9 @@ function nextCandidate(reason){
 function tryCandidate(){
  var c=S.current,cand=getCandidate(),v=$('video'),kind,generation=S.generation;
  if(!cand){setStatus('Kênh chưa có URL phát');return}
- clearPlayers();kind=classify(cand);var url=makeProxy(cand.url,cand);
+ clearPlayers();kind=classify(cand);
+ var url=S.proxyAttempt?makeProxy(cand.url,cand):cand.url;
+
  setStatus('Đang mở '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
  v.style.display='block';v.autoplay=true;v.controls=false;
  if(kind==='rtsp'||kind==='rtmp'||kind==='udp'||kind==='srt'){
@@ -441,7 +469,6 @@ function tryCandidate(){
  }
  if(kind==='http'&&!cand.mime&&!cand.type){probeCandidate(c,cand,generation);return}
  startByType(c,cand,url,kind,generation);
- S.watchdog=setTimeout(function(){if(S.generation!==generation||!S.player)return;if(v.readyState<2||v.paused)nextCandidate('Timeout phát 15s')},15000)
 }
 function startByType(c,cand,url,kind,gen){
  if(kind==='dash')startDash(c,cand,url,gen);
@@ -453,7 +480,7 @@ function startByType(c,cand,url,kind,gen){
 }
 function probeCandidate(c,cand,gen){
  setStatus('Đang xác định định dạng '+c.name+'…');
- var u='/api/probe?u='+encodeURIComponent(cand.url);
+ var u='/api/playlist?proxy=probe&u='+encodeURIComponent(cand.url);
  if(cand.ref)u+='&r='+encodeURIComponent(cand.ref);
  if(cand.ua)u+='&ua='+encodeURIComponent(cand.ua);
  if(cand.headers&&Object.keys(cand.headers).length)u+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
@@ -467,7 +494,7 @@ function probeCandidate(c,cand,gen){
   if(d.type==='flv')cand.flv=true;
   if(d.type==='mpegts')cand.mpegts=true;
   var resolved=d.finalUrl||cand.url;
-  var url=makeProxy(resolved,cand);
+  var url=S.proxyAttempt?makeProxy(resolved,cand):resolved;
   clearPlayers();
   setStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':''));
   startByType(c,cand,url,d.type,gen);
@@ -479,11 +506,18 @@ function startDirect(c,cand,url,gen){
 }
 function startHls(c,cand,url,gen){
  var v=$('video'),ua=navigator.userAgent||'',safariLike=/Safari/i.test(ua)&&!/Chrome|Chromium|Android/i.test(ua),tizenLike=/SMART-TV|Tizen/i.test(ua);
- var native=!!(v.canPlayType&&(v.canPlayType('application/vnd.apple.mpegurl')||v.canPlayType('application/x-mpegURL')))&&(safariLike||tizenLike);
+ var nativeType=v.canPlayType&&(v.canPlayType('application/vnd.apple.mpegurl')||v.canPlayType('application/x-mpegURL'));
+ var native=!!nativeType&&(safariLike||tizenLike||/Chrome|Chromium|Edg/i.test(ua));
  if(native){
-  v.onloadedmetadata=function(){markPlaying(gen)};v.oncanplay=function(){markPlaying(gen)};v.src=url;
-  var p=v.play();if(p&&p.catch)p.catch(function(){});
-  v.onerror=function(){if(gen===S.generation)tryHlsJs(c,cand,url,gen)};return
+  v.onerror=function(){
+   if(gen!==S.generation||!S.player)return;
+   if(S.debug)console.log('NM7 NATIVE HLS ERROR',v.error?{code:v.error.code,message:v.error.message}:null,url);
+   nextCandidate('Native HLS lỗi');
+  };
+  v.onloadedmetadata=function(){markPlaying(gen)};
+  v.oncanplay=function(){markPlaying(gen)};
+  try{v.src=url;var p=v.play();if(p&&p.catch)p.catch(function(){})}catch(e){nextCandidate('Native HLS mở lỗi')}
+  return
  }
  tryHlsJs(c,cand,url,gen)
 }
@@ -492,29 +526,78 @@ function tryHlsJs(c,cand,url,gen){
  try{
   var v=$('video');
   v.muted=true;
-  var h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:60,maxBufferHole:.5,startPosition:-1,manifestLoadingMaxRetry:2,fragLoadingMaxRetry:3,levelLoadingMaxRetry:3});
+  v.pause();
+  v.removeAttribute('src');
+  try{v.load()}catch(e){}
+  var h=new Hls({
+   enableWorker:false,
+   lowLatencyMode:false,
+   autoStartLoad:true,
+   maxBufferLength:30,
+   maxMaxBufferLength:60,
+   maxBufferHole:.5,
+   startPosition:-1,
+   manifestLoadingMaxRetry:2,
+   fragLoadingMaxRetry:3,
+   levelLoadingMaxRetry:3
+  });
   S.hls=h;
+  if(S.debug)console.log('NM7 HLS INIT',url);
   h.on(Hls.Events.MEDIA_ATTACHED,function(){
    if(gen!==S.generation||!S.player)return;
+   if(S.debug)console.log('NM7 HLS MEDIA_ATTACHED');
    h.loadSource(url);
   });
-  h.on(Hls.Events.MANIFEST_PARSED,function(){
+  h.on(Hls.Events.MANIFEST_LOADING,function(ev,data){
+   if(S.debug)console.log('NM7 HLS MANIFEST_LOADING',data&&data.url||'');
+  });
+  h.on(Hls.Events.MANIFEST_LOADED,function(ev,data){
+   if(S.debug)console.log('NM7 HLS MANIFEST_LOADED',data&&data.url||'',data&&data.stats||'');
+  });
+  h.on(Hls.Events.MANIFEST_PARSED,function(ev,data){
    if(gen!==S.generation||!S.player)return;
+   if(S.debug)console.log('NM7 HLS MANIFEST_PARSED',data&&data.levels?data.levels.length:0);
    var p=v.play();
    if(p&&p.catch)p.catch(function(){
     try{v.muted=true;var q=v.play();if(q&&q.catch)q.catch(function(){})}catch(e){}
    });
   });
+  h.on(Hls.Events.LEVEL_LOADING,function(ev,data){if(S.debug)console.log('NM7 HLS LEVEL_LOADING',data&&data.url||'')});
+  h.on(Hls.Events.LEVEL_LOADED,function(ev,data){if(S.debug)console.log('NM7 HLS LEVEL_LOADED',data&&data.details?data.details.live:undefined,data&&data.stats||'')});
+  h.on(Hls.Events.FRAG_LOADING,function(ev,data){if(S.debug)console.log('NM7 HLS FRAG_LOADING',data&&data.frag&&data.frag.url||'')});
+  h.on(Hls.Events.FRAG_LOADED,function(ev,data){if(S.debug)console.log('NM7 HLS FRAG_LOADED',data&&data.frag&&data.frag.url||'')});
   h.on(Hls.Events.ERROR,function(ev,data){
    if(gen!==S.generation)return;
-   if(S.debug)console.log('NM7 HLS',data&&data.type,data&&data.details,data&&data.response||'');
+   if(S.debug)console.log('NM7 HLS ERROR',JSON.stringify({
+    type:data&&data.type||'',
+    details:data&&data.details||'',
+    fatal:!!(data&&data.fatal),
+    response:data&&data.response?{code:data.response.code,text:data.response.text||''}:null,
+    url:data&&data.url||'',
+    networkDetails:data&&data.networkDetails&&data.networkDetails.url||'',
+    mimeType:data&&data.mimeType||'',
+    reason:data&&data.reason||'',
+    error:data&&data.error&&data.error.message||''
+   }));
    if(data&&data.fatal){
-    if(data.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return}catch(e){}}
-    nextCandidate('HLS '+(data.details||data.type||'lỗi'))
+    var details=data.details||'';
+    var ed=Hls.ErrorDetails||{};
+    var codecFatal=details===ed.BUFFER_ADD_CODEC_ERROR||
+      details===ed.BUFFER_INCOMPATIBLE_CODECS_ERROR||
+      details===ed.BUFFER_APPEND_ERROR||
+      details===ed.BUFFER_APPENDING_ERROR;
+    if(codecFatal){
+     nextCandidate('HLS codec/MSE '+details);
+     return
+    }
+    if(data.type===Hls.ErrorTypes.MEDIA_ERROR){
+     try{h.recoverMediaError();return}catch(e){}
+    }
+    nextCandidate('HLS '+(details||data.type||'lỗi'))
    }
   });
   h.attachMedia(v);
- }catch(e){nextCandidate('HLS.js khởi tạo lỗi')}
+ }catch(e){dbg('HLS.js '+(e&&e.message||e));nextCandidate('HLS.js khởi tạo lỗi')}
 }
 function startFlv(c,cand,url,gen){
  if(!window.flvjs||!flvjs.isSupported()){nextCandidate('FLV/MSE không được hỗ trợ');return}
@@ -549,7 +632,7 @@ function startShaka(c,cand,url,drm,gen){
    var cfg={drm:{servers:{}}};
    if(drm.clearKeys)cfg.drm.clearKeys=drm.clearKeys;
    if(drm.remote&&drm.license){
-    cfg.drm.servers[drm.system]=makeLicenseProxy(drm.license,cand);
+    cfg.drm.servers[drm.system]=S.proxyAttempt?makeLicenseProxy(drm.license,cand):drm.license;
    }
    if(p.configure)p.configure(cfg);
   }
@@ -558,10 +641,10 @@ function startShaka(c,cand,url,drm,gen){
    if(gen!==S.generation)return;
    var uri=request.uris&&request.uris[0]||'';
    if(type===net.RequestType.LICENSE){
-    if(drm&&drm.remote&&drm.license){request.uris=[makeLicenseProxy(drm.license,cand)]}
+    if(S.proxyAttempt&&drm&&drm.remote&&drm.license){request.uris=[makeLicenseProxy(drm.license,cand)]}
     return
    }
-   if(/^https?:/i.test(uri)&&uri.indexOf(location.origin+'/api/stream')!==0){
+   if(S.proxyAttempt&&/^https?:/i.test(uri)&&!isOwnProxyUrl(uri,'stream')){
     request.uris=[makeProxy(uri,cand)]
    }
   });
@@ -574,8 +657,8 @@ function startDashJs(c,cand,url,gen){
  try{
   var p=dashjs.MediaPlayer().create();S.dash=p;
   p.extend('RequestModifier',function(){return{
-   modifyRequestURL:function(u){return /^https?:/i.test(u)&&u.indexOf(location.origin+'/api/stream')!==0?makeProxy(u,cand):u},
-   modifyRequestHeader:function(xhr){if(cand.ua)try{xhr.setRequestHeader('User-Agent',cand.ua)}catch(e){}if(cand.ref)try{xhr.setRequestHeader('Referer',cand.ref)}catch(e){}return xhr}
+   modifyRequestURL:function(u){return S.proxyAttempt&&/^https?:/i.test(u)&&!isOwnProxyUrl(u,'stream')?makeProxy(u,cand):u},
+   modifyRequestHeader:function(xhr){if(S.proxyAttempt){if(cand.ua)try{xhr.setRequestHeader('User-Agent',cand.ua)}catch(e){}if(cand.ref)try{xhr.setRequestHeader('Referer',cand.ref)}catch(e){}}return xhr}
   }});
   p.on(dashjs.MediaPlayer.events.ERROR,function(e){if(gen===S.generation)nextCandidate('DASH '+((e||{}).error||{}).message||'lỗi')});
   p.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED,function(){markPlaying(gen);var x=$('video').play();if(x&&x.catch)x.catch(function(){})});
@@ -653,7 +736,7 @@ function onKey(e){
   if(k===13 && S.dialog==='search'){e.preventDefault();e.stopPropagation();closeDialog();return}
   return
  }
- if(e.repeat)return;
+ if(e.repeat && ![37,38,39,40].includes(remoteCode(e)))return;
  if(k===10009||k===27){
   e.preventDefault();e.stopPropagation();
   if(S.menuOpen){closeMenu();return}
@@ -704,9 +787,9 @@ function onKey(e){
   return
  }
  if(k===37){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var a=channelsInGroup(S.groups[S.row]||'');if(S.col===0)openMenu();else setFocusCard(S.row,S.col-1,true)}return}
- if(k===39){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var a2=channelsInGroup(S.groups[S.row]||'');if(a2.length)setFocusCard(S.row,(S.col+1)%Math.min(20,a2.length),true)}return}
- if(k===38){e.preventDefault();e.stopPropagation();if(S.zone==='home'){if(S.row===0){return}else{var rr=Math.max(0,S.row-1),aa=channelsInGroup(S.groups[rr]||'');setFocusCard(rr,Math.min(S.col,Math.max(0,Math.min(19,aa.length-1))),true)}}return}
- if(k===40){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var nr=Math.min(S.groups.length-1,S.row+1),bb=channelsInGroup(S.groups[nr]||'');if(bb.length)setFocusCard(nr,Math.min(S.col,Math.min(19,bb.length-1)),true)}return}
+ if(k===39){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var a2=channelsInGroup(S.groups[S.row]||'');if(a2.length)setFocusCard(S.row,Math.min(a2.length-1,S.col+1),true)}return}
+ if(k===38){e.preventDefault();e.stopPropagation();if(S.zone==='home'){if(S.row===0)return;var rr=Math.max(0,S.row-1),aa=channelsInGroup(S.groups[rr]||'');if(aa.length)setFocusCard(rr,Math.min(aa.length-1,S.col),true)}return}
+ if(k===40){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var nr=Math.min(S.groups.length-1,S.row+1),bb=channelsInGroup(S.groups[nr]||'');if(bb.length)setFocusCard(nr,Math.min(bb.length-1,S.col),true)}return}
  if(k===13){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var c=channelsInGroup(S.groups[S.row]||'')[S.col];if(c)openPlayer(c)}return}
  if(k===8||k===403){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var c2=channelsInGroup(S.groups[S.row]||'')[S.col];if(c2){var ix=S.fav.indexOf(c2.id);if(ix<0){S.fav.push(c2.id);toast('Đã thêm yêu thích')}else{S.fav.splice(ix,1);toast('Đã bỏ yêu thích')}saveUser();renderHome()}}return}
 }
@@ -727,8 +810,58 @@ $('video').addEventListener('canplay',function(){if(S.player)markPlaying(S.gener
 $('video').addEventListener('error',function(){if(S.player&&!S.proxyAttempt)nextCandidate('Video error')});
 $('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồng kết thúc')});
 
+function bindTizenRemoteBridge(){
+ window.addEventListener('message',function(ev){
+  var d=ev&&ev.data;
+  if(!d||d.type!=='nm7-remote')return;
+  var key=String(d.key||''),code=Number(d.keyCode||0);
+  var e={
+   key:key,
+   code:key||'',
+   keyCode:code,
+   which:code,
+   repeat:!!d.repeat,
+   preventDefault:function(){},
+   stopPropagation:function(){}
+  };
+  onKey(e);
+ },false);
+}
+
+function bindPointerNavigation(){
+ var home=$('home'),last=0;
+ if(!home||home.__nm7Pointer)return;
+ home.__nm7Pointer=true;
+ home.addEventListener('pointermove',function(e){
+  var now=Date.now();
+  if(now-last<40)return;
+  last=now;
+  var t=document.elementFromPoint(e.clientX,e.clientY);
+  var card=t&&t.closest?t.closest('.card'):null;
+  if(card){
+   var rr=Number(card.dataset.row||0),cc=Number(card.dataset.col||0);
+   if(S.zone==='home'&&!S.menuOpen&&S.player!==true){
+    S.row=rr;S.col=cc;
+    try{card.focus({preventScroll:true})}catch(x){card.focus()}
+   }
+  }
+  var edge=72;
+  if(e.clientY<edge)home.scrollTop=Math.max(0,home.scrollTop-35);
+  else if(e.clientY>window.innerHeight-edge)home.scrollTop=Math.min(home.scrollHeight-home.clientHeight,home.scrollTop+35);
+  if(card){
+   var cards=card.closest('.cards');
+   if(cards){
+    if(e.clientX<edge)cards.scrollLeft=Math.max(0,cards.scrollLeft-40);
+    else if(e.clientX>window.innerWidth-edge)cards.scrollLeft=Math.min(cards.scrollWidth-cards.clientWidth,cards.scrollLeft+40);
+   }
+  }
+ });
+}
 function startup(){
  restoreUser();
+ bindPointerNavigation();
+ bindTizenRemoteBridge();
+ window.addEventListener('keydown',onKey,true);
  document.addEventListener('keydown',onKey,true);
  window.addEventListener('focus',function(){if(!S.dialog&&!S.menuOpen){setTimeout(function(){if(S.player)playerFocus();else focusHome(false)},30)}},true);
  var cached=readCache();if(cached){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome()}

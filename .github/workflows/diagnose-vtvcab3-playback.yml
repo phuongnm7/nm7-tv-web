@@ -10,6 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Probe dynamic VTVcab3 resolver
+        shell: bash
+        run: |
+          set +e
+          for U in \
+            'https://api.vthanhtivi.pw/v1/getlink/vieon2/9fb740a5-d1a0-4068-8d02-0a4d428f46db' \
+            'http://live.vthanhtivi.pw:8080/vtvcab3'
+          do
+            echo "=== $U ==="
+            curl -L --max-time 25 -sS -D /tmp/dh -o /tmp/db -A 'KhoaTivi' "$U"
+            rc=$?
+            echo "CURL_RC=$rc"
+            test -f /tmp/dh && head -20 /tmp/dh || true
+            test -f /tmp/db && { echo "BYTES=$(wc -c < /tmp/db)"; head -c 1000 /tmp/db | tr '\n' ' '; echo; } || true
+          done
+
       - name: Probe matching VTVcab3 HLS source
         shell: bash
         run: |

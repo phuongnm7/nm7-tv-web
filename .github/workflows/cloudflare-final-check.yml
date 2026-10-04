@@ -39,7 +39,7 @@ jobs:
           const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
           const channels=[];
           const hlsUpstream='https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8';
-          const hlsProxy=base+'/__nm7/stream?u='+encodeURIComponent(hlsUpstream);
+          const hlsProxy=base+'/api/stream?u='+encodeURIComponent(hlsUpstream);
           for(let g=0;g<12;g++)for(let i=0;i<30;i++)channels.push({id:'e2e-'+g+'-'+i,name:'E2E '+(g+1)+'-'+(i+1),group:'GROUP '+String(g+1).padStart(2,'0'),logo:'',candidates:[{url:hlsProxy,type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]});
           const body=JSON.stringify({channels});
           (async()=>{

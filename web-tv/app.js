@@ -312,13 +312,15 @@ function loadSource(source,force){
  })
 }
 function fallbackStaticPlaylist(cached,firstError){
- var u='/web-tv/playlist.json?ts='+Date.now();
- fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
-  if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error('fallback tĩnh rỗng');
-  S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();saveCache();toast('Đã mở playlist dự phòng · '+S.list.length+' kênh');
- }).catch(function(e){
-  fallbackOriginal(cached,firstError);
- });
+ var urls=['/playlist.json?ts='+Date.now(),'/web-tv/playlist.json?ts='+Date.now()];
+ function tryOne(i){
+  if(i>=urls.length){fallbackOriginal(cached,firstError);return}
+  fetch(urls[i],{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
+   if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error('fallback tĩnh rỗng');
+   S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();saveCache();toast('Đã mở playlist dự phòng · '+S.list.length+' kênh');
+  }).catch(function(){tryOne(i+1)})
+ }
+ tryOne(0)
 }
 function fallbackOriginal(cached,firstError){
  var u='https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u';

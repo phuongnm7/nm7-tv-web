@@ -1,0 +1,29 @@
+name: Test official VTV1 endpoints
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test official VTV/VTVGo candidates
+        shell: bash
+        run: |
+          set +e
+          items=(
+            "VTVGO_STREAM|https://stream.vtvgo.vn/vtv1.m3u8"
+            "VTVGO_FAILOVER|https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8"
+            "VTV1_FPT_A|https://live-a.fptplay53.net/live/media/vtv1/live247-hls-avc/index.m3u8"
+            "VTV1_FPT_OLD|https://vips-livecdn.fptplay.net/live/media/vtv1/live247-hls-avc/vtv1-avc1_5600000=10000-mp4a_131600=20000.m3u8"
+          )
+          for item in "${items[@]}"; do
+            n="${item%%|*}"; u="${item#*|}"
+            echo "=== $n ==="
+            curl -L --max-time 20 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36" -e "https://vtvgo.vn/" -H "Origin: https://vtvgo.vn" -sS -D /tmp/h -o /tmp/b "$u"
+            echo "HTTP=$(head -1 /tmp/h)"
+            grep -iE '^(content-type|content-length|location|access-control-allow-origin|server):' /tmp/h | head -20
+            echo "BYTES=$(wc -c < /tmp/b)"
+            head -c 450 /tmp/b | strings | head -10
+          done

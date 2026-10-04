@@ -89,7 +89,7 @@ jobs:
             await p.waitForSelector('.card',{timeout:15000});
             const cards=await p.locator('.card').count();
             if(cards!==25)throw new Error('cards='+cards);
-            const geom=await p.evaluate(()=>{const card=document.querySelector('.card'),logo=document.querySelector('.thumb');const cs=getComputedStyle(card),ls=getComputedStyle(logo);return {cardW:cs.width,cardH:cs.height,logoW:ls.width,logoH:ls.height,bg:cs.backgroundColor}});
+            const geom=await p.evaluate(()=>{const card=document.querySelector('.card'),logo=document.querySelector('.thumb img');const cs=getComputedStyle(card),ls=logo?getComputedStyle(logo):null;return {cardW:cs.width,cardH:cs.height,logoW:ls?.width||'',logoH:ls?.height||'',bg:cs.backgroundColor}});
             console.log('GEOMETRY='+JSON.stringify(geom));
             if(geom.cardW!=='128px'||geom.cardH!=='70px'||geom.logoW!=='48px'||geom.logoH!=='48px')throw new Error('1.0.69 geometry '+JSON.stringify(geom));
 

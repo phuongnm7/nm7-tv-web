@@ -520,29 +520,65 @@ function tryHlsJs(c,cand,url,gen){
  try{
   var v=$('video');
   v.muted=true;
-  var h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:60,maxBufferHole:.5,startPosition:-1,manifestLoadingMaxRetry:2,fragLoadingMaxRetry:3,levelLoadingMaxRetry:3});
+  v.pause();
+  v.removeAttribute('src');
+  try{v.load()}catch(e){}
+  var h=new Hls({
+   enableWorker:false,
+   lowLatencyMode:false,
+   autoStartLoad:true,
+   maxBufferLength:30,
+   maxMaxBufferLength:60,
+   maxBufferHole:.5,
+   startPosition:-1,
+   manifestLoadingMaxRetry:2,
+   fragLoadingMaxRetry:3,
+   levelLoadingMaxRetry:3
+  });
   S.hls=h;
+  if(S.debug)console.log('NM7 HLS INIT',url);
   h.on(Hls.Events.MEDIA_ATTACHED,function(){
    if(gen!==S.generation||!S.player)return;
-   h.loadSource(url);
+   if(S.debug)console.log('NM7 HLS MEDIA_ATTACHED');
   });
-  h.on(Hls.Events.MANIFEST_PARSED,function(){
+  h.on(Hls.Events.MANIFEST_LOADING,function(ev,data){
+   if(S.debug)console.log('NM7 HLS MANIFEST_LOADING',data&&data.url||'');
+  });
+  h.on(Hls.Events.MANIFEST_LOADED,function(ev,data){
+   if(S.debug)console.log('NM7 HLS MANIFEST_LOADED',data&&data.url||'',data&&data.stats||'');
+  });
+  h.on(Hls.Events.MANIFEST_PARSED,function(ev,data){
    if(gen!==S.generation||!S.player)return;
+   if(S.debug)console.log('NM7 HLS MANIFEST_PARSED',data&&data.levels?data.levels.length:0);
    var p=v.play();
    if(p&&p.catch)p.catch(function(){
     try{v.muted=true;var q=v.play();if(q&&q.catch)q.catch(function(){})}catch(e){}
    });
   });
+  h.on(Hls.Events.LEVEL_LOADING,function(ev,data){if(S.debug)console.log('NM7 HLS LEVEL_LOADING',data&&data.url||'')});
+  h.on(Hls.Events.LEVEL_LOADED,function(ev,data){if(S.debug)console.log('NM7 HLS LEVEL_LOADED',data&&data.details?data.details.live:undefined,data&&data.stats||'')});
+  h.on(Hls.Events.FRAG_LOADING,function(ev,data){if(S.debug)console.log('NM7 HLS FRAG_LOADING',data&&data.frag&&data.frag.url||'')});
+  h.on(Hls.Events.FRAG_LOADED,function(ev,data){if(S.debug)console.log('NM7 HLS FRAG_LOADED',data&&data.frag&&data.frag.url||'')});
   h.on(Hls.Events.ERROR,function(ev,data){
    if(gen!==S.generation)return;
-   if(S.debug)console.log('NM7 HLS',data&&data.type,data&&data.details,data&&data.response||'');
+   if(S.debug)console.log('NM7 HLS ERROR',JSON.stringify({
+    type:data&&data.type||'',
+    details:data&&data.details||'',
+    fatal:!!(data&&data.fatal),
+    response:data&&data.response?{code:data.response.code,text:data.response.text||''}:null,
+    url:data&&data.url||'',
+    networkDetails:data&&data.networkDetails&&data.networkDetails.url||''
+   }));
    if(data&&data.fatal){
-    if(data.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return}catch(e){}}
+    if(data.type===Hls.ErrorTypes.MEDIA_ERROR){
+     try{h.recoverMediaError();return}catch(e){}
+    }
     nextCandidate('HLS '+(data.details||data.type||'lỗi'))
    }
   });
+  h.loadSource(url);
   h.attachMedia(v);
- }catch(e){nextCandidate('HLS.js khởi tạo lỗi')}
+ }catch(e){dbg('HLS.js '+(e&&e.message||e));nextCandidate('HLS.js khởi tạo lỗi')}
 }
 function startFlv(c,cand,url,gen){
  if(!window.flvjs||!flvjs.isSupported()){nextCandidate('FLV/MSE không được hỗ trợ');return}

@@ -1,0 +1,29 @@
+name: Test ON Football alternate stream endpoints
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test alternate ON Football endpoints
+        shell: bash
+        run: |
+          set +e
+          items=(
+            "WINTV185|https://api.wintv.me/360/185/index.m3u8"
+            "KHANG_LIVE|https://live.khanggtivi.xyz/hls_vod/1080p/b297e038be0684b94f6de497e3544cdfe8e70865935ce5fc8038b2ceb6eb9e57173343/onfootball/index.m3u8"
+            "THVIP185|https://thvip.site/360/185/index.m3u8?cab15"
+            "KHANG_ONFOOT|https://khanggtivi.xyz/vuminhthanh/vmt2024/onfootball/index.m3u8"
+          )
+          for item in "${items[@]}"; do
+            n="${item%%|*}"; u="${item#*|}"
+            echo "=== $n ==="
+            curl -L --max-time 20 -A "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36" -sS -D /tmp/h -o /tmp/b "$u"
+            echo "HTTP=$(head -1 /tmp/h)"
+            grep -iE '^(content-type|content-length|location|access-control-allow-origin|server):' /tmp/h | head -20
+            echo "BYTES=$(wc -c < /tmp/b)"
+            head -c 500 /tmp/b | strings | head -12
+          done

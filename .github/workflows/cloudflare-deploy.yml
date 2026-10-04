@@ -3,8 +3,7 @@ name: Deploy NM7 TV Web to Cloudflare
 on:
   push:
     branches:
-      - main
-      - feat/tvdrm-player-integration-20261004
+      - fix/safari-drm-final-20261005
   workflow_dispatch:
 
 jobs:

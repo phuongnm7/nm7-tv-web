@@ -582,12 +582,35 @@ function tryHlsJs(c,cand,url,gen){
  }catch(e){nextCandidate('HLS.js khởi tạo lỗi')}
 }
 function startFlv(c,cand,url,gen){
- if(!window.flvjs||!flvjs.isSupported()){nextCandidate('FLV/MSE không được hỗ trợ');return}
- try{
-  var p=flvjs.createPlayer({type:'flv',isLive:true,cors:true,url:url},{enableStashBuffer:true,stashInitialSize:128*1024});
-  S.flv=p;p.on(flvjs.Events.ERROR,function(t,d){if(gen===S.generation)nextCandidate('FLV '+(d||t||'lỗi'))});
-  p.attachMediaElement($('video'));p.load();var x=$('video').play();if(x&&x.catch)x.catch(function(){})
- }catch(e){nextCandidate('FLV khởi tạo lỗi')}
+ var v=$('video');
+ function startMpegTsFallback(){
+  if(!window.mpegts||!mpegts.isSupported()){nextCandidate('FLV/MSE không được hỗ trợ');return}
+  try{
+   clearPlayers();
+   v.muted=false;v.defaultMuted=false;v.volume=1;
+   var p=mpegts.createPlayer({type:'flv',isLive:true,url:url},{enableWorker:false,enableStashBuffer:true,stashInitialSize:128*1024});
+   S.mpegts=p;
+   p.on(mpegts.Events.ERROR,function(t,d,i){if(gen===S.generation)nextCandidate('FLV/MPEG-TS '+(d||t||'lỗi'))});
+   p.attachMediaElement(v);p.load();
+   var x=v.play();if(x&&x.catch)x.catch(function(){});
+  }catch(e){nextCandidate('FLV fallback khởi tạo lỗi')}
+ }
+ if(window.flvjs&&flvjs.isSupported()){
+  try{
+   v.muted=false;v.defaultMuted=false;v.volume=1;
+   var p=flvjs.createPlayer({type:'flv',isLive:true,cors:true,url:url},{enableWorker:false,enableStashBuffer:true,stashInitialSize:128*1024});
+   S.flv=p;
+   p.on(flvjs.Events.ERROR,function(t,d){
+    if(gen!==S.generation)return;
+    try{p.destroy()}catch(e){} if(S.flv===p)S.flv=null;
+    startMpegTsFallback()
+   });
+   p.attachMediaElement(v);p.load();
+   var x=v.play();if(x&&x.catch)x.catch(function(){});
+   return
+  }catch(e){try{if(S.flv)S.flv.destroy()}catch(err){}S.flv=null}
+ }
+ startMpegTsFallback()
 }
 function startMpegTs(c,cand,url,gen){
  if(!window.mpegts||!mpegts.isSupported()){nextCandidate('MPEG-TS/MSE không được hỗ trợ');return}

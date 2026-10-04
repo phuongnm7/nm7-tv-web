@@ -74,10 +74,10 @@ jobs:
 
           HTML="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/?v=20261004-ios-drm")"
           echo "$HTML" | grep -q "shaka-player@5.2.12" || {
-              echo "Shaka 5.2.4 marker not found in deployed HTML"
+              echo "Shaka 5.2.12 marker not found in deployed HTML"
               exit 1
           }
-          echo "SHAKA_5_2_4_SMOKE_OK"
+          echo "SHAKA_5_2_12_SMOKE_OK"
 
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport.json
           python3 - <<'PY'

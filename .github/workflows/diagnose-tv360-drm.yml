@@ -1,0 +1,47 @@
+name: Diagnose TV360 ClearKey DASH endpoints
+
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Probe TV360 1-10
+        shell: bash
+        run: |
+          set +euo pipefail
+          for id in $(seq 1 10); do
+            U="https://vmttv.dpdns.org/tv360/?id=tv360-$id"
+            echo "===== TV360-$id ====="
+            curl -L --max-time 20 -sS -D "/tmp/h$id" -o "/tmp/b$id" -A "Dalvik/2.1.0"
+            echo "HTTP=$(grep -m1 -E '^HTTP/' /tmp/h$id | tail -1)"
+            echo "FINAL=$(grep -i '^location:' /tmp/h$id | tail -1 | sed 's/\r//')"
+            echo "BYTES=$(wc -c < /tmp/b$id)"
+            python3 - "$id" "/tmp/b$id" <<'PY'
+          import sys, re, xml.etree.ElementTree as ET
+          i,p=sys.argv[1],sys.argv[2]
+          b=open(p,'rb').read()
+          if b.lstrip().startswith(b'<'):
+            try:
+              root=ET.fromstring(b)
+              ns={'d':'urn:mpeg:dash:schema:mpd:2011'}
+              print("TYPE",root.attrib.get('type'),"UPDATE",root.attrib.get('minimumUpdatePeriod'),
+                    "TSBD",root.attrib.get('timeShiftBufferDepth'),"SPD",root.attrib.get('suggestedPresentationDelay'))
+              for a in root.findall('.//d:AdaptationSet',ns):
+                reps=a.findall('d:Representation',ns)
+                cps=a.findall('d:ContentProtection',ns)
+                print("ADAPT",a.attrib.get('contentType'),a.attrib.get('mimeType'),
+                      a.attrib.get('codecs'),"REPS",len(reps),"CP",len(cps))
+                for r in reps[:8]:
+                  print(" REP",r.attrib.get('id'),r.attrib.get('bandwidth'),
+                        r.attrib.get('width'),r.attrib.get('height'),r.attrib.get('frameRate'),
+                        r.attrib.get('codecs'))
+            except Exception as e: print("XML_ERROR",type(e).__name__,str(e)[:160])
+          else:
+            print("BODY_HEAD",b[:180].decode('utf-8','replace').replace('\n',' '))
+          PY
+          done

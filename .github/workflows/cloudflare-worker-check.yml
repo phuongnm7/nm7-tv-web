@@ -28,6 +28,25 @@ jobs:
           echo "LIVE_URL=$LIVE_URL" | tee /tmp/cloudflare-live-url
           printf '%s\n' "$LIVE_URL" > /tmp/cloudflare-live-url.txt
 
+      - name: Inspect merged playlist candidates
+        run: |
+          set -euo pipefail
+          LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
+          node <<'NODE'
+          const base=process.env.LIVE_URL;
+          (async()=>{
+            const r=await fetch(base+'/api/playlist?source=tv',{cache:'no-store'});
+            const d=await r.json();
+            const wanted=['vtv1hd','VTV1.vn','onfootball','onsports','onsportsplus','onsportsnews'];
+            for(const id of wanted){
+              const hits=(d.channels||[]).filter(c=>String(c.id).toLowerCase()===id.toLowerCase()||String(c.name).toLowerCase().includes(id.toLowerCase().replace('.vn','')));
+              for(const c of hits.slice(0,2)){
+                console.log('CANDIDATES '+c.name+' '+JSON.stringify((c.candidates||[]).slice(0,6).map(x=>({url:x.url,type:x.type,hls:x.hls,dash:x.dash,expires:(/[?&]expires=(\\d+)/i.exec(x.url)||[])[1]||null}))));
+              }
+            }
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
       - name: Diagnose direct and proxy HLS manifests
         run: |
           set -euo pipefail

@@ -19,8 +19,12 @@ jobs:
           python3 - <<'PY'
           import re,html,urllib.parse,urllib.request
           p=open('/tmp/page.html',encoding='utf-8',errors='ignore').read()
-          ms=re.findall(r'(?:window\.location\.replace|location\.href)\(\s*[\'"]([^\'"]+)',p)
-          print('JS_URLS=',ms)
+          print('MATCHED_LINES:')
+          for line in p.splitlines():
+              if re.search(r'location|m3u8|onfootball|token|window\.',line,re.I):
+                  print(line[:2000])
+          ms=re.findall(r'https?[^\'"]+\.m3u8[^\'"]*',p,re.I)
+          print('M3U8_URLS=',ms[:20])
           for u in ms[:3]:
               u=html.unescape(u)
               r=urllib.request.Request(u,headers={'User-Agent':'Mozilla/5.0'})

@@ -1,0 +1,56 @@
+name: Standalone FLV.js browser test
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run standalone FLV.js against local proxy
+        shell: bash
+        run: |
+          cat > /tmp/flv-server.cjs <<'NODE'
+          const http=require('http'),https=require('https'),fs=require('fs');
+          const src='https://playback.livetl004.com/live/6a9a5525864ea536c2577392.flv';
+          http.createServer((req,res)=>{
+            if(req.url.startsWith('/stream.flv')){
+              https.get(src,{headers:{'User-Agent':'Mozilla/5.0'}},up=>{
+                res.writeHead(up.statusCode||502,{'content-type':'video/x-flv','access-control-allow-origin':'*','cache-control':'no-store'});
+                up.pipe(res)
+              }).on('error',e=>{res.writeHead(502);res.end(String(e))});return
+            }
+            const body=`<!doctype html><script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script><video id="v" autoplay muted></video>`;
+            res.writeHead(200,{'content-type':'text/html'});res.end(body)
+          }).listen(4175,'127.0.0.1');
+          NODE
+          node /tmp/flv-server.cjs &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage();
+            p.on('console',m=>console.log('CONSOLE='+m.type()+':'+m.text()));
+            await p.goto('http://127.0.0.1:4175/',{waitUntil:'domcontentloaded'});
+            const out=await p.evaluate(async()=>{
+              const v=document.getElementById('v');
+              if(!flvjs.isSupported())return {supported:false};
+              const x=flvjs.createPlayer({type:'flv',isLive:true,cors:true,url:'http://127.0.0.1:4175/stream.flv'},{enableWorker:false,enableStashBuffer:true,stashInitialSize:131072});
+              let mediaInfo=null;
+              x.on(flvjs.Events.MEDIA_INFO,i=>{mediaInfo=i});
+              x.on(flvjs.Events.ERROR,(t,d)=>console.log('FLVERROR',t,d));
+              x.attachMediaElement(v);x.load();try{await v.play()}catch(e){}
+              return new Promise(resolve=>setTimeout(()=>resolve({supported:true,ready:v.readyState,t:v.currentTime,paused:v.paused,mediaInfo}),10000))
+            });
+            console.log('STANDALONE_FLV='+JSON.stringify(out));
+            if(!(out.supported&&out.t>0&&out.ready>=2))throw new Error(JSON.stringify(out));
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)})
+          NODE

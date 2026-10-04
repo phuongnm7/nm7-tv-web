@@ -71,7 +71,7 @@ function safeProxyHeaders(request,urlObj) {
 }
 
 function appendProxy(url, q, extra={}) {
-  const u=new URL("/__nm7/stream", q.origin);
+  const u=new URL("/api/stream", q.origin);
   u.searchParams.set("u",url);
   const r=q.searchParams.get("r"), ua=q.searchParams.get("ua"), h=q.searchParams.get("h"), o=q.searchParams.get("o");
   if(r)u.searchParams.set("r",r);
@@ -232,7 +232,7 @@ async function playlistAPI(request){
     for(const c of merged){
       const out=[];
       for(const x of c.candidates||[]){
-        const u=new URL("/__nm7/stream",request.url);
+        const u=new URL("/api/stream",request.url);
         u.searchParams.set("u",x.url);
         if(x.ref)u.searchParams.set("r",x.ref);
         if(x.ua)u.searchParams.set("ua",x.ua);

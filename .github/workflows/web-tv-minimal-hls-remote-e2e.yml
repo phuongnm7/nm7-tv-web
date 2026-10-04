@@ -29,8 +29,8 @@ jobs:
           cp web-tv/index.html e2e-site/index.html
           cp web-tv/app.js e2e-site/app.js
           cp web-tv/dash.all.min.js e2e-site/dash.all.min.js
-          cp assets/nm7-default-background.webp e2e-site/assets/nm7-default-background.webp
-          cp assets/nm7-main-logo.png e2e-site/assets/nm7-main-logo.png
+          cp web-tv/assets/nm7-default-background.webp e2e-site/assets/nm7-default-background.webp
+          cp web-tv/assets/nm7-main-logo.png e2e-site/assets/nm7-main-logo.png
 
       - name: Write fixture playlist and adapt page
         run: |

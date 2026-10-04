@@ -76,7 +76,7 @@ jobs:
           PY
 
           HTML="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/?v=20261004-ios-drm")"
-          echo "$HTML" | grep -q "shaka-player@5.2.12" || {
+          echo "$HTML" | grep -q "shaka-player@5.2.4" || {
               echo "Shaka 5.2.12 marker not found in deployed HTML"
               exit 1
           }

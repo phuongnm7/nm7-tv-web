@@ -5,6 +5,10 @@ on:
     branches: ["cloudflare-migration"]
   workflow_dispatch:
 
+concurrency:
+  group: nm7-tv-web-cloudflare-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest

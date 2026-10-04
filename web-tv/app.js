@@ -786,6 +786,7 @@ function bindPointerNavigation(){
 }
 function startup(){
  restoreUser();
+ bindPointerNavigation();
  window.addEventListener('keydown',onKey,true);
  document.addEventListener('keydown',onKey,true);
  window.addEventListener('focus',function(){if(!S.dialog&&!S.menuOpen){setTimeout(function(){if(S.player)playerFocus();else focusHome(false)},30)}},true);

@@ -73,10 +73,11 @@ function safeProxyHeaders(request,urlObj) {
 function appendProxy(url, q, extra={}) {
   const u=new URL("/__nm7/stream", q.origin);
   u.searchParams.set("u",url);
-  const r=q.searchParams.get("r"), ua=q.searchParams.get("ua"), h=q.searchParams.get("h");
+  const r=q.searchParams.get("r"), ua=q.searchParams.get("ua"), h=q.searchParams.get("h"), o=q.searchParams.get("o");
   if(r)u.searchParams.set("r",r);
   if(ua)u.searchParams.set("ua",ua);
   if(h)u.searchParams.set("h",h);
+  if(o)u.searchParams.set("o",o);
   for(const [k,v] of Object.entries(extra||{}))u.searchParams.set(k,v);
   return u.toString();
 }

@@ -140,11 +140,11 @@ function parsePlaylist(text, base) {
 }
 
 function addBuiltin(c){
-  const key=(c.id||"").toLowerCase().trim(), name=(c.name||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
+  const key=(c.id||"").toLowerCase().trim(), rawName=(c.name||"").toLowerCase(), name=rawName.replace(/[^a-z0-9]+/g,"");
   let extra=BUILTIN[key]||[];
   if(!extra.length&&(key==="vtv1"||key==="vtv1.vn"||name==="vtv1"||name.includes("vtv1")||name.startsWith("vtv1")))extra=BUILTIN.vtv1hd;
   if(!extra.length&&(key==="vtvcab3hd"||name.startsWith("onsport")||name.includes("vtvcab3")))extra=BUILTIN.vtvcab3hd;
-  if(!extra.length&&(key==="vtvcab6hd"||name.startsWith("onsports+")||name.includes("vtvcab6")))extra=BUILTIN.vtvcab6hd;
+  if(!extra.length&&(key==="vtvcab6hd"||key==="onsportsplus"||/on\s*sports\s*\+/i.test(rawName)||name.includes("vtvcab6")))extra=BUILTIN.vtvcab6hd;
   if(!extra.length&&(key==="vtvcab16hd"||name.startsWith("onfootball")||name.includes("vtvcab16")))extra=BUILTIN.vtvcab16hd;
   if(!extra.length&&(key==="vtvcab18hd"||name.startsWith("onsportsnews")||name.includes("vtvcab18")))extra=BUILTIN.vtvcab18hd;
   const seen=new Set((c.candidates||[]).map(x=>x.url));

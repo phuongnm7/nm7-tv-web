@@ -1,6 +1,6 @@
 function streamLike(url){
  const u=String(url||'');
- return /\.(m3u8|m3u|mpd|ts|flv|mp4)(?:$|[?#])/i.test(u)||/manifest|playlist|index/i.test(u);
+ return /\.(m3u8|m3u|mpd|ts|flv|mp4)(?:$|[?#])/i.test(u)||/manifest|playlist|index/i.test(u)||/\/play(?:\/|\?|$)/i.test(u)||/:208[67]\//i.test(u);
 }
 function typeFrom(contentType,url,prefix){
  const ct=String(contentType||'').toLowerCase(),u=String(url||'').toLowerCase(),b=String(prefix||'').replace(/^\uFEFF/,'').trim().toLowerCase();
@@ -33,6 +33,15 @@ function extractJsonUrls(value,out,base,depth){
   for(const k of Object.keys(value)){if(!preferred.includes(k))extractJsonUrls(value[k],out,base,depth+1)}
  }
 }
+function isSafeNestedUrl(u){
+ try{
+  const h=new URL(u).hostname.toLowerCase();
+  if(h==='localhost'||h==='127.0.0.1'||h==='0.0.0.0'||h==='[::1]')return false;
+  if(/^10\./.test(h)||/^192\.168\./.test(h)||/^172\.(1[6-9]|2\d|3[0-1])\./.test(h))return false;
+  if(/^169\.254\./.test(h)||h==='metadata.google.internal')return false;
+  return /^https?:$/.test(new URL(u).protocol);
+ }catch{return false}
+}
 function extractBodyUrls(body,base){
  const out=[];
  const text=String(body||'');
@@ -56,10 +65,23 @@ function extractBodyUrls(body,base){
 async function fetchSmall(target,headers,range){
  try{
   const r=await fetch(target,{method:'GET',redirect:'follow',cache:'no-store',headers:{...headers,Range:range||'bytes=0-65535'}});
-  const ab=await r.arrayBuffer();
-  const bytes=new Uint8Array(ab);
-  let text='';
-  try{text=new TextDecoder('utf-8',{fatal:false}).decode(bytes)}catch{text=Buffer.from(bytes).toString('utf8')}
+  const limit=65536, chunks=[], reader=r.body&&r.body.getReader?r.body.getReader():null;
+  if(reader){
+   let total=0;
+   while(total<limit){
+    const x=await reader.read();if(x.done)break;
+    const part=x.value||new Uint8Array(0),take=Math.min(part.length,limit-total);
+    if(take)chunks.push(part.slice(0,take));total+=take;
+    if(take<part.length)break;
+   }
+   try{await reader.cancel()}catch{}
+   const bytes=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let off=0;
+   for(const c of chunks){bytes.set(c,off);off+=c.length}
+   let text='';try{text=new TextDecoder('utf-8',{fatal:false}).decode(bytes)}catch{text=Buffer.from(bytes).toString('utf8')}
+   return {r,text};
+  }
+  const ab=await r.arrayBuffer(),bytes=new Uint8Array(ab).slice(0,limit);
+  let text='';try{text=new TextDecoder('utf-8',{fatal:false}).decode(bytes)}catch{text=Buffer.from(bytes).toString('utf8')}
   return {r,text};
  }catch{return null}
 }
@@ -83,7 +105,7 @@ async function inspect(target,headers,depth){
   const nestedType=typeFrom('',stream,'');
   if(nestedType!=='http')return {type:nestedType,finalUrl,resolvedUrl:stream,contentType:ct,serverType:r.headers.get('server')||''};
  }
- const nonStream=urls.find(u=>!streamLike(u));
+ const nonStream=urls.find(u=>!streamLike(u)&&isSafeNestedUrl(u));
  if(nonStream&&nonStream!==finalUrl){
   const nested=await inspect(nonStream,headers,depth+1);
   if(nested&&nested.resolvedUrl&&nested.resolvedUrl!==nonStream)return {...nested,finalUrl:finalUrl};

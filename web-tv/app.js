@@ -391,6 +391,7 @@ function startupCandidateIndex(c){
 function shouldProxyFirst(cand,kind){
  cand=normalizeCandidate(cand||{});
  if(kind==='flv'||kind==='mpegts')return true;
+ if(isAppleTouchDevice()&&(kind==='hls'||kind==='http'))return true;
  if(cand.forceProxy===true)return true;
  return false
 }

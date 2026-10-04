@@ -47,6 +47,22 @@ function saveUser(){try{localStorage.setItem('nm7:fav',JSON.stringify(S.fav));lo
 function restoreUser(){try{S.fav=JSON.parse(localStorage.getItem('nm7:fav')||'[]');S.recent=JSON.parse(localStorage.getItem('nm7:recent')||'[]')}catch(e){S.fav=[];S.recent=[]}}
 function cacheKey(){return 'nm7:web:1.0.69:'+S.source}
 function readCache(){try{var x=JSON.parse(localStorage.getItem(cacheKey())||'null');return x&&Array.isArray(x.channels)&&x.channels.length?x:null}catch(e){return null}}
+function isAndroid1069DefaultList(channels){
+ if(!Array.isArray(channels)||!channels.length)return false;
+ var groups=[],seen={};
+ for(var i=0;i<channels.length;i++){var g=String(channels[i].group||'');if(!seen[g]){seen[g]=1;groups.push(g)}}
+ if(groups.length<4||groups[0]!=='VTV'||groups[1]!=='VTVcab'||groups[2]!=='Thể Thao'||groups[3]!=='SCTV')return false;
+ var vtv=channels.filter(function(x){return String(x.group||'')==='VTV'}).map(function(x){return x.name});
+ var cab=channels.filter(function(x){return String(x.group||'')==='VTVcab'}).map(function(x){return x.name});
+ var sport=channels.filter(function(x){return String(x.group||'')==='Thể Thao'}).map(function(x){return x.name});
+ var sctv=channels.filter(function(x){return String(x.group||'')==='SCTV'}).map(function(x){return x.name});
+ var vtvExpected=['VTV1','VTV2','VTV3','VTV4','VTV5','VTV5 Tây Nam Bộ','VTV5 Tây Nguyên','VTV6'];
+ var cabExpected=['On BiBi','ON Cine','ON E- Channel','On Golf','ON Info TV','On Kids','On Life','On Movies - You TV'];
+ var sportExpected=['HTV Thể Thao','SCTV15','SCTV17','SCTV22','VTV6','VTVCab 3 - ON Sports HD'];
+ var sctvExpected=['SCTV Phim Tổng Hợp','SCTV1','SCTV2 - TODAY TV','SCTV3'];
+ function starts(a,b){for(var i=0;i<b.length;i++)if(a[i]!==b[i])return false;return true}
+ return starts(vtv,vtvExpected)&&starts(cab,cabExpected)&&starts(sport,sportExpected)&&starts(sctv,sctvExpected);
+}
 function saveCache(){try{localStorage.setItem(cacheKey(),JSON.stringify({at:Date.now(),channels:S.list}))}catch(e){}}
 function norm(c){
  c=c||{};
@@ -305,7 +321,8 @@ function applyPlaylist(d,source,message){
 }
 function loadSource(source,force){
  S.source=source;S.query='';S.loading=true;
- var cached=readCache();if(cached&&!force){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome();toast('Đã mở cache · đang cập nhật…')}
+ var cached=readCache();if(source==='tv'&&cached&&!isAndroid1069DefaultList(cached.channels))cached=null;
+ if(cached&&!force){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome();toast('Đã mở cache 1.0.69 · đang cập nhật…')}
  else $('homeRows').innerHTML='<div class="empty">Đang tải '+(source==='sport'?'thể thao':'truyền hình')+'…</div>';
 
  fetchJsonTimeout(PLAYLISTS[source],12000).then(function(d){
@@ -328,23 +345,14 @@ function fallbackStaticPlaylist(cached,firstError){
  });
 }
 function fallbackOriginal(cached,firstError){
- var urls=[
-  'https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/',
-  'https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u'
- ];
- function tryNext(i,last){
-  if(i>=urls.length){
-   if(cached&&cached.channels.length)toast('Nguồn mới lỗi · giữ playlist cache');
-   else toast('Không tải được playlist: '+(firstError&&firstError.message||'lỗi')+' · '+(last&&last.message||'fallback lỗi'));
-   return;
-  }
-  var u=urls[i];
-  fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(function(t){
-   var p=parseM3U(t,u);if(!p.channels.length)throw new Error('fallback rỗng');
-   S.list=p.channels;S.row=0;S.col=0;rebuildGroups();renderHome();saveCache();toast('Đã mở nguồn dự phòng · '+S.list.length+' kênh')
-  }).catch(function(e){tryNext(i+1,e)})
- }
- tryNext(0,null);
+ var u='https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/';
+ fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(function(t){
+  var p=parseM3U(t,u);if(!p.channels.length||!isAndroid1069DefaultList(p.channels))throw new Error('nguồn mặc định không đúng');
+  S.list=p.channels;S.row=0;S.col=0;rebuildGroups();renderHome();saveCache();toast('Đã mở nguồn mặc định Android 1.0.69 · '+S.list.length+' kênh')
+ }).catch(function(e){
+  if(cached&&cached.channels.length&&isAndroid1069DefaultList(cached.channels)){toast('Nguồn mới lỗi · giữ playlist 1.0.69')}
+  else toast('Không tải được nguồn mặc định: '+(firstError&&firstError.message||e.message));
+ });
 }
 
 function normalizeCandidate(cand){

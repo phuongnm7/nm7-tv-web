@@ -130,3 +130,11 @@ Không lấy một bản thử nghiệm mới làm baseline khi vòng test hiệ
 - Cloudflare deploy của commit `808538...` đã **deploy thành công**, nhưng smoke test thất bại do test cũ đang kỳ vọng thứ tự nhóm `Thể Thao` không còn khớp dữ liệu thực tế (`HTV Thể Thao`, `On Sports 50fps`, `SCTV15 HD`, `SCTV17 HD`, `SCTV22`, `VTV6 HD`).
 - `Web Browser Validation` của `808538...` đã **success**.
 - Commit mới nhất `32287b39...` đã kích hoạt lại toàn bộ workflow và đang được kiểm tra; chưa coi là mốc ổn định cuối cùng cho đến khi vòng test kết thúc.
+## Hiệu chỉnh iPad sau test thực tế — 04/10/2026
+
+- Bản `aa0a45a...` đã cho thấy đúng lỗi hồi quy: ép HLS trên iPad qua proxy ngay từ lần thử đầu làm nhiều kênh HLS native đang chạy được bị lỗi.
+- Đã phục hồi chiến lược **native HLS trước** trên iPad/iPhone; chỉ chuyển sang `/api/stream` khi native HLS phát lỗi.
+- Giữ nguyên **HLS-first khi mở On Sports 50fps** nếu playlist có candidate HLS không DRM; không chủ động mở DASH+ClearKey trước.
+- `index.html` đã thêm query version cho `app.js` để tránh dùng JavaScript player cũ từ cache.
+- Workflow deploy Cloudflare của commit `11bcc366...` đã **success**, gồm deploy và smoke test.
+- Khi test lại cần dùng URL có query mới, ví dụ `https://nm7-tv-web.phuongnm7-iptv.workers.dev/tv?v=20261004-apple-hls`, để buộc trình duyệt lấy HTML/player mới.

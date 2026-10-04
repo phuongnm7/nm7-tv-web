@@ -163,6 +163,57 @@ async function fetchText(url){
 }
 
 let playlistCache={};
+function channelKey(c){
+  const id=String(c.id||"").toLowerCase().trim();
+  const name=String(c.name||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+  return (id||name)+"|"+String(c.group||"").toLowerCase().trim();
+}
+function candidateScore(x){
+  const u=String(x&&x.url||"");
+  let s=0, m=/[?&]expires=(\d+)/i.exec(u);
+  if(/\.m3u8(?:$|\?)/i.test(u))s+=100;
+  if(/\.mpd(?:$|\?)/i.test(u))s+=90;
+  if(x&&x.dash)s+=15;
+  if(x&&x.hls)s+=10;
+  if(m){
+    const exp=Number(m[1]), now=Math.floor(Date.now()/1000);
+    if(exp<now)return -10000;
+    s+=Math.min(60,Math.max(0,Math.floor((exp-now)/3600)));
+  }
+  if(/tv360\.php/i.test(u))s+=20;
+  return s;
+}
+function mergeChannels(results){
+  const map=new Map(), order=[];
+  for(const result of results){
+    for(const c0 of (result.channels||[])){
+      const c={...c0,candidates:(c0.candidates||[]).map(x=>({...x}))};
+      const key=channelKey(c);
+      if(!key)continue;
+      let dst=map.get(key);
+      if(!dst){dst={...c,candidates:[]};map.set(key,dst);order.push(dst)}
+      if(!dst.logo&&c.logo)dst.logo=c.logo;
+      const seen=new Set(dst.candidates.map(x=>x.url));
+      for(const x of c.candidates){
+        if(!x.url||!/^https?:/i.test(x.url))continue;
+        if(candidateScore(x)<-5000)continue;
+        if(!seen.has(x.url)){dst.candidates.push(x);seen.add(x.url)}
+      }
+    }
+  }
+  for(const c of order){
+    addBuiltin(c);
+    const seen=new Set(),out=[];
+    for(const x of c.candidates||[]){
+      if(!x.url||seen.has(x.url))continue;
+      if(candidateScore(x)<-5000)continue;
+      seen.add(x.url);out.push(x);
+    }
+    out.sort((a,b)=>candidateScore(b)-candidateScore(a));
+    c.candidates=out;
+  }
+  return order.filter(c=>c.candidates.length);
+}
 async function playlistAPI(request){
   const source=new URL(request.url).searchParams.get("source"), targets=PLAYLIST_SOURCES[source];
   if(!targets)return json({channels:[],source},400);
@@ -172,25 +223,28 @@ async function playlistAPI(request){
     try{
       const {text}=await fetchText(target);
       const channels=parsePlaylist(text,target);
-      for(const c of channels){
-        const out=[];
-        for(const x of c.candidates||[]){
-          if(!/^https?:/i.test(x.url)) continue;
-          const u=new URL("/__nm7/stream",request.url);
-          u.searchParams.set("u",x.url);
-          if(x.ref)u.searchParams.set("r",x.ref);
-          if(x.ua)u.searchParams.set("ua",x.ua);
-          if(x.headers&&Object.keys(x.headers).length)u.searchParams.set("h",JSON.stringify(x.headers));
-          out.push({...x,proxy:u.toString()});
-        }
-        c.candidates=out;
-      }
       if(!channels.length)throw new Error("playlist rỗng");
       return {target,channels};
     }catch(e){return {target,error:String(e)}}
   }));
-  const good=results.find(x=>x.channels?.length);
-  if(good){playlistCache[source]={time:now,channels:good.channels};return json({channels:good.channels,source,cached:false,upstream:good.target});}
+  const merged=mergeChannels(results);
+  if(merged.length){
+    for(const c of merged){
+      const out=[];
+      for(const x of c.candidates||[]){
+        const u=new URL("/__nm7/stream",request.url);
+        u.searchParams.set("u",x.url);
+        if(x.ref)u.searchParams.set("r",x.ref);
+        if(x.ua)u.searchParams.set("ua",x.ua);
+        if(x.headers&&Object.keys(x.headers).length)u.searchParams.set("h",JSON.stringify(x.headers));
+        out.push({...x,proxy:u.toString()});
+      }
+      c.candidates=out;
+    }
+    playlistCache[source]={time:now,channels:merged};
+    const upstreams=results.filter(x=>x.channels?.length).map(x=>x.target);
+    return json({channels:merged,source,cached:false,upstreams,merged:true});
+  }
   const errors=results.filter(x=>x.error).map(x=>x.target+": "+x.error).join(" | ");
   if(hit)return json({channels:hit.channels,source,cached:true,stale:true,error:errors});
   return json({channels:[],source,error:errors},504);

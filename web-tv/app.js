@@ -446,6 +446,7 @@ function clearPlayers(){
  if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}
  if(S.dash){try{S.dash.reset()}catch(e){}S.dash=null}
  if(S.shaka){try{S.shaka.destroy()}catch(e){}S.shaka=null}
+ if(S.flv){try{S.flv.destroy()}catch(e){}S.flv=null}
  if(S.mpegts){try{S.mpegts.destroy()}catch(e){}S.mpegts=null}
 }
 function setStatus(s,show){$('status').textContent=s||'';$('status').style.display=show===false?'none':'flex'}
@@ -496,7 +497,6 @@ function tryCandidate(){
  }
  if(kind==='http'&&!cand.mime&&!cand.type){probeCandidate(c,cand,generation);return}
  startByType(c,cand,url,kind,generation);
- S.watchdog=setTimeout(function(){if(S.generation!==generation||!S.player)return;if(v.readyState<2||v.paused)nextCandidate('Timeout phát 15s')},15000)
 }
 function startByType(c,cand,url,kind,gen){
  if(kind==='dash')startDash(c,cand,url,gen);
@@ -592,6 +592,7 @@ function startFlv(c,cand,url,gen){
    S.mpegts=p;
    p.on(mpegts.Events.ERROR,function(t,d,i){if(gen===S.generation)nextCandidate('FLV/MPEG-TS '+(d||t||'lỗi'))});
    p.attachMediaElement(v);p.load();
+   v.onplaying=function(){markPlaying(gen)};
    var x=v.play();if(x&&x.catch)x.catch(function(){});
   }catch(e){nextCandidate('FLV fallback khởi tạo lỗi')}
  }
@@ -606,6 +607,7 @@ function startFlv(c,cand,url,gen){
     startMpegTsFallback()
    });
    p.attachMediaElement(v);p.load();
+   v.onplaying=function(){markPlaying(gen)};
    var x=v.play();if(x&&x.catch)x.catch(function(){});
    return
   }catch(e){try{if(S.flv)S.flv.destroy()}catch(err){}S.flv=null}

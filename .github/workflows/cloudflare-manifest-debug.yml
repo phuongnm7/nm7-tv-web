@@ -42,6 +42,29 @@ jobs:
             if(!last.startsWith('200 '))process.exit(1);
           })();
           NODE
+      - name: Wait for HLS API readiness
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
+          const master='https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8';
+          (async()=>{
+            let last='';
+            for(let i=0;i<30;i++){
+              try{
+                const u=base+'/api/stream?u='+encodeURIComponent(master);
+                const r=await fetch(u,{redirect:'follow',cache:'no-store'});
+                const t=await r.text();
+                last=r.status+' '+(r.headers.get('content-type')||'')+' '+t.slice(0,24).replace(/\s+/g,' ');
+                if(r.status===200&&/^#EXTM3U/m.test(t))break;
+              }catch(e){last=String(e)}
+              await new Promise(x=>setTimeout(x,2000));
+            }
+            console.log('HLS_API_READY='+last);
+            if(!last.startsWith('200 ')||!last.includes('#EXTM3U'))process.exit(1);
+          })();
+          NODE
       - name: Check manifest chain
         run: |
           set -euo pipefail

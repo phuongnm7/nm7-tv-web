@@ -22,3 +22,40 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+
+      - name: Smoke test deployed Cloudflare Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/" -o /tmp/nm7-home.html
+          grep -q "NM7 TV 1.0.69" /tmp/nm7-home.html
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=android1069" -o /tmp/nm7-tv.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-tv.json',encoding='utf-8'))
+          channels=d.get('channels') or []
+          if not channels:
+              raise SystemExit('default Android 1.0.69 playlist returned zero channels')
+          groups=[]
+          seen=set()
+          for c in channels:
+              g=c.get('group') or 'Khác'
+              if g not in seen:
+                  seen.add(g); groups.append(g)
+          expected=['VTV','VTVcab','Thể Thao','SCTV']
+          if groups[:4] != expected:
+              raise SystemExit(f'wrong first groups: {groups[:8]}')
+          def names(g): return [c.get('name','') for c in channels if (c.get('group') or 'Khác')==g]
+          checks={
+              'VTV':['VTV1','VTV2','VTV3','VTV4','VTV5','VTV5 Tây Nam Bộ','VTV5 Tây Nguyên','VTV6'],
+              'VTVcab':['On BiBi','ON Cine','ON E- Channel','On Golf','ON Info TV','On Kids','On Life','On Movies - You TV'],
+              'Thể Thao':['HTV Thể Thao','SCTV15','SCTV17','SCTV22','VTV6','VTVCab 3 - ON Sports HD'],
+              'SCTV':['SCTV Phim Tổng Hợp','SCTV1','SCTV2 - TODAY TV','SCTV3'],
+          }
+          for g,want in checks.items():
+              got=names(g)
+              if got[:len(want)] != want:
+                  raise SystemExit(f'{g} order mismatch: {got[:len(want)]}')
+          print('CLOUDFLARE_SMOKE_OK channels=',len(channels),'groups=',groups[:8])
+          PY

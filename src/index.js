@@ -381,7 +381,12 @@ export default {
     const url=new URL(request.url);
     if(url.pathname==="/"||url.pathname==="/tv"){
       const target=new URL("/index.html",url);
-      return env.ASSETS.fetch(new Request(target,request));
+      const assetRequest=new Request(target.toString(),{
+        method:"GET",
+        headers:request.headers,
+        redirect:"manual"
+      });
+      return env.ASSETS.fetch(assetRequest);
     }
     return env.ASSETS.fetch(request);
   }

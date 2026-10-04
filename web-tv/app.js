@@ -358,6 +358,36 @@ function normalizeCandidate(cand){
  if(!cand.ua&&!cand.headers['User-Agent'])cand.ua='';
  return cand
 }
+function isAppleTouchDevice(){
+ var ua=navigator.userAgent||'';
+ return /iPad|iPhone|iPod/i.test(ua)||(/Macintosh/i.test(ua)&&Number(navigator.maxTouchPoints||0)>1)
+}
+function isDashDrmCandidate(cand){
+ cand=normalizeCandidate(cand||{});
+ var u=String(cand.url||''),t=String(cand.type||'').toLowerCase(),m=String(cand.mime||'').toLowerCase();
+ return !!cand.drm&&(cand.dash||t==='dash'||m.indexOf('dash+xml')>=0||/\.mpd(?:$|\?)/i.test(u))
+}
+function startupCandidateIndex(c){
+ var a=c&&Array.isArray(c.candidates)?c.candidates:[];
+ if(!a.length)return 0;
+ if(isDashDrmCandidate(a[0])){
+  for(var i=0;i<a.length;i++){
+   var k=classify(a[i]);
+   if(k==='hls'&&!a[i].drm)return i
+  }
+ }
+ if(isAppleTouchDevice()){
+  for(var j=0;j<a.length;j++){
+   var ak=classify(a[j]);
+   if(ak==='hls'&&!a[j].drm)return j
+  }
+  for(var q=0;q<a.length;q++){
+   var qk=classify(a[q]);
+   if((qk==='mp4'||qk==='hls')&&!a[q].drm)return q
+  }
+ }
+ return 0
+}
 function shouldProxyFirst(cand,kind){
  cand=normalizeCandidate(cand||{});
  if(kind==='flv'||kind==='mpegts')return true;
@@ -458,7 +488,7 @@ function getCandidate(){return S.current&&S.current.candidates?normalizeCandidat
 
 function openPlayer(c){
  if(!c||!c.candidates||!c.candidates.length){toast('Kênh chưa có URL phát');return}
- S.current=c;S.candidateIndex=0;S.attemptStep=0;S.proxyAttempt=false;S.player=true;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;
+ S.current=c;S.candidateIndex=startupCandidateIndex(c);S.attemptStep=0;S.proxyAttempt=false;S.player=true;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;
  S.zone='player';$('player').className='';$('ctrl').className='hidden';$('quick').className='hidden';
  $('playerTitle').textContent=c.name;$('playerMeta').textContent=c.url||'';
  S.recent=[c.id].concat(S.recent.filter(function(x){return x!==c.id})).slice(0,80);saveUser();tryCandidate()
@@ -475,7 +505,7 @@ function nextCandidate(reason){
  if(!c)return;
  if(S.attemptStep<1){
   S.attemptStep++;
-  toast((reason||'Nguồn lỗi')+' · thử '+(S.attemptStep===1?'nguồn còn lại':'proxy'));
+  toast((reason||'Nguồn lỗi')+' · '+(S.attemptStep===1?'thử proxy':'thử lại'));
   setTimeout(tryCandidate,120);
   return
  }
@@ -491,6 +521,9 @@ function tryCandidate(){
  var c=S.current,cand=getCandidate(),v=$('video'),kind,generation=S.generation;
  if(!cand){setStatus('Kênh chưa có URL phát');return}
  clearPlayers();kind=classify(cand);
+ if(isAppleTouchDevice()&&kind==='dash'&&isDashDrmCandidate(cand)){
+  setStatus('Kênh này dùng DASH + ClearKey.\\nSafari trên iPad/iPhone không hỗ trợ đường phát này.');return
+ }
  S.proxyAttempt=attemptUsesProxy(cand,kind);
  var sourceUrl=cand.resolvedUrl||cand.url,url=makeProxy(sourceUrl,cand);
  setStatus('Đang mở '+c.name+'\\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));

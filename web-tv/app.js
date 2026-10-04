@@ -507,15 +507,18 @@ function startDirect(c,cand,url,gen){
 }
 function startHls(c,cand,url,gen){
  var v=$('video'),ua=navigator.userAgent||'',safariLike=/Safari/i.test(ua)&&!/Chrome|Chromium|Android/i.test(ua),tizenLike=/SMART-TV|Tizen/i.test(ua);
- var native=!!(v.canPlayType&&(v.canPlayType('application/vnd.apple.mpegurl')||v.canPlayType('application/x-mpegURL')))&&(safariLike||tizenLike);
+ var nativeType=v.canPlayType&&(v.canPlayType('application/vnd.apple.mpegurl')||v.canPlayType('application/x-mpegURL'));
+ var native=!!nativeType&&(safariLike||tizenLike||/Chrome|Chromium|Edg/i.test(ua));
  if(native){
-  v.onloadedmetadata=function(){markPlaying(gen)};v.oncanplay=function(){markPlaying(gen)};v.src=url;
-  var p=v.play();if(p&&p.catch)p.catch(function(){});
   v.onerror=function(){
    if(gen!==S.generation||!S.player)return;
    if(S.debug)console.log('NM7 NATIVE HLS ERROR',v.error?{code:v.error.code,message:v.error.message}:null,url);
    nextCandidate('Native HLS lỗi');
-  };return
+  };
+  v.onloadedmetadata=function(){markPlaying(gen)};
+  v.oncanplay=function(){markPlaying(gen)};
+  try{v.src=url;var p=v.play();if(p&&p.catch)p.catch(function(){})}catch(e){nextCandidate('Native HLS mở lỗi')}
+  return
  }
  tryHlsJs(c,cand,url,gen)
 }

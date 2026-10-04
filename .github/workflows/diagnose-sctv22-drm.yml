@@ -80,3 +80,25 @@ jobs:
           PY
             sleep 2
           done
+
+      - name: Probe SCTV22 proxy with browser headers
+        shell: bash
+        run: |
+          set +euo pipefail
+          ENTRY='https://liveatmvng.vtvprime.vn/live/data8/SCTV22/Live_DASHDRM/SCTV22.mpd'
+          BASE='https://nm7-tv-web.phuongnm7-iptv.workers.dev'
+          ENC="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=""))' "$ENTRY")"
+          for profile in 1 2 3 4; do
+            case "$profile" in
+              1) REF='https://vtvgo.vn/'; ORG='https://vtvgo.vn';;
+              2) REF='http://sctvonline.vn/'; ORG='http://sctvonline.vn';;
+              3) REF='https://sctvonline.vn/'; ORG='https://sctvonline.vn';;
+              4) REF=''; ORG='';;
+            esac
+            H=''
+            [ -n "$REF" ] && H="$H&r=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=""))' "$REF")"
+            [ -n "$ORG" ] && H="$H&h=$(python3 -c 'import urllib.parse,json,sys; print(urllib.parse.quote(json.dumps({"Origin":sys.argv[1]}),safe=""))' "$ORG")"
+            echo "=== PROFILE $profile ==="
+            curl -sS -L --max-time 25 -o "/tmp/p$profile" -w 'HTTP=%{http_code} BYTES=%{size_download}\n' -A "Dalvik/2.1.0" "$BASE/api/stream?u=$ENC$H"
+            head -c 120 /tmp/p$profile | tr '\n' ' '; echo
+          done

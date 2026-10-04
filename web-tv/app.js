@@ -380,6 +380,10 @@ function isDashDrmCandidate(cand){
  var u=String(cand.url||''),t=String(cand.type||'').toLowerCase(),m=String(cand.mime||'').toLowerCase();
  return !!cand.drm&&(cand.dash||t==='dash'||m.indexOf('dash+xml')>=0||/\.mpd(?:$|\?)/i.test(u))
 }
+function isTv360DrmCandidate(cand){
+ cand=normalizeCandidate(cand||{});
+ return !!cand.drm&&/vmttv\.dpdns\.org|tv360\.vn/i.test(String(cand.url||''))
+}
 function variantBaseName(name){
  return String(name||'').replace(/\s*\[(?:flv|hls(?:\s*\d+)?)\]\s*$/i,'').trim()
 }
@@ -432,6 +436,9 @@ function shouldProxyFirst(cand,kind){
  cand=normalizeCandidate(cand||{});
  if(kind==='flv'||kind==='mpegts')return true;
  if(cand.forceProxy===true)return true;
+ // iOS/iPadOS: keep DASH+DRM same-origin through our proxy so token redirects,
+ // segment CORS and request headers stay consistent throughout the live session.
+ if(isAppleTouchDevice()&&kind==='dash'&&cand.drm)return true;
  return false
 }
 function attemptUsesProxy(cand,kind){
@@ -836,14 +843,15 @@ function startShaka(c,cand,url,drm,gen){
   if(shaka.polyfill&&shaka.polyfill.installAll)shaka.polyfill.installAll();
   var p=new shaka.Player($('video'));S.shaka=p;
   if(drm&&drm.error)throw new Error(drm.error);
+  var apple=isAppleTouchDevice(),tv360=apple&&isTv360DrmCandidate(cand);
   var cfg={
    drm:{servers:{},retryParameters:{maxAttempts:4,baseDelay:500,backoffFactor:1.5,fuzzFactor:.2,timeout:8000}},
    streaming:{
     preferNativeHls:false,
     retryParameters:{maxAttempts:6,baseDelay:500,backoffFactor:1.5,fuzzFactor:.2,timeout:10000},
-    bufferingGoal:isAppleTouchDevice()?12:20,
-    rebufferingGoal:2,
-    bufferBehind:30,
+    bufferingGoal:apple?16:20,
+    rebufferingGoal:apple?3:2,
+    bufferBehind:apple?24:30,
     gapDetectionThreshold:.5,
     stallEnabled:true,
     stallThreshold:1,
@@ -852,14 +860,24 @@ function startShaka(c,cand,url,drm,gen){
     minTimeBetweenRecoveries:5,
     returnToEndOfLiveWindowWhenOutside:true,
     lowLatencyMode:false,
-    updateIntervalSeconds:1,
+    updateIntervalSeconds:2,
     segmentPrefetchLimit:1
    },
    abr:{
     enabled:true,
-    restrictions:{maxWidth:isAppleTouchDevice()?1920:Infinity,maxHeight:isAppleTouchDevice()?1080:Infinity}
+    restrictions:{
+     maxWidth:apple?1920:Infinity,
+     maxHeight:apple?1080:Infinity,
+     maxBandwidth:tv360?3500000:Infinity
+    }
    }
   };
+  if(tv360){
+   // TV360 DRM endpoints observed in CI expose H.264/AAC ladder; prefer this
+   // stable codec family and cap below the 5.25 Mbps 1080p variant.
+   cfg.preferredVideoCodecs=['avc1'];
+   cfg.preferredAudioCodecs=['mp4a'];
+  }
   if(drm){
    if(drm.clearKeys)cfg.drm.clearKeys=drm.clearKeys;
    if(drm.remote&&drm.license){
@@ -868,6 +886,7 @@ function startShaka(c,cand,url,drm,gen){
   }
   // Shaka >= 5.2.1 can fall back to WebCrypto for ClearKey on Safari.
   // Keep DASH/MMS on iOS for DRM candidates instead of forcing native HLS.
+  // iOS DASH+DRM is proxy-first; HLS remains native-first.
   if(p.configure)p.configure(cfg);
   var net=shaka.net.NetworkingEngine;
   p.getNetworkingEngine().registerRequestFilter(function(type,request){

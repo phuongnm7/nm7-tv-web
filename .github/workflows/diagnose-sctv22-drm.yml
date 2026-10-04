@@ -105,3 +105,17 @@ jobs:
             curl -sS -L --max-time 25 -o "/tmp/p$profile" -w 'HTTP=%{http_code} BYTES=%{size_download}\n' -A "Dalvik/2.1.0" "$BASE/api/stream?u=$ENC$H"
             head -c 120 /tmp/p$profile | tr '\n' ' '; echo
           done
+
+      - name: Check published SCTV22 HLS candidates
+        shell: bash
+        run: |
+          set +euo pipefail
+          for U in \
+            'https://liveh34.vtvprime.vn/hls/SCTV22/04.m3u8' \
+            'https://e1.endpoint.cdn.sctvonline.vn/channel/sctv22/index.m3u8'
+          do
+            echo "=== $U ==="
+            curl -sS -L --max-time 20 -A "Mozilla/5.0" -e "https://sctvonline.vn/" -D /tmp/hls-h -o /tmp/hls-b "$U"
+            echo "HTTP=$(grep -m1 -E '^HTTP/' /tmp/hls-h | tail -1) BYTES=$(wc -c < /tmp/hls-b)"
+            head -c 200 /tmp/hls-b | tr '\n' ' '; echo
+          done

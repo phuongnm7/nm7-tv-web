@@ -337,6 +337,8 @@ function normalizeCandidate(cand){
 function makeProxy(u,cand){
  if(!isHttp(u))return u;
  cand=normalizeCandidate(cand||{});
+ // Direct attempt first; only use the same-origin proxy after a playback failure.
+ if(!S.proxyAttempt)return u;
  if(u.indexOf(location.origin+'/api/stream')===0)return u;
  var q='/api/stream?u='+encodeURIComponent(u);
  if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);
@@ -346,7 +348,10 @@ function makeProxy(u,cand){
 }
 function makeLicenseProxy(u,cand){
  if(!isHttp(u))return u;
- cand=normalizeCandidate(cand||{});var q='/api/license?u='+encodeURIComponent(u);
+ cand=normalizeCandidate(cand||{});
+ // Keep the original DRM license endpoint on the first attempt; fall back to our proxy on retry.
+ if(!S.proxyAttempt)return u;
+ var q='/api/license?u='+encodeURIComponent(u);
  if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);
  if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);
  if(cand.headers&&Object.keys(cand.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
@@ -459,14 +464,16 @@ function probeCandidate(c,cand,gen){
  if(cand.headers&&Object.keys(cand.headers).length)u+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
  fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(d){
   if(gen!==S.generation||!S.player)return;
-  if(!d||!d.type||d.type==='http'){nextCandidate('Không xác định được định dạng');return}
+  if(!d||!d.type||d.type==='http' && !d.resolvedUrl && !d.finalUrl){nextCandidate('Không xác định được định dạng');return}
   cand.type=d.type;
   cand.mime=d.contentType||cand.mime||'';
+  cand.resolvedUrl=d.resolvedUrl||d.finalUrl||cand.url;
   if(d.type==='dash')cand.dash=true;
   if(d.type==='hls')cand.hls=true;
   if(d.type==='flv')cand.flv=true;
   if(d.type==='mpegts')cand.mpegts=true;
-  var resolved=d.finalUrl||cand.url;
+  var resolved=d.resolvedUrl||d.finalUrl||cand.url;
+  cand.resolvedUrl=resolved;
   var url=makeProxy(resolved,cand);
   clearPlayers();
   setStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':''));
@@ -490,9 +497,9 @@ function startHls(c,cand,url,gen){
 function tryHlsJs(c,cand,url,gen){
  if(!window.Hls||!Hls.isSupported()){nextCandidate('Trình duyệt không hỗ trợ HLS/MSE');return}
  try{
-  var v=$('video');
+  var v=$('video'),networkRecoveries=0,mediaRecoveries=0;
   v.muted=true;
-  var h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:60,maxBufferHole:.5,startPosition:-1,manifestLoadingMaxRetry:2,fragLoadingMaxRetry:3,levelLoadingMaxRetry:3});
+  var h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:60,maxBufferHole:.5,startPosition:-1,manifestLoadingMaxRetry:4,fragLoadingMaxRetry:5,levelLoadingMaxRetry:5,backBufferLength:30,liveSyncDurationCount:3,liveMaxLatencyDurationCount:6});
   S.hls=h;
   h.on(Hls.Events.MEDIA_ATTACHED,function(){
    if(gen!==S.generation||!S.player)return;
@@ -509,7 +516,14 @@ function tryHlsJs(c,cand,url,gen){
    if(gen!==S.generation)return;
    if(S.debug)console.log('NM7 HLS',data&&data.type,data&&data.details,data&&data.response||'');
    if(data&&data.fatal){
-    if(data.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return}catch(e){}}
+    if(data.type===Hls.ErrorTypes.NETWORK_ERROR&&networkRecoveries<2){
+      networkRecoveries++;
+      try{h.startLoad();return}catch(e){}
+    }
+    if(data.type===Hls.ErrorTypes.MEDIA_ERROR&&mediaRecoveries<2){
+      mediaRecoveries++;
+      try{h.recoverMediaError();return}catch(e){}
+    }
     nextCandidate('HLS '+(data.details||data.type||'lỗi'))
    }
   });

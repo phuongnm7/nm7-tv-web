@@ -192,3 +192,18 @@ Không dùng Cloudflare proxy như đường DRM chính. Safari/iPad phải lấ
 - `dd72918a8c0bc2c2dd3f041bb1839b6a41afbada`: Shaka 5.2.12 + cache-bust player.
 - `55bedcfb1dc622915ada361f7a3cdbd8afedb531`: cập nhật smoke test Cloudflare.
 
+
+## Phân tích video mới và sửa VTVcab3 — 05/10/2026
+
+Video `00-58-34` cho thấy đúng trình tự lỗi: **VTVcab 3 - ON Sports HD** → mở nguồn đầu → hình thực tế là **ON Vie Giải Trí** → chuyển sang nguồn 2 → đúng hình ON Sports → sau đó xuất hiện `Đang khôi phục DRM · lần 1/3` và màn hình đen. Đây là bằng chứng nguồn HLS built-in trước đây bị map sai, đồng thời recovery `waiting/stalled` kích hoạt quá sớm.
+
+Đã sửa:
+
+- Không còn gọi `retryStreaming()` ngay khi video phát event `waiting` hoặc `stalled`; thay bằng stall watchdog, chỉ hard-restart khi currentTime thực sự không tiến triển trong khoảng 6 giây.
+- Apple + DASH ClearKey ưu tiên đúng candidate DRM trước HLS sibling; nếu DRM hết hard-recovery budget thì mới chuyển sang HLS không DRM.
+- HLS built-in cho `vtvcab3hd` được thay từ endpoint `/hls/vtvcab3/` đã cho nội dung sai trong video sang `https://856175157.r.vtvcdn.com/ondrm/THETHAO_HD/m30_index.m3u8`, nguồn được các playlist công khai hiện hành ghi cho **ON Sports HD Server 3**. 
+- Candidate HLS fallback được giữ `forceProxy=true` để Worker có thể giữ User-Agent cần thiết và rewrite segment URI same-origin.
+- Thêm workflow `diagnose-vtvcab3-playback.yml` để kiểm tra trực tiếp và qua Cloudflare endpoint của ON Sports.
+- `app.js` đã được kiểm tra syntax thành công sau bản sửa.
+
+Các thay đổi này chỉ tác động vào đường phát VTVcab/DRM và recovery; giao diện 1.0.69 không bị thay đổi.

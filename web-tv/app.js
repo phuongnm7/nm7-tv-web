@@ -354,11 +354,8 @@ function normalizeCandidate(cand){
 }
 function shouldProxyFirst(cand,kind){
  cand=normalizeCandidate(cand||{});
- var u=String(cand.url||'').toLowerCase();
  if(kind==='flv'||kind==='mpegts')return true;
- if(cand.headers&&Object.keys(cand.headers).length)return true;
- if(cand.ref||cand.ua)return true;
- if(/vips-livecdn\.fptplay\.net|fptplay53\.net|tv\.vietanhtv\.top|vietanhtv\.id\.vn|khanggtivi|freem3u|livesct\.vtvprime|livevlisctcdnw\.seenow\.vn/i.test(u))return true;
+ if(cand.forceProxy===true)return true;
  return false
 }
 function attemptUsesProxy(cand,kind){

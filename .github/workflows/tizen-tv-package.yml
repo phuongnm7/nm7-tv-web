@@ -1,0 +1,43 @@
+name: NM7 Tizen TV Package Check
+
+on:
+  push:
+    branches: ["feat/tizen-remote-navigation"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Tizen project files
+        run: |
+          test -f tizen-tv/config.xml
+          test -f tizen-tv/index.html
+          test -f tizen-tv/tizen.js
+          test -f tizen-tv/icon.svg
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          ET.parse("tizen-tv/config.xml")
+          print("config.xml OK")
+          PY
+          node --check tizen-tv/tizen.js
+
+      - name: Validate remote bridge contract
+        run: |
+          grep -q 'pointing-device-support="disable"' tizen-tv/config.xml
+          grep -q 'tv.inputdevice' tizen-tv/config.xml
+          grep -q "tizen.tvinputdevice.registerKey" tizen-tv/tizen.js
+          grep -q "type:'nm7-remote'" web-tv/app.js
+          echo "Tizen remote contract OK"
+
+      - name: Create unsigned WGT archive
+        run: |
+          cd tizen-tv
+          zip -qr ../NM7-TV-Tizen-Remote-unsigned.wgt .
+          cd ..
+          unzip -t NM7-TV-Tizen-Remote-unsigned.wgt
+          ls -lh NM7-TV-Tizen-Remote-unsigned.wgt

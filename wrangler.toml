@@ -5,3 +5,4 @@ compatibility_date = "2026-10-04"
 [assets]
 directory = "./web-tv"
 binding = "ASSETS"
+run_worker_first = ["/api/*"]

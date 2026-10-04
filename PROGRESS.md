@@ -3,13 +3,13 @@
 ## Current baseline
 - Date: 2026-10-04
 - Branch: `feat/tvdrm-player-integration-20261004`
-- Stable test commit before this progress note: `0e50b38bdd0bc1c242a9f73b5d2cdb74300636e1`
+- Stable test baseline: `4fff84e7cfe495311c3623179b87b9e8a97c0acc`
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - TV UI baseline: Android TV NM7 1.0.69
 - Deployment target: Cloudflare Workers; do not switch deployment to Vercel.
 
 ## Current status
-The current mobile-responsive version is considered **temporarily stable for extended real-device testing**. No further UI refactor is being made at this point so that test results are attributable to this baseline.
+The current mobile-responsive version is considered **temporarily stable for extended real-device testing**. The source-management fixes in this baseline are also part of the test baseline, while unrelated UI refactors remain deferred.
 
 ### Mobile
 - Native vertical page scrolling is used on mobile.
@@ -32,11 +32,18 @@ The current mobile-responsive version is considered **temporarily stable for ext
 - HLS / DASH / DRM / FLV / MPEG-TS player paths remain in place.
 - ON Football uses the latest SeeNow DASH sources and ClearKey metadata currently committed in the Worker and playlist.
 
+## Source-management fixes in current baseline
+- The default **Thể thao** source no longer depends on a single failing Worker endpoint. The Worker now tries the current `sports-auto.m3u` source first and keeps `thethaonm7.../playlist.m3u` as fallback.
+- **Thêm nguồn IPTV** no longer fetches arbitrary playlist URLs directly from the browser. It now calls the same-origin `/api/source` gateway, which fetches/parses the playlist server-side and returns CORS-safe JSON.
+- Worker M3U parsing now resolves relative stream URLs against the source URL.
+
 ## Validation
-For commit `0e50b38bdd0bc1c242a9f73b5d2cdb74300636e1`:
+For commit `4fff84e7cfe495311c3623179b87b9e8a97c0acc`:
 - GitHub Actions browser validation: **success**
-- Syntax/validation checks: **success**
-- Latest Cloudflare deployment/smoke test: **success** (deployment corresponding to the current baseline)
+- Cloudflare deployment and smoke test: **success**
+- Sport playlist API smoke test: **success**, 566 channels returned.
+- Custom-source API smoke test: **success**, 566 channels parsed from the same real M3U source.
+- Cloudflare smoke test also confirmed the normal Android 1.0.69 playlist: 490 channels with the expected first groups.
 
 ## Testing phase
 Please treat `0e50b38bdd0bc1c242a9f73b5d2cdb74300636e1` as the current functional baseline while testing on:

@@ -80,7 +80,7 @@ jobs:
               if(key==='Escape')continue;
               await p.keyboard.press(key);
               const wanted=key+':'+({ArrowRight:39,ArrowDown:40,ArrowLeft:37,ArrowUp:38,Enter:13}[key]);
-              await p.waitForFunction(w=>document.querySelector('#nm7')?.contentDocument?.querySelector('#received')?.textContent===w,w,{timeout:2000});
+              await p.waitForFunction(w=>document.querySelector('#nm7')?.contentDocument?.querySelector('#received')?.textContent===w,wanted,{timeout:2000});
             }
             const registered=await p.evaluate(()=>window.tizen.tvinputdevice.registered);
             if(registered.length!==6)throw new Error('registered='+JSON.stringify(registered));

@@ -31,7 +31,7 @@ jobs:
           grep -q 'pointing-device-support="disable"' tizen-tv/config.xml
           grep -q 'tv.inputdevice' tizen-tv/config.xml
           grep -q "tizen.tvinputdevice.registerKey" tizen-tv/tizen.js
-          grep -q "type:'nm7-remote'" web-tv/app.js
+          grep -q "d.type!=='nm7-remote'" web-tv/app.js
           echo "Tizen remote contract OK"
 
 

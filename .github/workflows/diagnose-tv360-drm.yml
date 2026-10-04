@@ -104,3 +104,57 @@ jobs:
             code_size="$(curl -sS -L --max-time 15 -o "/tmp/seg$n" -w '%{http_code} %{size_download}' -A "Dalvik/2.1.0" "$url")"
             echo "$kind $code_size"
           done < /tmp/segments.txt
+
+      - name: Verify deployed proxy MPD and segment path
+        shell: bash
+        run: |
+          set +euo pipefail
+          BASE="https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          ENTRY='https://vmttv.dpdns.org/tv360/?id=tv360-1'
+          ENC="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=""))' "$ENTRY")"
+          echo "===== deployed proxy MPD ====="
+          curl -sS --max-time 25 -o /tmp/proxy-mpd -w 'HTTP=%{http_code} BYTES=%{size_download}
+' -A "Dalvik/2.1.0" "$BASE/api/stream?u=$ENC"
+          python3 - "/tmp/proxy-mpd" "/tmp/proxy-segments.txt" <<'PY'
+          import sys, urllib.parse, xml.etree.ElementTree as ET
+          p,outp=sys.argv[1:]
+          b=open(p,'rb').read(); root=ET.fromstring(b)
+          ns={'d':'urn:mpeg:dash:schema:mpd:2011'}
+          bn=root.find('d:BaseURL',ns)
+          base=(bn.text.strip() if bn is not None and bn.text else '')
+          print("PROXY_HAS_BASEURL",bool(base))
+          print("PROXY_BASE_HOST",urllib.parse.urlsplit(base).netloc if base else '')
+          def fmt(t,rep,time):
+              if not t:return ''
+              return t.replace('$RepresentationID$',rep).replace('$Time$',str(time)).replace('$Number$','0')
+          lines=[]
+          for aset in root.findall('.//d:AdaptationSet',ns):
+              reps=aset.findall('d:Representation',ns)
+              if not reps: continue
+              rep=reps[0]; rid=rep.attrib.get('id','')
+              st=rep.find('d:SegmentTemplate',ns) or aset.find('d:SegmentTemplate',ns)
+              if st is None: continue
+              init=fmt(st.attrib.get('initialization'),rid,0)
+              if init and base: lines.append('init|'+urllib.parse.urljoin(base,init))
+              timeline=st.find('d:SegmentTimeline',ns); media=st.attrib.get('media','')
+              if timeline is not None and media:
+                  ss=timeline.findall('d:S',ns)
+                  cur=0
+                  for s in ss:
+                      if s.get('t') is not None: cur=int(s.get('t'))
+                  if ss:
+                      d=int(ss[-1].get('d','0'))
+                      if s.get('t') is None: cur=max(0,cur)
+                      lines.append('media|'+urllib.parse.urljoin(base,fmt(media,rid,cur)))
+              if len(lines)>=4: break
+          open(outp,'w').write('\n'.join(lines))
+          print("PROXY_SEGMENT_URL_COUNT",len(lines))
+          PY
+          n=0
+          while IFS='|' read -r kind url; do
+            [ -n "$url" ] || continue
+            n=$((n+1))
+            enc="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=""))' "$url")"
+            curl -sS -L --max-time 20 -o "/tmp/p$n" -w "$kind HTTP=%{http_code} BYTES=%{size_download}
+" "$BASE/api/stream?u=$enc"
+          done < /tmp/proxy-segments.txt

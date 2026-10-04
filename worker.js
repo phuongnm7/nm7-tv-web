@@ -7,9 +7,17 @@ const SOURCES = {
   sport: ['https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u']
 };
 const BUILTIN = {
-  vtv1hd: [{url:'https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8',ref:'',ua:'',hls:true}],
+  vtv1hd: [
+    {url:'https://live-a.fptplay53.net/live/media/vtv1/live247-hls-avc/index.m3u8',ref:'https://fptplay.vn/',ua:'Mozilla/5.0 (Linux; Android 15; SM-S918B) AppleWebKit/537.36 Chrome/135.0.7049.111 Mobile Safari/537.36 vAppTV/1.0.2',headers:{Origin:'https://fptplay.vn'},hls:true},
+    {url:'https://vips-livecdn.fptplay.net/live/media/vtv1/live247-hls-avc/vtv1-avc1_5600000=10000-mp4a_131600=20000.m3u8',ref:'https://fptplay.vn/',ua:'Mozilla/5.0 (Linux; Android 15; SM-S918B) AppleWebKit/537.36 Chrome/135.0.7049.111 Mobile Safari/537.36 vAppTV/1.0.2',headers:{Origin:'https://fptplay.vn'},hls:true},
+    {url:'https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8',ref:'https://vtvgo.vn/',ua:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36',headers:{Origin:'https://vtvgo.vn'},hls:true}
+  ],
   vtvcab3hd: [{url:'https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8',ref:'http://sctvonline.vn/',ua:'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3',hls:true}],
-  vtvcab16hd: [{url:'https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8',ref:'http://sctvonline.vn/',ua:'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3',hls:true}]
+  vtvcab16hd: [
+    {url:'https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8',ref:'http://sctvonline.vn/',ua:'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3',hls:true},
+    {url:'https://khanggtivi.xyz/vuminhthanh/vmt2024/onfootball/index.m3u8',ref:'https://sctvonline.vn/',ua:'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36',hls:true},
+    {url:'https://api.wintv.me/360/185/index.m3u8',ref:'',ua:'Mozilla/5.0',hls:true}
+  ]
 };
 const playlistCache=new Map(),CACHE_TTL=30000;
 function isHttp(u){return /^https?:\/\//i.test(String(u||''))}
@@ -20,7 +28,7 @@ function addBuiltin(c){
   if(!extra.length&&(key==='vtv1'||name==='vtv1'||name.startsWith('vtv1')))extra=BUILTIN.vtv1hd;
   if(!extra.length&&(name.startsWith('onsport')||name.includes('vtvcab3')))extra=BUILTIN.vtvcab3hd;
   if(!extra.length&&(name.startsWith('onfootball')||name.includes('vtvcab16')))extra=BUILTIN.vtvcab16hd;
-  const seen=new Set((c.candidates||[]).map(x=>x.url));for(const x of extra)if(!seen.has(x.url)){c.candidates.push({...x,headers:{}});seen.add(x.url)}
+  const seen=new Set((c.candidates||[]).map(x=>x.url));for(const x of extra)if(!seen.has(x.url)){c.candidates.push({...x,headers:x.headers||{}});seen.add(x.url)}
 }
 function parseM3U(t){
   const lines=String(t||'').replace(/^\uFEFF/,'').split(/\r?\n/),out=[];let m=null,ua='',ref='',origin='',manifestType='',licenseType='',licenseKey='';

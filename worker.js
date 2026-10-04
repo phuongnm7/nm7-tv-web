@@ -15,7 +15,10 @@ const BUILTIN = {
     {url:'https://vips-livecdn.fptplay.net/live/media/vtv1/live247-hls-avc/vtv1-avc1_5600000=10000-mp4a_131600=20000.m3u8',ref:'https://fptplay.vn/',ua:'Mozilla/5.0 (Linux; Android 15; SM-S918B) AppleWebKit/537.36 Chrome/135.0.7049.111 Mobile Safari/537.36 vAppTV/1.0.2',headers:{Origin:'https://fptplay.vn'},hls:true},
     {url:'https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8',ref:'https://vtvgo.vn/',ua:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36',headers:{Origin:'https://vtvgo.vn'},hls:true}
   ],
-  vtvcab3hd: [{url:'https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8',ref:'http://sctvonline.vn/',ua:'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3',hls:true}],
+  vtvcab3hd: [
+    {url:'https://856175157.r.vtvcdn.com/ondrm/THETHAO_HD/m30_index.m3u8',ref:'',ua:'KhoaTivi',hls:true,forceProxy:true},
+    {url:'https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8',ref:'http://sctvonline.vn/',ua:'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3',hls:true,forceProxy:true}
+  ],
   vtvcab16hd: [
     {url:'https://livevliatmcdw.seenow.vn/live/data8/BONGDA_HD/Live_DASHDRM/BONGDA_HD.mpd',ref:'',ua:'Dalvik/2.1.0',headers:{},type:'dash',dash:true,hls:false,drm:{type:'clearkey',key:'f3d73b3a9b89462ebf7911004ea3b3b9:2e547a81ff90aa02648cb9e3f79e7339'},forceProxy:true},
     {url:'https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd',ref:'',ua:'Dalvik/2.1.0',headers:{},type:'dash',dash:true,hls:false,drm:{type:'clearkey',key:'f69bf028397e4ecfafce84abb7c5fe2b:25028aad0e2003b2785cf5196a4e2fa1'},forceProxy:true}

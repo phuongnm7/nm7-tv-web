@@ -459,7 +459,9 @@ function nextCandidate(reason){
 function tryCandidate(){
  var c=S.current,cand=getCandidate(),v=$('video'),kind,generation=S.generation;
  if(!cand){setStatus('Kênh chưa có URL phát');return}
- clearPlayers();kind=classify(cand);var url=makeProxy(cand.url,cand);
+ clearPlayers();kind=classify(cand);
+ var url=S.proxyAttempt?makeProxy(cand.url,cand):cand.url;
+
  setStatus('Đang mở '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
  v.style.display='block';v.autoplay=true;v.controls=false;
  if(kind==='rtsp'||kind==='rtmp'||kind==='udp'||kind==='srt'){
@@ -493,7 +495,7 @@ function probeCandidate(c,cand,gen){
   if(d.type==='flv')cand.flv=true;
   if(d.type==='mpegts')cand.mpegts=true;
   var resolved=d.finalUrl||cand.url;
-  var url=makeProxy(resolved,cand);
+  var url=S.proxyAttempt?makeProxy(resolved,cand):resolved;
   clearPlayers();
   setStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':''));
   startByType(c,cand,url,d.type,gen);
@@ -575,7 +577,7 @@ function startShaka(c,cand,url,drm,gen){
    var cfg={drm:{servers:{}}};
    if(drm.clearKeys)cfg.drm.clearKeys=drm.clearKeys;
    if(drm.remote&&drm.license){
-    cfg.drm.servers[drm.system]=makeLicenseProxy(drm.license,cand);
+    cfg.drm.servers[drm.system]=S.proxyAttempt?makeLicenseProxy(drm.license,cand):drm.license;
    }
    if(p.configure)p.configure(cfg);
   }
@@ -584,10 +586,10 @@ function startShaka(c,cand,url,drm,gen){
    if(gen!==S.generation)return;
    var uri=request.uris&&request.uris[0]||'';
    if(type===net.RequestType.LICENSE){
-    if(drm&&drm.remote&&drm.license){request.uris=[makeLicenseProxy(drm.license,cand)]}
+    if(S.proxyAttempt&&drm&&drm.remote&&drm.license){request.uris=[makeLicenseProxy(drm.license,cand)]}
     return
    }
-   if(/^https?:/i.test(uri)&&!isOwnProxyUrl(uri,'stream')){
+   if(S.proxyAttempt&&/^https?:/i.test(uri)&&!isOwnProxyUrl(uri,'stream')){
     request.uris=[makeProxy(uri,cand)]
    }
   });
@@ -600,8 +602,8 @@ function startDashJs(c,cand,url,gen){
  try{
   var p=dashjs.MediaPlayer().create();S.dash=p;
   p.extend('RequestModifier',function(){return{
-   modifyRequestURL:function(u){return /^https?:/i.test(u)&&!isOwnProxyUrl(u,'stream')?makeProxy(u,cand):u},
-   modifyRequestHeader:function(xhr){if(cand.ua)try{xhr.setRequestHeader('User-Agent',cand.ua)}catch(e){}if(cand.ref)try{xhr.setRequestHeader('Referer',cand.ref)}catch(e){}return xhr}
+   modifyRequestURL:function(u){return S.proxyAttempt&&/^https?:/i.test(u)&&!isOwnProxyUrl(u,'stream')?makeProxy(u,cand):u},
+   modifyRequestHeader:function(xhr){if(S.proxyAttempt){if(cand.ua)try{xhr.setRequestHeader('User-Agent',cand.ua)}catch(e){}if(cand.ref)try{xhr.setRequestHeader('Referer',cand.ref)}catch(e){}}return xhr}
   }});
   p.on(dashjs.MediaPlayer.events.ERROR,function(e){if(gen===S.generation)nextCandidate('DASH '+((e||{}).error||{}).message||'lỗi')});
   p.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED,function(){markPlaying(gen);var x=$('video').play();if(x&&x.catch)x.catch(function(){})});

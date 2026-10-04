@@ -35,7 +35,6 @@ var S={
  loading:false,
  debug:new URLSearchParams(location.search).get('debug')==='1',
  audioMutedByPolicy:false,
- touchSuppressClick:false,
  backArmed:false,
  backTimer:null,
  historyGuard:false,
@@ -166,7 +165,6 @@ function renderHome(){
  activateLogos();
 }
 function onCardClick(e){
- if(S.touchSuppressClick){S.touchSuppressClick=false;return}
  var b=e.currentTarget,rr=Number(b.dataset.row||0),cc=Number(b.dataset.col||0),a=channelsInGroup(S.groups[rr]||''),c=a[cc];
  if(c)openPlayer(c)
 }
@@ -815,72 +813,38 @@ function mobileHistoryGuard(){
 }
 function bindTouchNavigation(){
  if(!isTouchMode())return;
- var app=$('app');
- if(!app||app.dataset.touchBound==='1')return;
- app.dataset.touchBound='1';
+ var player=$('player');
+ if(!player||player.dataset.touchBound==='1')return;
+ player.dataset.touchBound='1';
  var T={active:false,startX:0,startY:0,lastX:0,lastY:0,moved:false,target:null};
- function ignoredTarget(el){
-  if(!el)return true;
-  if(S.dialog)return true;
-  if(el.closest&&el.closest('#dlg,input,textarea,select,.cb,.db,.quickCard,.menuBtn'))return true;
-  return false
- }
- app.addEventListener('touchstart',function(e){
+ player.addEventListener('touchstart',function(e){
   if(!e.touches||!e.touches.length)return;
-  if(S.player)restoreAudio();
-  var p=e.touches[0],target=e.target;
-  if(ignoredTarget(target)){T.active=false;return}
-  T.active=true;T.startX=T.lastX=p.clientX;T.startY=T.lastY=p.clientY;T.moved=false;T.target=target;
- },{passive:false});
- app.addEventListener('touchmove',function(e){
+  restoreAudio();
+  var p=e.touches[0];
+  T.active=true;T.startX=T.lastX=p.clientX;T.startY=T.lastY=p.clientY;T.moved=false;T.target=e.target;
+ },{passive:true});
+ player.addEventListener('touchmove',function(e){
   if(!T.active||!e.touches||!e.touches.length)return;
-  var p=e.touches[0],dx=p.clientX-T.startX,dy=p.clientY-T.startY;
+  var p=e.touches[0];
   T.lastX=p.clientX;T.lastY=p.clientY;
-  if(Math.abs(dx)+Math.abs(dy)>=12)T.moved=true;
-  if(T.moved&&(S.player||S.zone==='home'))e.preventDefault();
- },{passive:false});
- app.addEventListener('touchend',function(e){
+  if(Math.abs(T.lastX-T.startX)+Math.abs(T.lastY-T.startY)>16)T.moved=true;
+ },{passive:true});
+ player.addEventListener('touchend',function(){
   if(!T.active)return;
-  var dx=T.lastX-T.startX,dy=T.lastY-T.startY,ax=Math.abs(dx),ay=Math.abs(dy),swipe=Math.max(ax,ay)>=45;
-  var target=T.target;
+  var dx=T.lastX-T.startX,dy=T.lastY-T.startY,ax=Math.abs(dx),ay=Math.abs(dy);
+  var swipe=Math.max(ax,ay)>=55;
   T.active=false;
   if(!swipe){
-   if(S.player && target && (target.id==='video'||(target.closest&&target.closest('#video')))){
-    showControls();
-   }
+   if(T.target&&(T.target.id==='video'||(T.target.closest&&T.target.closest('#video'))))showControls();
    return
   }
-  S.touchSuppressClick=true;
-  setTimeout(function(){S.touchSuppressClick=false},450);
   if(S.dialog||S.menuOpen)return;
-  if(S.player){
-   if(ax>ay){
-    if(dx<0)seek(30);else seek(-10);
-   }else{
-    if(dy<0)switchRelative(1);else switchRelative(-1);
-   }
-   return
+  if(ax>ay){
+   if(dx<0)seek(30);else seek(-10);
+  }else{
+   if(dy<0)switchRelative(1);else switchRelative(-1);
   }
-  if(S.zone==='home'){
-   var a=channelsInGroup(S.groups[S.row]||'');
-   if(ax>ay){
-    if(dx<0){
-     if(a.length)setFocusCard(S.row,Math.min(a.length-1,S.col+1),true)
-    }else{
-     if(S.col===0)openMenu();
-     else setFocusCard(S.row,Math.max(0,S.col-1),true)
-    }
-   }else{
-    if(dy<0){
-     var nr=Math.min(S.groups.length-1,S.row+1),bb=channelsInGroup(S.groups[nr]||'');
-     if(bb.length)setFocusCard(nr,Math.min(S.col,bb.length-1),true)
-    }else{
-     var pr=Math.max(0,S.row-1),aa=channelsInGroup(S.groups[pr]||'');
-     if(aa.length)setFocusCard(pr,Math.min(S.col,aa.length-1),true)
-    }
-   }
-  }
- },{passive:false});
+ },{passive:true});
 }
 
 function onKey(e){

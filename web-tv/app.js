@@ -679,7 +679,7 @@ function onKey(e){
   if(k===13 && S.dialog==='search'){e.preventDefault();e.stopPropagation();closeDialog();return}
   return
  }
- if(e.repeat)return;
+ if(e.repeat && ![37,38,39,40].includes(remoteCode(e)))return;
  if(k===10009||k===27){
   e.preventDefault();e.stopPropagation();
   if(S.menuOpen){closeMenu();return}
@@ -755,6 +755,7 @@ $('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồn
 
 function startup(){
  restoreUser();
+ window.addEventListener('keydown',onKey,true);
  document.addEventListener('keydown',onKey,true);
  window.addEventListener('focus',function(){if(!S.dialog&&!S.menuOpen){setTimeout(function(){if(S.player)playerFocus();else focusHome(false)},30)}},true);
  var cached=readCache();if(cached){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome()}

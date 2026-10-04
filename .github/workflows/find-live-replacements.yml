@@ -23,7 +23,7 @@ jobs:
             i=$((i+1)); echo "=== SOURCE $i $u ==="
             curl -L --max-time 40 -A "Mozilla/5.0" -sS "$u" -o "/tmp/src$i.txt"
             echo "SIZE=$(wc -c < /tmp/src$i.txt)"
-            echo "-- VTV1 --"; grep -i -A4 -B2 'VTV1' "/tmp/src$i.txt" | head -80
-            echo "-- ON FOOTBALL --"; grep -i -A5 -B2 'ON FOOTBALL\|ON Football\|vtvcab16\|football' "/tmp/src$i.txt" | head -120
+            echo "-- VTV1 --"; grep -inE -A5 -B2 'vtv.?1|vtv 1|vtv1' "/tmp/src$i.txt" | head -120
+            echo "-- ON FOOTBALL --"; grep -inE -A6 -B2 'on.?football|on football|vtvcab.?16|football' "/tmp/src$i.txt" | head -160
             echo "-- FLV --"; grep -iE -A3 -B2 '\.flv([?|]|$)' "/tmp/src$i.txt" | head -120
           done

@@ -210,7 +210,7 @@ function logoOverride(c){
  return ''
 }
 function logoSource(c){
- var u=logoOverride(c)||c.logo||'';return isHttp(u)?'/__nm7/image?u='+encodeURIComponent(u)+'&r='+encodeURIComponent(c.ref||'')+'&ua='+encodeURIComponent(c.ua||''):u
+ var u=logoOverride(c)||c.logo||'';return isHttp(u)?'/api/playlist?proxy=image&u='+encodeURIComponent(u)+'&r='+encodeURIComponent(c.ref||'')+'&ua='+encodeURIComponent(c.ua||''):u
 }
 
 function renderMenu(){
@@ -339,8 +339,8 @@ function normalizeCandidate(cand){
 function makeProxy(u,cand){
  if(!isHttp(u))return u;
  cand=normalizeCandidate(cand||{});
- if(u.indexOf(location.origin+'/__nm7/stream')===0)return u;
- var q='/__nm7/stream?u='+encodeURIComponent(u);
+ if(u.indexOf(location.origin+'/api/playlist?proxy=stream')===0)return u;
+ var q='/api/playlist?proxy=stream&u='+encodeURIComponent(u);
  if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);
  if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);
  if(cand.headers&&Object.keys(cand.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
@@ -348,7 +348,7 @@ function makeProxy(u,cand){
 }
 function makeLicenseProxy(u,cand){
  if(!isHttp(u))return u;
- cand=normalizeCandidate(cand||{});var q='/__nm7/license?u='+encodeURIComponent(u);
+ cand=normalizeCandidate(cand||{});var q='/api/playlist?proxy=license&u='+encodeURIComponent(u);
  if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);
  if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);
  if(cand.headers&&Object.keys(cand.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
@@ -455,7 +455,7 @@ function startByType(c,cand,url,kind,gen){
 }
 function probeCandidate(c,cand,gen){
  setStatus('Đang xác định định dạng '+c.name+'…');
- var u='/__nm7/probe?u='+encodeURIComponent(cand.url);
+ var u='/api/playlist?proxy=probe&u='+encodeURIComponent(cand.url);
  if(cand.ref)u+='&r='+encodeURIComponent(cand.ref);
  if(cand.ua)u+='&ua='+encodeURIComponent(cand.ua);
  if(cand.headers&&Object.keys(cand.headers).length)u+='&h='+encodeURIComponent(JSON.stringify(cand.headers));

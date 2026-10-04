@@ -391,13 +391,13 @@ function addAppleHlsAlternatives(c){
 function startupCandidateIndex(c){
  var a=c&&Array.isArray(c.candidates)?c.candidates:[];
  if(!a.length)return 0;
- if(isDashDrmCandidate(a[0])){
-  for(var i=0;i<a.length;i++){
-   var k=classify(a[i]);
-   if(k==='hls'&&!a[i].drm)return i
-  }
- }
  if(isAppleTouchDevice()){
+  var rt=getAppleDrmRuntime();
+  if(rt.webCrypto&&window.shaka){
+   for(var d=0;d<a.length;d++){
+    if(isDashDrmCandidate(a[d]))return d;
+   }
+  }
   for(var j=0;j<a.length;j++){
    var ak=classify(a[j]);
    if(ak==='hls'&&!a[j].drm)return j
@@ -405,6 +405,12 @@ function startupCandidateIndex(c){
   for(var q=0;q<a.length;q++){
    var qk=classify(a[q]);
    if((qk==='mp4'||qk==='hls')&&!a[q].drm)return q
+  }
+ }
+ if(isDashDrmCandidate(a[0])){
+  for(var i=0;i<a.length;i++){
+   var k=classify(a[i]);
+   if(k==='hls'&&!a[i].drm)return i
   }
  }
  return 0
@@ -561,7 +567,7 @@ function startByType(c,cand,url,kind,gen){
  else startDirect(c,cand,url,gen);
  var wait=15000;
  if(isAppleTouchDevice()&&kind==='hls'&&c&&c.candidates&&c.candidates.length>1)wait=5000;
- if(isAppleTouchDevice()&&kind==='dash'&&cand&&cand.drm)wait=8000;
+ if(isAppleTouchDevice()&&kind==='dash'&&cand&&cand.drm)wait=12000;
  S.watchdog=setTimeout(function(){if(S.generation!==gen||!S.player)return;if($('video').readyState<2||$('video').paused)nextCandidate('Timeout phát '+Math.round(wait/1000)+'s')},wait)
 }
 function probeCandidate(c,cand,gen){

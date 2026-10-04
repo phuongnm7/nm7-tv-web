@@ -379,14 +379,8 @@ export default {
     const api=await apiRouter(request);
     if(api)return api;
     const url=new URL(request.url);
-    if(url.pathname==="/"||url.pathname==="/tv"){
-      const target=new URL("/index.html",url);
-      const assetRequest=new Request(target.toString(),{
-        method:"GET",
-        headers:request.headers,
-        redirect:"manual"
-      });
-      return env.ASSETS.fetch(assetRequest);
+    if(url.pathname==="/tv"){
+      return Response.redirect(new URL("/",url).toString(),302);
     }
     return env.ASSETS.fetch(request);
   }

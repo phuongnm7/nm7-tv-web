@@ -74,10 +74,16 @@ jobs:
 
           HTML="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/?v=20261005-ios-drm-final1")"
           echo "$HTML" | grep -q "shaka-player@5.2.12" || {
-              echo "Shaka 5.2.4 marker not found in deployed HTML"
+              echo "Shaka 5.2.12 marker not found in deployed HTML"
               exit 1
           }
-          echo "SHAKA_5_2_4_SMOKE_OK"
+          echo "SHAKA_5_2_12_SMOKE_OK"
+          APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app.js?v=20261005-ios-drm-final1")"
+          echo "$APP" | grep -q "CACHE_SCHEMA='20261005-drm-final-1'" || { echo "DRM cache schema marker missing"; exit 1; }
+          echo "$APP" | grep -q "(!appleDrm||S.proxyAttempt)" || { echo "Apple direct DASH request filter marker missing"; exit 1; }
+          echo "$APP" | grep -q "abr:{enabled:appleDrm?false:undefined}" || { echo "Apple DRM ABR lock marker missing"; exit 1; }
+          echo "$APP" | grep -q "hardRestartDrm" || { echo "DRM hard recovery marker missing"; exit 1; }
+          echo "SCTV22_APP_ROOT_FIX_SMOKE_OK"
 
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport.json
           python3 - <<'PY'

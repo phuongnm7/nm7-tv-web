@@ -38,7 +38,9 @@ jobs:
           const fs=require('fs');
           const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
           const channels=[];
-          for(let g=0;g<12;g++)for(let i=0;i<30;i++)channels.push({id:'e2e-'+g+'-'+i,name:'E2E '+(g+1)+'-'+(i+1),group:'GROUP '+String(g+1).padStart(2,'0'),logo:'',candidates:[{url:'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]});
+          const hlsUpstream='https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+          const hlsProxy=base+'/__nm7/stream?u='+encodeURIComponent(hlsUpstream);
+          for(let g=0;g<12;g++)for(let i=0;i<30;i++)channels.push({id:'e2e-'+g+'-'+i,name:'E2E '+(g+1)+'-'+(i+1),group:'GROUP '+String(g+1).padStart(2,'0'),logo:'',candidates:[{url:hlsProxy,type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]});
           const body=JSON.stringify({channels});
           (async()=>{
             const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
@@ -47,6 +49,9 @@ jobs:
             p.on('pageerror',e=>errors.push(e.message));
             await p.route('**/playlist.json*',r=>r.fulfill({status:200,contentType:'application/json',body}));
             await p.route('**/api/playlist*',r=>r.fulfill({status:200,contentType:'application/json',body}));
+            const mediaResponses=[];
+            p.on('response',r=>{if(/__nm7\/stream|\.m3u8|\.ts/.test(r.url()))mediaResponses.push({status:r.status(),url:r.url()});});
+            p.on('requestfailed',r=>{if(/__nm7\/stream|\.m3u8|\.ts/.test(r.url()))console.log('REQUEST_FAILED='+r.url()+' '+(r.failure()?.errorText||''));});
             await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
             await p.waitForSelector('.card',{timeout:15000});
             const initial=await p.evaluate(()=>({tag:document.activeElement?.tagName,row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col,count:document.querySelectorAll('.card').length}));
@@ -66,6 +71,8 @@ jobs:
             console.log('RIGHT='+JSON.stringify(right));
             console.log('DOWN='+JSON.stringify(down));
             console.log('PLAYBACK='+JSON.stringify(media));
+            console.log('MEDIA_RESPONSES='+JSON.stringify(mediaResponses.slice(0,30)));
+            if(media.time<=0||media.ready<2||media.paused)throw new Error('HLS playback failed '+JSON.stringify(media));
             if(errors.length)throw new Error('page errors '+JSON.stringify(errors));
             await b.close();
           })().catch(e=>{console.error(e);process.exit(1)});

@@ -1,0 +1,80 @@
+name: Diagnose iOS DASH ClearKey live stream
+
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Inspect live DASH DRM manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=(
+            "SEENOW_A|https://livevliatmcdw.seenow.vn/live/data8/BONGDA_HD/Live_DASHDRM/BONGDA_HD.mpd"
+            "SEENOW_B|https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd"
+          )
+          for item in "${urls[@]}"; do
+            name="${item%%|*}"
+            url="${item#*|}"
+            echo "===== $name DIRECT ====="
+            curl -fsSL --max-time 20 -A "Dalvik/2.1.0" -D "/tmp/$name.h" -o "/tmp/$name.mpd" "$url"
+            echo "HTTP: $(head -1 /tmp/$name.h)"
+            python3 - "$name" "/tmp/$name.mpd" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          name, path = sys.argv[1], sys.argv[2]
+          raw=open(path,'rb').read()
+          print("BYTES", len(raw))
+          root=ET.fromstring(raw)
+          ns={'d':'urn:mpeg:dash:schema:mpd:2011'}
+          print("TYPE", root.attrib.get('type'), "MIN_BUFFER", root.attrib.get('minBufferTime'),
+                "TIME_SHIFT", root.attrib.get('timeShiftBufferDepth'))
+          for aset in root.findall('.//d:AdaptationSet',ns):
+              cps=[]
+              for cp in aset.findall('d:ContentProtection',ns):
+                  cps.append({k:v for k,v in cp.attrib.items() if 'default' in k.lower() or k.endswith('schemeIdUri')})
+              reps=aset.findall('d:Representation',ns)
+              print("ADAPT", "contentType="+str(aset.attrib.get('contentType')),
+                    "mime="+str(aset.attrib.get('mimeType')),
+                    "codecs="+str(aset.attrib.get('codecs')),
+                    "cp="+str(cps))
+              for rep in reps[:12]:
+                  print("  REP", rep.attrib.get('id'),
+                        rep.attrib.get('bandwidth'),
+                        rep.attrib.get('width'),"x",rep.attrib.get('height'),
+                        rep.attrib.get('frameRate'),
+                        rep.attrib.get('codecs'))
+          PY
+            echo "HEADERS:"
+            grep -iE '^(content-type|cache-control|etag|last-modified|server):' "/tmp/$name.h" || true
+          done
+
+      - name: Inspect deployed proxy manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=(
+            "PROXY_A|https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u=https%3A%2F%2Flivevliatmcdw.seenow.vn%2Flive%2Fdata8%2FBONGDA_HD%2FLive_DASHDRM%2FBONGDA_HD.mpd"
+            "PROXY_B|https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Fmean%2FBONGDA_HD%2Fmanifest.mpd"
+          )
+          for item in "${urls[@]}"; do
+            name="${item%%|*}"
+            url="${item#*|}"
+            echo "===== $name ====="
+            curl -fsSL --max-time 25 -A "Mozilla/5.0" -D "/tmp/$name.h" -o "/tmp/$name.mpd" "$url"
+            echo "HTTP: $(head -1 /tmp/$name.h)"
+            grep -iE '^(content-type|cache-control|access-control-allow-origin|server):' "/tmp/$name.h" || true
+            python3 - "/tmp/$name.mpd" <<'PY'
+          import sys,re,xml.etree.ElementTree as ET
+          p=sys.argv[1]; b=open(p,'rb').read()
+          print("BYTES",len(b), "HAS_MPDTAG", b'<MPD' in b)
+          print("BASE_URLS", re.findall(rb'<BaseURL[^>]*>([^<]+)</BaseURL>', b)[:8])
+          root=ET.fromstring(b)
+          ns={'d':'urn:mpeg:dash:schema:mpd:2011'}
+          print("REP_COUNT",len(root.findall('.//d:Representation',ns)))
+          PY
+          done

@@ -1,0 +1,59 @@
+name: Verify VTV1 manifest and live FLV candidates
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify VTV1 manifest and first segment through Cloudflare
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.parse, urllib.request, re, json
+          base='https://nm7-tv-web.phuongnm7-iptv.workers.dev'
+          u='https://live-a.fptplay53.net/live/media/vtv1/live247-hls-avc/index.m3u8'
+          q='/api/stream?u='+urllib.parse.quote(u,safe='')+'&r='+urllib.parse.quote('https://fptplay.vn/',safe='')+'&ua='+urllib.parse.quote('Mozilla/5.0 (Linux; Android 15; SM-S918B) AppleWebKit/537.36 Chrome/135.0.7049.111 Mobile Safari/537.36 vAppTV/1.0.2',safe='')+'&h='+urllib.parse.quote(json.dumps({'Origin':'https://fptplay.vn'}),safe='')
+          req=urllib.request.Request(base+q,headers={'Origin':'https://fptplay.vn','Referer':'https://fptplay.vn/'})
+          body=urllib.request.urlopen(req,timeout=30).read().decode('utf-8','replace')
+          print('VTV1_MANIFEST_HEAD')
+          print(body[:3000])
+          if '#EXTM3U' not in body: raise SystemExit('VTV1 proxy body is not HLS')
+          urls=[]
+          for line in body.splitlines():
+              line=line.strip()
+              if line and not line.startswith('#'):
+                  urls.append(line)
+          if not urls: raise SystemExit('VTV1 manifest contains no segment/variant URL')
+          first=urllib.parse.urljoin(u,urls[0])
+          print('VTV1_FIRST_URL=',first)
+          q2='/api/stream?u='+urllib.parse.quote(first,safe='')+'&r='+urllib.parse.quote('https://fptplay.vn/',safe='')+'&ua='+urllib.parse.quote('Mozilla/5.0 (Linux; Android 15; SM-S918B) AppleWebKit/537.36 Chrome/135.0.7049.111 Mobile Safari/537.36 vAppTV/1.0.2',safe='')+'&h='+urllib.parse.quote(json.dumps({'Origin':'https://fptplay.vn'}),safe='')
+          rr=urllib.request.Request(base+q2,headers={'Origin':'https://fptplay.vn','Referer':'https://fptplay.vn/'})
+          data=urllib.request.urlopen(rr,timeout=30).read(32)
+          print('VTV1_FIRST_BYTES=',data.hex())
+          PY
+      - name: Enumerate current FLV candidates
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request
+          u='https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/playlist?source=sports'
+          d=json.load(urllib.request.urlopen(u,timeout=30))
+          found=[]
+          for c in d.get('channels',[]):
+              for x in c.get('candidates',[]):
+                  if '.flv' in str(x.get('url','')).lower():
+                      found.append((c.get('name'),x))
+          print('FLV_CANDIDATES=',json.dumps(found[:30],ensure_ascii=False,indent=2))
+          for name,x in found[:20]:
+              url=x.get('url')
+              print('===',name,url,'===')
+              req=urllib.request.Request('https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u='+urllib.parse.quote(url,safe=''))
+              try:
+                  r=urllib.request.urlopen(req,timeout=15)
+                  print('STATUS',r.status,'TYPE',r.headers.get('content-type'),'BYTES_PREVIEW',r.read(9).hex())
+              except Exception as e: print('ERR',e)
+          PY

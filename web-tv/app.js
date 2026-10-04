@@ -39,7 +39,8 @@ var S={
  backArmed:false,
  backTimer:null,
  historyGuard:false,
- exitAllow:false
+ exitAllow:false,
+ mobileMode:false
 };
 var $=function(id){return document.getElementById(id)};
 var toastTimer=null;
@@ -743,6 +744,32 @@ function isTouchMode(){
  return !!((window.matchMedia&&window.matchMedia('(pointer: coarse)').matches) ||
   ('ontouchstart' in window) || (navigator.maxTouchPoints&&navigator.maxTouchPoints>0));
 }
+function detectMobileDevice(){
+ var ua=String(navigator.userAgent||'');
+ var mobileUA=/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua);
+ var touch=('ontouchstart' in window)||((navigator.maxTouchPoints||0)>0);
+ var small=false;
+ try{small=Math.max(Number(screen.width||0),Number(screen.height||0))<=1024}catch(e){}
+ var coarse=false;
+ try{coarse=!!(window.matchMedia&&window.matchMedia('(pointer: coarse)').matches)}catch(e){}
+ return !!(mobileUA||(touch&&small&&(coarse||!ua)));
+}
+function applyDeviceMode(){
+ var m=detectMobileDevice();
+ S.mobileMode=m;
+ if(document.body){
+  if(m)document.body.classList.add('mobile-mode');
+  else document.body.classList.remove('mobile-mode');
+ }
+ var b=$('mobileMenuBtn');
+ if(b)b.tabIndex=m?0:-1;
+ return m
+}
+function mobileModeChange(){
+ var old=S.mobileMode;var now=applyDeviceMode();
+ if(old!==now&&!S.dialog&&!S.player&&!S.menuOpen){renderHome();focusHome(false)}
+}
+
 function resetBackArm(){
  if(S.backTimer){clearTimeout(S.backTimer);S.backTimer=null}
  S.backArmed=false;
@@ -942,9 +969,13 @@ $('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồn
 
 function startup(){
  restoreUser();
+ applyDeviceMode();
  bindTouchNavigation();
  mobileHistoryGuard();
  document.addEventListener('keydown',onKey,true);
+ window.addEventListener('resize',mobileModeChange);
+ window.addEventListener('orientationchange',mobileModeChange);
+ $('mobileMenuBtn').addEventListener('click',function(){openMenu()});
  $('btnYouTubeTab').addEventListener('click',function(){toast('YouTube tích hợp sẽ được nối tiếp từ giao diện 1.0.69');});
  $('appShortcut').addEventListener('click',function(){toast('Chọn ứng dụng');});
  window.addEventListener('focus',function(){if(!S.dialog&&!S.menuOpen){setTimeout(function(){if(S.player)playerFocus();else focusHome(false)},30)}},true);

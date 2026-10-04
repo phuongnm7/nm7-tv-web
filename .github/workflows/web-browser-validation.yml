@@ -30,6 +30,6 @@ jobs:
         run: |
           test -s web-tv/index.html
           test -s web-tv/app.js
-          test -s assets/nm7-default-background.webp
+          test -s web-tv/assets/nm7-default-background.webp
           test -s web-tv/dash.all.min.js
           grep -q 'Android 1.0.69' web-tv/index.html || true

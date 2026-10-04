@@ -1,0 +1,29 @@
+name: Test player attempt order and FLV path
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static player checks
+        run: |
+          node --check web-tv/app.js
+          grep -q "function shouldProxyFirst" web-tv/app.js
+          grep -q "cors:true" web-tv/app.js
+      - name: Probe known FLV through proxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          U='https://playback.livetl004.com/live/6a9a5525864ea536c2577392.flv'
+          P="https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u=$(python3 -c 'import urllib.parse; print(urllib.parse.quote("'$U'",safe=""))')&ua=$(python3 -c 'import urllib.parse; print(urllib.parse.quote("Mozilla/5.0",safe=""))')"
+          curl -L --max-time 12 -sS -D /tmp/h -o /tmp/b "$P" || true
+          head -1 /tmp/h
+          grep -i '^content-type:' /tmp/h || true
+          python3 - <<'PY'
+          b=open('/tmp/b','rb').read(9)
+          print('FLV_HEADER=',b.hex())
+          if b[:3]!=b'FLV': raise SystemExit('proxy did not return FLV')
+          PY

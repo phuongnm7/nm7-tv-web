@@ -17,6 +17,8 @@ jobs:
             "AZURE_MYFTP|https://azurex88.myftp.biz/livetv/bpk-tv/vstv/userid:vmttv/mac=2F-1E-07-AD-E9-59/vtvcab16/index.m3u8"
             "KHANG|https://khanggtivi.xyz/vuminhthanh/vmt2024/onfootball/index.m3u8"
             "HOIQUAN|https://xem.hoiquan.click/TichHop/OnLive/LIVE/?user=onfootball"
+            "TV360_ID_ONLY|https://tv.vietanhtv.top/tv360/tv360.php?id=174"
+            "TV360_KEY_ONLY|https://tv.vietanhtv.top/sex/cleankey.php?id=tv360174"
           )
           for item in "${items[@]}"; do
             n="${item%%|*}"; u="${item#*|}"

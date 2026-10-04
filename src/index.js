@@ -305,7 +305,8 @@ async function imageAPI(request){
 
 async function apiRouter(request){
   const p=new URL(request.url).pathname;
-  if(p==="/api/playlist")return playlistAPI(request);\n  if(p==="/__nm7/playlist")return playlistAPI(request);
+  if(p==="/api/playlist")return playlistAPI(request);
+  if(p==="/__nm7/playlist")return playlistAPI(request);
   if(p==="/api/stream"||p==="/__nm7/stream")return streamAPI(request);
   if(p==="/api/probe"||p==="/__nm7/probe")return probeAPI(request);
   if(p==="/api/license"||p==="/__nm7/license")return licenseAPI(request);

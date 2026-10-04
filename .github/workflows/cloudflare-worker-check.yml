@@ -28,11 +28,15 @@ jobs:
           echo "LIVE_URL=$LIVE_URL" | tee /tmp/cloudflare-live-url
           printf '%s\n' "$LIVE_URL" > /tmp/cloudflare-live-url.txt
 
+      - name: Install browser for live UI smoke test
+        run: npx playwright install chromium --with-deps
+
       - name: Smoke test live Worker
         run: |
           set -euo pipefail
           LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
           echo "Testing $LIVE_URL"
+          export LIVE_URL
           node <<'NODE'
           const fs=require('fs');
           const base=fs.readFileSync('/tmp/cloudflare-live-url.txt','utf8').trim();
@@ -53,5 +57,32 @@ jobs:
             const a=JSON.parse(api.text);
             if(!Array.isArray(a.channels)||!a.channels.length)throw new Error('API playlist empty');
             console.log('SMOKE_OK='+JSON.stringify({staticChannels:d.channels.length,apiChannels:a.channels.length}));
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Smoke test live UI
+        run: |
+          set -euo pipefail
+          LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const base=process.env.LIVE_URL;
+          (async()=>{
+            const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            const p=await b.newPage({viewport:{width:1920,height:1080}});
+            const errors=[];
+            p.on('pageerror',e=>errors.push(e.message));
+            await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
+            await p.waitForSelector('.card',{timeout:15000});
+            const n=await p.locator('.card').count();
+            const first=await p.locator('.card').first().getAttribute('aria-label');
+            const active=await p.evaluate(()=>({tag:document.activeElement?.tagName,row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
+            console.log('UI_OK='+JSON.stringify({cards:n,first,active,errors}));
+            if(n<1)throw new Error('no channel cards rendered');
+            if(active.tag!=='BUTTON'||active.row!=='0'||active.col!=='0')throw new Error('initial focus incorrect '+JSON.stringify(active));
+            await p.keyboard.press('ArrowRight'); await p.waitForTimeout(100);
+            const right=await p.evaluate(()=>({row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
+            if(right.row!=='0'||right.col!=='1')throw new Error('RIGHT navigation failed '+JSON.stringify(right));
+            await b.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE

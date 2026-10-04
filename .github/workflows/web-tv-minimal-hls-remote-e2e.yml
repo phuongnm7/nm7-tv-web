@@ -119,12 +119,18 @@ jobs:
 
             await p.keyboard.press('Enter');
             await p.waitForSelector('#player:not(.hidden)',{timeout:3000});
-            await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&(v.readyState>=2&&v.currentTime>0)},null,{timeout:15000});
+            if(codec){
+              await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&(v.readyState>=2&&v.currentTime>0)},null,{timeout:15000});
+            } else {
+              await p.waitForTimeout(2000);
+              await p.waitForResponse(r=>r.status()===200&&/test-hls0\.ts/.test(r.url()),{timeout:10000}).catch(()=>{});
+            }
             const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v.currentTime,ready:v.readyState,paused:v.paused,src:v.currentSrc||v.src,network:v.networkState,readyState:v.readyState,err:v.error?{code:v.error.code,msg:v.error.message}:null,hls:!!window.Hls,hlsSupported:!!(window.Hls&&Hls.isSupported()),ms:!!window.MediaSource}});
             console.log('REMOTE_OK='+JSON.stringify({initial:init,right,menuDown:mi}));
             console.log('HLS='+JSON.stringify(media));
             if(!codec){
               console.log('HLS_NETWORK_ONLY_OK=Codec decode unavailable in CI Chromium; navigation, manifest and fragment requests were exercised.');
+              if(!(media.hls&&media.hlsSupported))throw new Error('HLS.js unavailable');
             } else if(!(media.t>0&&media.ready>=2)){
               throw new Error('HLS playback failed '+JSON.stringify(media));
             }

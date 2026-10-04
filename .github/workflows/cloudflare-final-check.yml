@@ -28,6 +28,25 @@ jobs:
           grep -o 'https://[^[:space:]]*workers.dev' /tmp/deploy.log | tail -1 > /tmp/live.txt
           test -s /tmp/live.txt
           echo "LIVE_URL=$(cat /tmp/live.txt)"
+          echo "Waiting for Cloudflare preview to become reachable..."
+          node <<'NODE'
+          const fs=require('fs');
+          const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
+          (async()=>{
+            let last='';
+            for(let i=0;i<30;i++){
+              try{
+                const r=await fetch(base+'/',{redirect:'follow',cache:'no-store'});
+                const t=await r.text();
+                last=r.status+' '+(r.headers.get('content-type')||'')+' '+t.slice(0,40).replace(/\s+/g,' ');
+                if(r.status===200)break;
+              }catch(e){last=String(e)}
+              await new Promise(x=>setTimeout(x,2000));
+            }
+            console.log('PREVIEW_READY='+last);
+            if(!last.startsWith('200 '))process.exit(1);
+          })();
+          NODE
       - name: Install Playwright
         run: |
           npm install --no-save playwright@1.55.0

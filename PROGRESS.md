@@ -46,13 +46,19 @@ For commit `4fff84e7cfe495311c3623179b87b9e8a97c0acc`:
 - Cloudflare smoke test also confirmed the normal Android 1.0.69 playlist: 490 channels with the expected first groups.
 
 ## Testing phase
-Please treat `0e50b38bdd0bc1c242a9f73b5d2cdb74300636e1` as the current functional baseline while testing on:
+Please treat `4fff84e7cfe495311c3623179b87b9e8a97c0acc` as the current functional baseline while testing on:
 - Android Chrome/mobile browser
 - Samsung TV/Tizen Web App
 - Different screen orientations
 - Channel switching and player gestures
 - Long scrolling through the full channel list
 - HLS, DASH/DRM, FLV and MPEG-TS channels
+
+### Latest verified fixes
+- `8617103b1cb9a23e9a349d980b4251ba7cd0b5d4`: sport-source fallback and same-origin custom-source gateway implemented.
+- `997ffcf86d74d2cca881a39ad3b27d1ec9e2b44b`: mobile custom-source loading moved to `/api/source`.
+- `4fff84e7cfe495311c3623179b87b9e8a97c0acc`: Cloudflare smoke tests added for sport and custom-source APIs.
+- Latest documentation commits: `876fa3b6b78ba6577c64ffc460d89b67ae8be264` and `db975d41bf3e79ba9a2fbef3d241fc73dc5e1d80`.
 
 ### Known next-step candidates
 Only change these after real-device testing identifies a reproducible issue:

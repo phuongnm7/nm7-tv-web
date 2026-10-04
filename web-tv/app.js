@@ -543,9 +543,6 @@ function tryCandidate(){
  var c=S.current,cand=getCandidate(),v=$('video'),kind,generation=S.generation;
  if(!cand){setStatus('Kênh chưa có URL phát');return}
  clearPlayers();kind=classify(cand);
- if(isAppleTouchDevice()&&kind==='dash'&&isDashDrmCandidate(cand)){
-  setStatus('Kênh này dùng DASH + ClearKey.\\nSafari trên iPad/iPhone không hỗ trợ đường phát này.');return
- }
  S.proxyAttempt=attemptUsesProxy(cand,kind);
  var sourceUrl=cand.resolvedUrl||cand.url,url=makeProxy(sourceUrl,cand);
  setStatus('Đang mở '+c.name+'\\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
@@ -693,6 +690,11 @@ function startMpegTs(c,cand,url,gen){
   p.attachMediaElement($('video'));p.load();var x=$('video').play();if(x&&x.catch)x.catch(function(){})
  }catch(e){nextCandidate('MPEG-TS khởi tạo lỗi')}
 }
+function getAppleDrmRuntime(){
+ var ua=navigator.userAgent||'';
+ var apple=isAppleTouchDevice();
+ return {apple:apple,ios17plus:apple && !!window.ManagedMediaSource,webCrypto:typeof crypto!=='undefined'&&!!crypto.subtle,shaka:String(window.shaka&&shaka.version||'')};
+}
 function startDash(c,cand,url,gen){
  var drm=browserDrm(cand);
  if(window.shaka&&shaka.Player){
@@ -706,14 +708,16 @@ function startShaka(c,cand,url,drm,gen){
   if(shaka.polyfill&&shaka.polyfill.installAll)shaka.polyfill.installAll();
   var p=new shaka.Player($('video'));S.shaka=p;
   if(drm&&drm.error)throw new Error(drm.error);
+  var cfg={drm:{servers:{}},streaming:{preferNativeHls:false}};
   if(drm){
-   var cfg={drm:{servers:{}}};
    if(drm.clearKeys)cfg.drm.clearKeys=drm.clearKeys;
    if(drm.remote&&drm.license){
     cfg.drm.servers[drm.system]=makeLicenseProxy(drm.license,cand);
    }
-   if(p.configure)p.configure(cfg);
   }
+  // Shaka >= 5.2.1 can fall back to WebCrypto for ClearKey on Safari.
+  // Keep DASH/MMS on iOS for DRM candidates instead of forcing native HLS.
+  if(p.configure)p.configure(cfg);
   var net=shaka.net.NetworkingEngine;
   p.getNetworkingEngine().registerRequestFilter(function(type,request){
    if(gen!==S.generation)return;

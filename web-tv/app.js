@@ -367,6 +367,27 @@ function isDashDrmCandidate(cand){
  var u=String(cand.url||''),t=String(cand.type||'').toLowerCase(),m=String(cand.mime||'').toLowerCase();
  return !!cand.drm&&(cand.dash||t==='dash'||m.indexOf('dash+xml')>=0||/\.mpd(?:$|\?)/i.test(u))
 }
+function variantBaseName(name){
+ return String(name||'').replace(/\s*\[(?:flv|hls(?:\s*\d+)?)\]\s*$/i,'').trim()
+}
+function addAppleHlsAlternatives(c){
+ if(!isAppleTouchDevice()||!c)return c;
+ var base=variantBaseName(c.name),group=String(c.group||''),extra=[];
+ for(var i=0;i<S.list.length;i++){
+  var x=S.list[i];
+  if(x===c||String(x.group||'')!==group||variantBaseName(x.name)!==base)continue;
+  var ca=x.candidates||[];
+  for(var j=0;j<ca.length;j++){
+   var cc=ca[j];
+   if(classify(cc)!=='hls'||cc.drm)continue;
+   if(!extra.some(function(z){return z.url===cc.url}))extra.push(cc)
+  }
+ }
+ if(!extra.length)return c;
+ var merged=(c.candidates||[]).slice();
+ for(var q=0;q<extra.length;q++)if(!merged.some(function(z){return z.url===extra[q].url}))merged.push(extra[q]);
+ return Object.assign({},c,{candidates:merged})
+}
 function startupCandidateIndex(c){
  var a=c&&Array.isArray(c.candidates)?c.candidates:[];
  if(!a.length)return 0;
@@ -488,6 +509,7 @@ function hideStatus(){$('status').style.display='none'}
 function getCandidate(){return S.current&&S.current.candidates?normalizeCandidate(S.current.candidates[S.candidateIndex]):null}
 
 function openPlayer(c){
+ c=addAppleHlsAlternatives(c);
  if(!c||!c.candidates||!c.candidates.length){toast('Kênh chưa có URL phát');return}
  S.current=c;S.candidateIndex=startupCandidateIndex(c);S.attemptStep=0;S.proxyAttempt=false;S.player=true;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;
  S.zone='player';$('player').className='';$('ctrl').className='hidden';$('quick').className='hidden';

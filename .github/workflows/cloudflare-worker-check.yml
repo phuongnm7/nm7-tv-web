@@ -46,7 +46,7 @@ jobs:
           (async()=>{
             let pass=0;
             for(const [name,u,r,uAgent] of tests){
-              const q=new URL(base+'/api/stream');
+              const q=new URL(base+'/__nm7/stream');
               q.searchParams.set('u',u);
               if(r)q.searchParams.set('r',r);
               if(uAgent)q.searchParams.set('ua',uAgent);

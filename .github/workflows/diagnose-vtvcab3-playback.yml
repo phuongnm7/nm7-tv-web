@@ -10,6 +10,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Resolve ON Sports hosts via public DNS and test by IP
+        shell: bash
+        run: |
+          set +e
+          for HOST in code.vthanhtivi.pw api.vthanhtivi.pw live.vthanhtivi.pw liveh34.vtvcab.vn live2onsport.vtvcab.vn 856175157.r.vtvcdn.com; do
+            echo "=== DNS $HOST ==="
+            RESP="$(curl -fsSL --max-time 10 "https://dns.google/resolve?name=$HOST&type=A")"
+            echo "$RESP"
+            IP="$(python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); print(next((a["data"] for a in d.get("Answer",[]) if a.get("type")==1), ""))' <<<"$RESP")"
+            if [ -z "$IP" ]; then echo "NO_IPV4"; continue; fi
+            echo "IP=$IP"
+            case "$HOST" in
+              live.vthanhtivi.pw) U='http://live.vthanhtivi.pw:8080/vtvcab3'; PORT=8080;;
+              *) U="https://$HOST/"; PORT=443;;
+            esac
+            echo "--- $U via $IP ---"
+            curl -k -L --resolve "$HOST:$PORT:$IP" --max-time 20 -sS -D /tmp/rh -o /tmp/rb -A 'KhoaTivi' "$U"
+            echo "RC=$?"
+            head -20 /tmp/rh || true
+            echo "BYTES=$(wc -c < /tmp/rb 2>/dev/null || echo 0)"
+            head -c 800 /tmp/rb 2>/dev/null | tr '\n' ' '; echo
+          done
+
       - name: Probe additional ON Sports resolvers
         shell: bash
         run: |

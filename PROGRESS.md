@@ -138,3 +138,14 @@ Không lấy một bản thử nghiệm mới làm baseline khi vòng test hiệ
 - `index.html` đã thêm query version cho `app.js` để tránh dùng JavaScript player cũ từ cache.
 - Workflow deploy Cloudflare của commit `11bcc366...` đã **success**, gồm deploy và smoke test.
 - Khi test lại cần dùng URL có query mới, ví dụ `https://nm7-tv-web.phuongnm7-iptv.workers.dev/tv?v=20261004-apple-hls`, để buộc trình duyệt lấy HTML/player mới.
+
+## Web iOS DRM — hướng ClearKey qua WebCrypto — 04/10/2026
+
+- Phát hiện quan trọng: Shaka Player 5.2.1 đã thêm **ClearKey playback in Safari through WebCrypto**; bản ổn định hiện tại là **5.2.12**.
+- Đã nâng NM7 Web từ Shaka `4.16.51` lên `5.2.12`.
+- Đã bỏ chặn cứng iPhone/iPad đối với DASH + ClearKey để Shaka có cơ hội dùng ManagedMediaSource/WebCrypto trên iOS/iPadOS.
+- Đã cấu hình Shaka không ép native HLS khi đang xử lý DRM DASH.
+- Các kênh HLS không DRM trên iOS vẫn dùng native HLS; không lặp lại lỗi hồi quy ép toàn bộ HLS qua proxy.
+- On Sports 50fps vẫn ưu tiên candidate HLS thật nếu có; Worker đã enrich cả JSON playlist để bổ sung candidate built-in.
+- Đã bổ sung smoke test deploy: kiểm tra HTML phải chứa Shaka 5.2.12 và On Sports phải có URL `.m3u8` thật.
+- Trạng thái: commit mới nhất `82cd9c932a13a4d32810555bcd812bf2ac026dc4`; chờ GitHub Actions/Cloudflare smoke test xác nhận.

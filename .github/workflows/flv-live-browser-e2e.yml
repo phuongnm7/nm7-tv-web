@@ -49,7 +49,8 @@ jobs:
             r.on('error',e=>{if(!res.headersSent)res.writeHead(502);res.end(String(e))});
           }
           const s=http.createServer((req,res)=>{
-            if(req.url.startsWith('/api/stream?')) return proxy(req,res);
+            if(req.url.startsWith('/api/playlist')){res.writeHead(200,{'content-type':'application/json','access-control-allow-origin':'*'});return res.end(fs.readFileSync(path.join(root,'playlist.json')))}
+          if(req.url.startsWith('/api/stream?')) return proxy(req,res);
             let p=new URL(req.url,'http://localhost').pathname;
             if(p==='/')p='/index.html';
             p=path.join(root,p);

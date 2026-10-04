@@ -59,6 +59,8 @@ jobs:
           });
           s.listen(4174,'127.0.0.1');
           NODE
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
       - name: Run browser FLV test
         shell: bash
         run: |

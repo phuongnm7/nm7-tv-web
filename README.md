@@ -1,80 +1,103 @@
 # NM7 TV Web 1.0.69
 
-Web Browser version follows the Android TV 1.0.69 TV layout and behavior.
+Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi của bản Android TV **1.0.69**.
 
-## Current test baseline
-- Date: 2026-10-04
-- Branch: `feat/tvdrm-player-integration-20261004`
-- Stable functional baseline: `4fff84e7cfe495311c3623179b87b9e8a97c0acc`
+## Mốc kiểm thử hiện tại
+
+- Ngày cập nhật: **04/10/2026**
+- Nhánh: `feat/tvdrm-player-integration-20261004`
+- Mốc ổn định hiện tại: `4fff84e7cfe495311c3623179b87b9e8a97c0acc`
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
-- Deployment target: Cloudflare Workers.
-- This baseline is currently in an extended real-device testing phase. Avoid unrelated UI changes until the test round identifies a reproducible issue.
+- Nơi triển khai: **Cloudflare Workers**
+- Bản hiện tại đang trong giai đoạn kiểm thử thực tế dài hơn. Không thay đổi các phần UI không liên quan cho đến khi phát hiện lỗi có thể tái hiện.
 
-## TV UI
-- Exact Android-style TV landscape wallpaper and channel cards.
-- Home groups are prioritized as VTV, VTVcab, Thể Thao, SCTV when present.
-- Real focusable HTML buttons with roving tabindex, so browser keyboard and Samsung TV Arrow/Enter/Back events use the same navigation state.
-- LEFT from the first channel opens the side menu.
-- UP/DOWN changes rows and LEFT/RIGHT changes channels within a row.
-- OK opens playback.
-- Player supports Back, controller, seek and channel switching.
-- Android TV 1.0.69 remains the visual and interaction reference for the TV layout.
+## Giao diện TV
 
-## Mobile / responsive
-- Mobile uses native vertical page scrolling instead of global touch interception.
-- Channel cards switch to a responsive grid on small screens, so each channel group no longer requires horizontal swiping.
-- Global `#app` touch handlers were removed to prevent scroll fighting and lag.
-- Touch gesture handling is restricted to the player area.
-- Player gestures:
-  - swipe left/right: seek
-  - swipe up/down: switch channel
-  - tap: show controls
-- Mobile menu and two-stage Back/exit handling remain available.
-- The TV remote/keyboard navigation path is preserved separately from mobile touch behavior.
+- Giữ hình nền và phong cách thẻ kênh theo Android TV 1.0.69.
+- Các nhóm ưu tiên: VTV, VTVcab, Thể Thao, SCTV khi có trong playlist.
+- Thẻ kênh dùng nút HTML có thể focus và cơ chế `roving tabindex`, giúp điều hướng bằng bàn phím trình duyệt và điều khiển Samsung TV thống nhất.
+- LEFT tại vị trí đầu danh sách có thể mở menu bên.
+- UP/DOWN chuyển nhóm; LEFT/RIGHT chuyển kênh trong nhóm.
+- OK mở phát kênh.
+- Trình phát hỗ trợ Back, bộ điều khiển, tua và chuyển kênh.
+- Giao diện TV lấy Android TV NM7 1.0.69 làm chuẩn tham chiếu.
 
-## Source management
-- The default **Thể thao** source uses the live `sports-auto.m3u` playlist as the primary source and keeps the previous `thethaonm7.../playlist.m3u` endpoint as fallback.
-- **Thêm nguồn IPTV** uses the same-origin `/api/source` gateway instead of browser-direct fetching, avoiding CORS failures on normal M3U sources.
-- The Worker parses custom M3U sources server-side, preserves playlist metadata, and resolves relative stream URLs against the source URL.
+## Giao diện điện thoại / responsive
 
-## Browser playback
-- HLS: native HLS where appropriate; Hls.js 1.7.3 on Chromium/MSE browsers.
-- MPEG-TS/FLV: mpegts.js / FLV MSE path where the browser supports it.
-- DASH: Shaka Player 4.16.51 with Media Source Extensions.
-- ClearKey / Widevine / PlayReady are routed through the browser EME path when the TV/browser exposes the required key system.
-- Unknown HTTP wrapper URLs are probed before the playback engine is selected.
-- /api/stream rewrites HLS playlists and DASH BaseURL/segment dependencies through the same-origin proxy and preserves playlist headers.
-- /api/license handles remote DRM license requests.
-- Playlist metadata keeps User-Agent, Referer and Origin where supplied.
-- ON Football currently uses the latest committed SeeNow DASH sources with the corresponding ClearKey metadata.
+- Điện thoại dùng cuộn dọc tự nhiên của trình duyệt.
+- Các thẻ kênh chuyển sang lưới responsive trên màn hình nhỏ, không còn phải vuốt ngang riêng từng nhóm.
+- Đã bỏ việc chặn sự kiện touch trên toàn bộ `#app` để tránh hiện tượng giật và tranh chấp với thao tác cuộn.
+- Gesture cảm ứng chỉ được xử lý trong khu vực trình phát.
+- Trong trình phát:
+  - Vuốt trái/phải: tua.
+  - Vuốt lên/xuống: chuyển kênh.
+  - Chạm: hiện bộ điều khiển.
+- Menu điện thoại và xử lý Back hai bước vẫn được giữ.
+- Đường điều hướng bằng remote/bàn phím trên TV được tách riêng và giữ nguyên.
 
-## Important browser limitation
-Samsung documents that ArrowLeft, ArrowUp, ArrowRight, ArrowDown, Enter and Back are mandatory remote keys and can be received as DOM keyboard events. Samsung also documents that special color/playback keys cannot be made functional in the Smart TV Web Browser because the browser does not expose the Samsung Product/Tizen APIs. The Web version therefore treats Arrow/Enter/Back as the portable TV remote control surface; optional media key mappings are handled when the browser exposes them.
+## Quản lý nguồn
 
-## Validation
-The latest baseline passed the repository's automated validation at commit `4fff84e7cfe495311c3623179b87b9e8a97c0acc`:
-- JavaScript syntax/validation checks: success.
-- Browser validation workflow: success.
-- Cloudflare deployment and deployed-worker smoke test: success.
-- Sport playlist smoke test: success (566 channels).
-- Custom-source proxy smoke test: success (566 channels).
+### Nguồn Thể thao
+- Không còn phụ thuộc duy nhất vào endpoint `thethaonm7...`.
+- Worker ưu tiên nguồn:
+  `https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com`
+- Nếu nguồn trên lỗi, Worker dùng:
+  `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u`
 
-The Web project is separate from the native Samsung Tizen WGT. The Browser URL stays a normal web application and does not require installing a WGT.
+### Thêm nguồn IPTV
+- Trước đây trình duyệt gọi trực tiếp URL playlist nên nhiều nguồn bị lỗi CORS với thông báo `Failed to fetch`.
+- Hiện tại trình duyệt gọi API cùng miền `/api/source`.
+- Worker lấy playlist ở phía máy chủ, phân tích M3U rồi trả JSON có CORS an toàn cho giao diện.
+- URL tương đối trong playlist được tự động giải quyết theo URL nguồn gốc.
+- Metadata User-Agent, Referer, Origin và DRM của playlist được giữ lại khi có.
 
-## Current test focus
-During this test round, prioritize:
-- Android Chrome/mobile scrolling and touch responsiveness.
-- Samsung TV/Tizen browser remote navigation.
-- Long scrolling through the full channel list.
-- Channel switching and player gestures.
-- HLS, DASH/DRM, FLV and MPEG-TS playback.
-- Remaining Samsung TV playback compatibility issues.
+## Phát video
 
-## Known future cleanup / optimization
-These are intentionally deferred until a reproducible issue or the current test round is complete:
-- mobile full-list rendering/lazy-logo performance
-- focus/scroll edge cases
-- remaining unsupported Samsung TV stream formats
-- cleanup of temporary diagnostic GitHub workflows
+- HLS: HLS native khi phù hợp; Hls.js 1.7.3 trên trình duyệt Chromium/MSE.
+- MPEG-TS/FLV: mpegts.js hoặc đường FLV MSE khi trình duyệt hỗ trợ.
+- DASH: Shaka Player 4.16.51 với Media Source Extensions.
+- ClearKey / Widevine / PlayReady dùng đường EME của trình duyệt khi thiết bị cung cấp key system tương ứng.
+- URL dạng wrapper HTTP chưa biết định dạng sẽ được probe trước khi chọn engine.
+- `/api/stream` có thể rewrite playlist HLS và BaseURL/segment của DASH qua same-origin proxy, đồng thời giữ metadata header.
+- `/api/license` xử lý chuyển tiếp yêu cầu license DRM.
+- ON Football hiện dùng các nguồn DASH SeeNow và ClearKey đã được chốt trong Worker/playlist.
 
-The current stable baseline should be used as the starting point for any next fix, and unrelated changes should remain isolated.
+## Giới hạn của trình duyệt Samsung
+
+Samsung công bố các phím ArrowLeft, ArrowUp, ArrowRight, ArrowDown, Enter và Back là các phím remote bắt buộc có thể nhận dưới dạng sự kiện bàn phím trong Web App. Các phím màu/chuyên dụng và một số phím playback đặc biệt phụ thuộc API sản phẩm Tizen nên không thể đảm bảo hoạt động trong trình duyệt Web thông thường.
+
+Vì vậy bản Web dùng Arrow/Enter/Back làm lớp điều khiển remote TV portable; các phím media tùy chọn chỉ được dùng khi trình duyệt thực sự cung cấp sự kiện tương ứng.
+
+## Kiểm thử
+
+Mốc `4fff84e7cfe495311c3623179b87b9e8a97c0acc` đã vượt qua các kiểm tra tự động hiện có:
+
+- Kiểm tra cú pháp JavaScript và tài nguyên bắt buộc: **thành công**
+- Kiểm tra điều hướng/focus trình duyệt: **thành công**
+- Kiểm tra triển khai Cloudflare và smoke test Worker: **thành công**
+- Kiểm tra API playlist Thể thao: **thành công, 566 kênh**
+- Kiểm tra API nguồn tùy chỉnh: **thành công, 566 kênh**
+- Playlist mặc định Android TV 1.0.69: **490 kênh**, đúng thứ tự nhóm đầu: VTV, VTVcab, Thể Thao, SCTV
+
+Dự án Web tách biệt với WGT Samsung Tizen native. URL Web có thể mở trực tiếp bằng trình duyệt và không cần cài WGT.
+
+## Nội dung đang cần test thực tế
+
+- Chrome Android: cuộn dài, phản hồi chạm và thao tác menu.
+- Samsung TV/Tizen Web App: Arrow, OK, Back và chuyển kênh.
+- Cuộn qua toàn bộ danh sách kênh.
+- Chuyển kênh và gesture trong trình phát.
+- HLS, DASH/DRM, FLV và MPEG-TS.
+- Các kênh còn chưa tương thích riêng với Samsung TV.
+
+## Các việc để sau đợt test
+
+Chỉ thực hiện khi có lỗi tái hiện rõ hoặc khi kết thúc vòng test hiện tại:
+
+- Tối ưu hiệu năng render danh sách đầy đủ trên điện thoại.
+- Tối ưu lazy-load logo.
+- Xử lý các trường hợp focus/scroll đặc biệt.
+- Tương thích thêm các định dạng stream còn lỗi trên Samsung TV.
+- Dọn các workflow chẩn đoán tạm thời không còn cần thiết.
+
+Mọi bản sửa tiếp theo nên lấy mốc ổn định hiện tại làm điểm xuất phát và cô lập đúng theo lỗi được phát hiện.

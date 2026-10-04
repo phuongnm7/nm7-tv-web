@@ -73,11 +73,17 @@ jobs:
             const v=firstVariant(m.text,m.url);
             console.log('VARIANT_URL='+v);
             if(!v)throw new Error('no variant found');
-            const vu=new URL(base+'/api/stream');vu.searchParams.set('u',v);
-            const vr=await get(vu.toString());
+            const vr=await get(v);
             console.log('VARIANT='+JSON.stringify({status:vr.status,ct:vr.ct,len:vr.text.length,url:vr.url}));
             console.log(vr.text.slice(0,3000));
             if(vr.status!==200||!/^#EXTM3U/m.test(vr.text))throw new Error('variant failed');
+            const mediaLine=vr.text.split(/\r?\n/).find(x=>x.trim()&&!x.trim().startsWith('#'));
+            if(!mediaLine)throw new Error('no media segment found');
+            const mediaUrl=new URL(mediaLine,vr.url).toString();
+            console.log('MEDIA_URL='+mediaUrl);
+            const mr=await fetch(mediaUrl,{redirect:'follow',cache:'no-store'});
+            console.log('MEDIA='+JSON.stringify({status:mr.status,ct:mr.headers.get('content-type')||'',len:mr.headers.get('content-length')||''}));
+            if(!(mr.ok||mr.status===206))throw new Error('media segment failed '+mr.status);
             console.log('CHAIN_OK');
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE

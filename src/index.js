@@ -71,7 +71,7 @@ function safeProxyHeaders(request,urlObj) {
 }
 
 function appendProxy(url, q, extra={}) {
-  const u=new URL("/api/stream", q.origin);
+  const u=new URL("/__nm7/stream", q.origin);
   u.searchParams.set("u",url);
   const r=q.searchParams.get("r"), ua=q.searchParams.get("ua"), h=q.searchParams.get("h");
   if(r)u.searchParams.set("r",r);
@@ -175,7 +175,7 @@ async function playlistAPI(request){
         const out=[];
         for(const x of c.candidates||[]){
           if(!/^https?:/i.test(x.url)) continue;
-          const u=new URL("/api/stream",request.url);
+          const u=new URL("/__nm7/stream",request.url);
           u.searchParams.set("u",x.url);
           if(x.ref)u.searchParams.set("r",x.ref);
           if(x.ua)u.searchParams.set("ua",x.ua);
@@ -305,11 +305,11 @@ async function imageAPI(request){
 
 async function apiRouter(request){
   const p=new URL(request.url).pathname;
-  if(p==="/api/playlist")return playlistAPI(request);
-  if(p==="/api/stream")return streamAPI(request);
-  if(p==="/api/probe")return probeAPI(request);
-  if(p==="/api/license")return licenseAPI(request);
-  if(p==="/api/image")return imageAPI(request);
+  if(p==="/api/playlist")return playlistAPI(request);\n  if(p==="/__nm7/playlist")return playlistAPI(request);
+  if(p==="/api/stream"||p==="/__nm7/stream")return streamAPI(request);
+  if(p==="/api/probe"||p==="/__nm7/probe")return probeAPI(request);
+  if(p==="/api/license"||p==="/__nm7/license")return licenseAPI(request);
+  if(p==="/api/image"||p==="/__nm7/image")return imageAPI(request);
   return null;
 }
 

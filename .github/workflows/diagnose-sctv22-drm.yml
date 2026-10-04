@@ -11,6 +11,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Probe SCTV22 direct and proxy
+        continue-on-error: true
         shell: bash
         run: |
           set +euo pipefail
@@ -53,6 +54,7 @@ jobs:
           PY
 
       - name: Inspect SCTV22 KIDs over live refresh
+        if: always()
         shell: bash
         run: |
           set +euo pipefail
@@ -82,6 +84,7 @@ jobs:
           done
 
       - name: Probe SCTV22 proxy with browser headers
+        if: always()
         shell: bash
         run: |
           set +euo pipefail

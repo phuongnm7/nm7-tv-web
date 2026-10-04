@@ -52,7 +52,13 @@ var $=function(id){return document.getElementById(id)};
 var toastTimer=null;
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-function dbg(s){if(!S.debug)return;var d=$('debug');d.style.display='block';d.textContent=String(s||'')}
+function dbg(s){
+ if(!S.debug)return;
+ var d=$('debug');if(!d)return;
+ var line='['+new Date().toLocaleTimeString()+'] '+String(s||'');
+ S.debugLines=(S.debugLines||[]).concat([line]).slice(-32);
+ d.style.display='block';d.textContent=S.debugLines.join('\n')
+}
 function toast(s){var t=$('toast');t.textContent=s;t.className='show';clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.className=''},2600)}
 function isHttp(u){return /^https?:\/\//i.test(String(u||''))}
 function saveUser(){try{localStorage.setItem('nm7:fav',JSON.stringify(S.fav));localStorage.setItem('nm7:recent',JSON.stringify(S.recent.slice(0,80)))}catch(e){}}
@@ -512,6 +518,14 @@ function clearPlayers(){
  if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}
  if(S.drmRecoveryTimer){clearTimeout(S.drmRecoveryTimer);S.drmRecoveryTimer=null}
  if(S.drmStallTimer){clearTimeout(S.drmStallTimer);S.drmStallTimer=null}
+ S.drmRecoveryBusy=false;
+ var v=$('video');
+ if(S.drmListeners&&v){
+  for(var k in S.drmListeners){
+   if(S.drmListeners[k]&&v.removeEventListener)try{v.removeEventListener(k,S.drmListeners[k])}catch(e){}
+  }
+ }
+ S.drmListeners=null
  if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}
  if(S.dash){try{S.dash.reset()}catch(e){}S.dash=null}
  if(S.shaka){try{S.shaka.destroy()}catch(e){}S.shaka=null}
@@ -526,7 +540,7 @@ function openPlayer(c){
  c=addAppleHlsAlternatives(c);
  if(!c||!c.candidates||!c.candidates.length){toast('Kênh chưa có URL phát');return}
  S.current=c;S.candidateIndex=startupCandidateIndex(c);S.attemptStep=0;S.proxyAttempt=false;S.player=true;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;
- S.drmRecoveries=0;S.drmLastTime=0;S.drmLastProgressAt=Date.now();S.drmLastBufferEnd=0;S.drmLastError='';
+ S.drmRecoveries=0;S.drmRecoveryBusy=false;S.drmLastRecoveryAt=0;S.drmLastTime=0;S.drmLastProgressAt=Date.now();S.drmLastBufferEnd=0;S.drmLastError='';S.debugLines=[];
  S.zone='player';$('player').className='';$('ctrl').className='hidden';$('quick').className='hidden';
  $('playerTitle').textContent=c.name;$('playerMeta').textContent=c.url||'';
  S.recent=[c.id].concat(S.recent.filter(function(x){return x!==c.id})).slice(0,80);saveUser();tryCandidate()
@@ -629,24 +643,52 @@ function isTransientShakaError(info){
    info.code===E.Code.VIDEO_ERROR||
    info.code===E.Code.QUOTA_EXCEEDED_ERROR;
 }
+function reloadShakaInPlace(c,cand,url,p,gen,n){
+ if(gen!==S.generation||!S.player||S.shaka!==p)return;
+ S.drmRecoveryBusy=true;
+ setStatus('Đang khôi phục phiên DRM · lần '+n+'/4\n'+c.name);
+ var done=function(){if(gen===S.generation&&S.shaka===p){S.drmRecoveryBusy=false;S.drmLastProgressAt=Date.now()}};
+ Promise.resolve().then(function(){
+  return p.unload();
+ }).then(function(){
+  if(gen!==S.generation||!S.player||S.shaka!==p)return;
+  return p.load(url);
+ }).then(function(){
+  if(gen!==S.generation||!S.player||S.shaka!==p)return;
+  done();
+  try{var v=$('video');var x=v.play();if(x&&x.catch)x.catch(function(){})}catch(_){}
+  if(S.debug)dbg('DRM in-place reload OK');
+ }).catch(function(e){
+  done();
+  dbg('DRM in-place reload failed '+String(e&&e.code||'')+' '+String(e&&e.message||e));
+  if(gen===S.generation&&S.player&&S.shaka===p&&S.drmRecoveries>=4)nextCandidate('DRM reload thất bại');
+ });
+}
+
 function tryShakaRecovery(c,cand,url,p,gen,reason,forceLiveJump){
  if(gen!==S.generation||!S.player||!p)return false;
- if(S.drmRecoveryTimer)return true;
+ if(S.drmRecoveryBusy||S.drmRecoveryTimer)return true;
  if(S.drmRecoveries>=4)return false;
  var n=++S.drmRecoveries,delay=Math.min(4,0.5*Math.pow(2,n-1));
+ S.drmLastRecoveryAt=Date.now();
  S.drmRecoveryTimer=setTimeout(function(){
   S.drmRecoveryTimer=null;
   if(gen!==S.generation||!S.player||S.shaka!==p)return;
   try{
-   if(forceLiveJump&&typeof p.goToLive==='function'&&p.isDynamic&&p.isDynamic()){
-    p.goToLive();
+   if(n<=2){
+    if(forceLiveJump&&typeof p.goToLive==='function'&&typeof p.isDynamic==='function'&&p.isDynamic()){
+     try{p.goToLive()}catch(_){}
+    }
+    var retried=typeof p.retryStreaming==='function'&&p.retryStreaming(0.1);
+    if(!retried&&S.debug)dbg('DRM retryStreaming returned false');
+    setStatus('Đang tự phục hồi DRM · lần '+n+'/4\n'+c.name);
+    var v=$('video');try{var x=v.play();if(x&&x.catch)x.catch(function(){})}catch(_){}
+   }else{
+    reloadShakaInPlace(c,cand,url,p,gen,n);
    }
-   var ok=typeof p.retryStreaming==='function'&&p.retryStreaming(0.1);
-   if(!ok&&typeof p.goToLive==='function'&&p.isDynamic&&p.isDynamic())p.goToLive();
-   setStatus('Đang tự phục hồi DRM · lần '+n+'/4\n'+c.name);
-   var v=$('video');try{v.play().catch(function(){})}catch(_){}
   }catch(e){
    dbg('DRM recovery exception '+String(e&&e.message||e));
+   if(n>=4)nextCandidate('DRM recovery thất bại');
   }
  },delay*1000);
  S.drmLastError=reason||'';
@@ -665,7 +707,7 @@ function armShakaStallRecovery(c,cand,url,p,gen){
   }
  },4200)
 }
-function markPlaying(gen){if(gen!==S.generation||!S.player)return;noteDrmProgress(gen);if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}hideStatus()}
+function markPlaying(gen){if(gen!==S.generation||!S.player)return;noteDrmProgress(gen);S.drmRecoveryBusy=false;if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}hideStatus()}
 function startDirect(c,cand,url,gen){
  try{ $('video').muted=false;$('video').defaultMuted=false;$('video').volume=1;$('video').src=url; var p=$('video').play();if(p&&p.catch)p.catch(function(){}); $('video').onplaying=function(){markPlaying(gen)} }catch(e){nextCandidate('Direct playback lỗi')}
 }
@@ -808,7 +850,10 @@ function startShaka(c,cand,url,drm,gen){
     stallSkip:.1,
     allowMediaSourceRecoveries:true,
     minTimeBetweenRecoveries:5,
-    lowLatencyMode:false
+    returnToEndOfLiveWindowWhenOutside:true,
+    lowLatencyMode:false,
+    updateIntervalSeconds:1,
+    segmentPrefetchLimit:1
    },
    abr:{
     enabled:true,
@@ -873,6 +918,7 @@ function startShaka(c,cand,url,drm,gen){
    dbg('Video '+JSON.stringify(info));
    if(!tryShakaRecovery(c,cand,url,p,gen,'video error',true))nextCandidate('Video/DRM error');
   };
+  S.drmListeners={timeupdate:onProgress,waiting:onWaiting,stalled:onStalled,error:onVideoError};
   v.addEventListener('timeupdate',onProgress);
   v.addEventListener('waiting',onWaiting);
   v.addEventListener('stalled',onStalled);
@@ -1151,8 +1197,6 @@ function remoteCode(e){
 
 $('video').addEventListener('playing',function(){markPlaying(S.generation)});
 $('video').addEventListener('canplay',function(){if(S.player)markPlaying(S.generation)});
-$('video').addEventListener('waiting',function(){if(S.player&&S.shaka)armShakaStallRecovery(S.current,getCandidate(),getCandidate()&&(getCandidate().resolvedUrl||getCandidate().url),S.shaka,S.generation)});
-$('video').addEventListener('stalled',function(){if(S.player&&S.shaka)armShakaStallRecovery(S.current,getCandidate(),getCandidate()&&(getCandidate().resolvedUrl||getCandidate().url),S.shaka,S.generation)});
 $('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồng kết thúc')});
 
 function startup(){

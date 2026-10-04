@@ -111,3 +111,22 @@ Chỉ tiếp tục sửa khi phát hiện lỗi có thể tái hiện rõ. Bản
 ## Quy tắc bàn giao
 
 Không lấy một bản thử nghiệm mới làm baseline khi vòng test hiện tại chưa kết thúc. Khi có lỗi mới, tạo bản sửa cô lập từ mốc ổn định hiện tại để có thể xác định chính xác nguyên nhân và tránh làm hỏng các phần đang hoạt động tốt.
+
+## Sửa lỗi playback đa nền tảng — 04/10/2026
+
+- Phát hiện **On Sports 50fps** bị chờ 15 giây vì player thử candidate DASH + ClearKey trước, sau đó mới retry proxy rồi mới chuyển sang candidate HLS.
+- Đã đổi cơ chế khởi động: nếu candidate đầu là **DASH + DRM** và có candidate **HLS**, player chọn HLS ngay khi mở kênh; không chờ watchdog 15 giây.
+- Trên **iPad/iPhone**, các candidate DASH + ClearKey được bỏ qua nếu không có đường HLS tương thích.
+- Trên iPad/iPhone, **HLS/HTTP ưu tiên qua /api/stream proxy** để giữ User-Agent/Referer và tránh khác biệt CORS giữa Safari và Chrome.
+- Với các entry thể thao có biến thể cùng trận như **[flv] / [hls] / [hls 2]**, iPad tự bổ sung HLS sibling và ưu tiên HLS thay vì bắt người dùng chọn thủ công.
+- Nguyên nhân tương thích đã được đối chiếu với ma trận của Shaka: Safari không có ClearKey trong ma trận DRM; Shaka cũng ghi rõ DASH không được hỗ trợ trên iOS theo đường hiện tại. HLS native là đường tương thích chính trên Apple.
+- Các commit sửa playback:
+  - `808538671c0a93a377ec383d232ffcc6dcc98e25`: ưu tiên HLS khi mở kênh + nhận diện Apple/DASH-ClearKey.
+  - `45c9f01bdbac6786dff94bc1f4b44578ebdc8f4c`: iPad ưu tiên HLS/HTTP qua proxy.
+  - `32287b39d0606d7f67bc5f46e1b5ed0c8f3eded1`: tự tìm HLS sibling cho biến thể thể thao.
+
+### Ghi chú kiểm thử
+
+- Cloudflare deploy của commit `808538...` đã **deploy thành công**, nhưng smoke test thất bại do test cũ đang kỳ vọng thứ tự nhóm `Thể Thao` không còn khớp dữ liệu thực tế (`HTV Thể Thao`, `On Sports 50fps`, `SCTV15 HD`, `SCTV17 HD`, `SCTV22`, `VTV6 HD`).
+- `Web Browser Validation` của `808538...` đã **success**.
+- Commit mới nhất `32287b39...` đã kích hoạt lại toàn bộ workflow và đang được kiểm tra; chưa coi là mốc ổn định cuối cùng cho đến khi vòng test kết thúc.

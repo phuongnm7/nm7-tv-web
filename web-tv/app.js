@@ -399,6 +399,13 @@ function startupCandidateIndex(c){
  var a=c&&Array.isArray(c.candidates)?c.candidates:[];
  if(!a.length)return 0;
  if(isAppleTouchDevice()){
+  var id=String(c.id||'').toLowerCase().replace(/[\\s_-]+/g,'');
+  var name=String(c.name||'').toLowerCase().replace(/[\\s_-]+/g,'');
+  // VTVcab 3 / ON Sports has a matching HLS rendition. On Apple, use the
+  // native HLS path first; keep DASH/ClearKey as a fallback.
+  if(id==='vtvcab3hd'||name.indexOf('vtvcab3')>=0||name.indexOf('onsportshd')>=0){
+   for(var h=0;h<a.length;h++)if(classify(a[h])==='hls'&&!a[h].drm)return h;
+  }
   for(var d=0;d<a.length;d++)if(isDashDrmCandidate(a[d]))return d;
   for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;
   for(var q=0;q<a.length;q++){var qk=classify(a[q]);if((qk==='mp4'||qk==='hls')&&!a[q].drm)return q}

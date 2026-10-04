@@ -301,7 +301,7 @@ export default {
     if(api)return api;
     const url=new URL(request.url);
     if(url.pathname==="/"||url.pathname==="/tv"){
-      const target=new URL("/web-tv/index.html",url);
+      const target=new URL("/index.html",url);
       return env.ASSETS.fetch(new Request(target,request));
     }
     return env.ASSETS.fetch(request);

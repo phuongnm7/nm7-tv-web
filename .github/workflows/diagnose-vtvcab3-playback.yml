@@ -1,0 +1,35 @@
+name: Diagnose VTVcab3 ON Sports playback
+
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe matching VTVcab3 HLS source
+        shell: bash
+        run: |
+          set +e
+          U='https://856175157.r.vtvcdn.com/ondrm/THETHAO_HD/m30_index.m3u8'
+          curl -L --max-time 25 -sS -D /tmp/h -o /tmp/b -A 'KhoaTivi'
+          rc=$?
+          echo "CURL_RC=$rc"
+          test -f /tmp/h && head -20 /tmp/h || true
+          test -f /tmp/b && { echo "BYTES=$(wc -c < /tmp/b)"; head -c 400 /tmp/b; echo; grep -q '#EXTM3U' /tmp/b && echo HLS_M3U_OK || true; grep -q '#EXT-X-KEY' /tmp/b && echo HLS_ENCRYPTED || echo HLS_NO_KEY_TAG; } || true
+        env:
+          CURL_HOME: /tmp
+      - name: Probe matching source through Cloudflare
+        shell: bash
+        run: |
+          set +e
+          U='https://856175157.r.vtvcdn.com/ondrm/THETHAO_HD/m30_index.m3u8'
+          ENC="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=""))' "$U")"
+          curl -L --max-time 25 -sS -D /tmp/ph -o /tmp/pb -A 'Mozilla/5.0' "https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u=$ENC&ua=KhoaTivi"
+          rc=$?
+          echo "CURL_RC=$rc"
+          test -f /tmp/ph && head -30 /tmp/ph || true
+          test -f /tmp/pb && { echo "PROXY_BYTES=$(wc -c < /tmp/pb)"; head -c 500 /tmp/pb; echo; grep -q '#EXTM3U' /tmp/pb && echo PROXY_HLS_M3U_OK || true; } || true

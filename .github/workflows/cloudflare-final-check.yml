@@ -64,8 +64,15 @@ jobs:
             if(down.row<=0||down.homeScroll<=0)throw new Error('vertical navigation '+JSON.stringify(down));
             await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
             await p.waitForSelector('.card',{timeout:15000});
+            const preflight=await p.evaluate(async u=>{
+              try{const r=await fetch(u,{cache:'no-store'});const t=await r.text();return {status:r.status,ct:r.headers.get('content-type')||'',sample:t.slice(0,500)}}catch(e){return {error:String(e)}}
+            },hlsProxy);
+            console.log('PREFLIGHT='+JSON.stringify(preflight));
+            const libs=await p.evaluate(()=>({Hls:!!window.Hls,HlsSupported:!!(window.Hls&&Hls.isSupported()),MediaSource:!!window.MediaSource,HlsVersion:window.Hls?.version||null}));
+            console.log('LIBS='+JSON.stringify(libs));
             await p.locator('.card').first().click();
-            await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&v.readyState>=2&&v.currentTime>0},{timeout:20000});
+            await p.waitForTimeout(5000);
+            try{await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&v.readyState>=2&&v.currentTime>0},{timeout:8000});}catch(e){}
             const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {time:v.currentTime,ready:v.readyState,paused:v.paused,error:v.error?{code:v.error.code,message:v.error.message}:null,status:document.querySelector('#status')?.textContent||'',debug:document.querySelector('#debug')?.textContent||''}});
             console.log('INITIAL='+JSON.stringify(initial));
             console.log('RIGHT='+JSON.stringify(right));

@@ -10,9 +10,25 @@ const PLAYLIST_SOURCES = {
 };
 
 const BUILTIN = {
-  vtv1hd: [{url:"https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8",ref:"",ua:"",hls:true}],
-  vtvcab3hd: [{url:"https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true}],
-  vtvcab16hd: [{url:"https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true}]
+  vtv1hd: [
+    {url:"https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8",ref:"",ua:"Mozilla/5.0",hls:true},
+    {url:"https://live-a.fptplay53.net/live/media/vtv1/live247-hls-avc/index.m3u8",ref:"",ua:"Mozilla/5.0",hls:true}
+  ],
+  vtvcab3hd: [
+    {url:"https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/sd2/index.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true},
+    {url:"https://livevlive.vtvcab.vn/hls/OS_THETHAO_HD/sc-gaFEAA/m30_index.m3u8",ref:"",ua:"Mozilla/5.0",hls:true}
+  ],
+  vtvcab6hd: [
+    {url:"https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab6/sd2/index.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true},
+    {url:"https://livevlive.vtvcab.vn/hls/OS_HAY_TV/sc-gaFEAA/m30_index.m3u8",ref:"",ua:"Mozilla/5.0",hls:true}
+  ],
+  vtvcab16hd: [
+    {url:"https://e1.endpoint.cdn.sctvonline.vn/hls/vtvcab16/sd2/index.m3u8",ref:"http://sctvonline.vn/",ua:"ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3",hls:true},
+    {url:"https://livevlive.vtvcab.vn/hls/OS_BONGDA_HD/sc-gaFEAA/m30_index.m3u8",ref:"",ua:"Mozilla/5.0",hls:true}
+  ],
+  vtvcab18hd: [
+    {url:"https://livevlive.vtvcab.vn/hls/OS_THETHAO_TINTUC_HD/sc-gaFEAA/m30_index.m3u8",ref:"",ua:"Mozilla/5.0",hls:true}
+  ]
 };
 
 function corsHeaders(extra={}) {
@@ -125,9 +141,11 @@ function parsePlaylist(text, base) {
 function addBuiltin(c){
   const key=(c.id||"").toLowerCase().trim(), name=(c.name||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
   let extra=BUILTIN[key]||[];
-  if(!extra.length&&(key==="vtv1"||name==="vtv1"||name.startsWith("vtv1")))extra=BUILTIN.vtv1hd;
-  if(!extra.length&&(name.startsWith("onsport")||name.includes("vtvcab3")))extra=BUILTIN.vtvcab3hd;
-  if(!extra.length&&(name.startsWith("onfootball")||name.includes("vtvcab16")))extra=BUILTIN.vtvcab16hd;
+  if(!extra.length&&(key==="vtv1"||key==="vtv1.vn"||name==="vtv1"||name.includes("vtv1")||name.startsWith("vtv1")))extra=BUILTIN.vtv1hd;
+  if(!extra.length&&(key==="vtvcab3hd"||name.startsWith("onsport")||name.includes("vtvcab3")))extra=BUILTIN.vtvcab3hd;
+  if(!extra.length&&(key==="vtvcab6hd"||name.startsWith("onsports+")||name.includes("vtvcab6")))extra=BUILTIN.vtvcab6hd;
+  if(!extra.length&&(key==="vtvcab16hd"||name.startsWith("onfootball")||name.includes("vtvcab16")))extra=BUILTIN.vtvcab16hd;
+  if(!extra.length&&(key==="vtvcab18hd"||name.startsWith("onsportsnews")||name.includes("vtvcab18")))extra=BUILTIN.vtvcab18hd;
   const seen=new Set((c.candidates||[]).map(x=>x.url));
   for(const x of extra)if(!seen.has(x.url)){c.candidates.push(x);seen.add(x.url)}
 }

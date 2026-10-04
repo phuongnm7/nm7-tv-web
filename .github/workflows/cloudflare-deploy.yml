@@ -71,7 +71,7 @@ jobs:
           print('CLOUDFLARE_SMOKE_OK channels=',len(channels),'groups=',groups[:8])
           PY
 
-          HTML="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/?v=20261005-ios-drm-final1")"
+          HTML="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/?v=20261005-vtvcab3-final2")"
           python3 - "$HTML" <<'PY'
           import sys
           html=sys.argv[1]

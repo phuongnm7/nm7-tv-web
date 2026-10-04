@@ -352,10 +352,22 @@ function normalizeCandidate(cand){
  if(!cand.ua&&!cand.headers['User-Agent'])cand.ua='';
  return cand
 }
+function shouldProxyFirst(cand,kind){
+ cand=normalizeCandidate(cand||{});
+ var u=String(cand.url||'').toLowerCase();
+ if(kind==='flv'||kind==='mpegts')return true;
+ if(cand.headers&&Object.keys(cand.headers).length)return true;
+ if(cand.ref||cand.ua)return true;
+ if(/vips-livecdn\.fptplay\.net|fptplay53\.net|tv\.vietanhtv\.top|vietanhtv\.id\.vn|khanggtivi|freem3u|livesct\.vtvprime|livevlisctcdnw\.seenow\.vn/i.test(u))return true;
+ return false
+}
+function attemptUsesProxy(cand,kind){
+ var pf=shouldProxyFirst(cand,kind);
+ return pf ? S.attemptStep===0 : S.attemptStep===1
+}
 function makeProxy(u,cand){
  if(!isHttp(u))return u;
  cand=normalizeCandidate(cand||{});
- // Direct attempt first; only use the same-origin proxy after a playback failure.
  if(!S.proxyAttempt)return u;
  if(u.indexOf(location.origin+'/api/stream')===0)return u;
  var q='/api/stream?u='+encodeURIComponent(u);
@@ -442,7 +454,7 @@ function getCandidate(){return S.current&&S.current.candidates?normalizeCandidat
 
 function openPlayer(c){
  if(!c||!c.candidates||!c.candidates.length){toast('Kênh chưa có URL phát');return}
- S.current=c;S.candidateIndex=0;S.proxyAttempt=false;S.player=true;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;
+ S.current=c;S.candidateIndex=0;S.attemptStep=0;S.proxyAttempt=false;S.player=true;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;
  S.zone='player';$('player').className='';$('ctrl').className='hidden';$('quick').className='hidden';
  $('playerTitle').textContent=c.name;$('playerMeta').textContent=c.url||'';
  S.recent=[c.id].concat(S.recent.filter(function(x){return x!==c.id})).slice(0,80);saveUser();tryCandidate()
@@ -455,18 +467,32 @@ function closePlayer(){
 function nextCandidate(reason){
  if(!S.player)return;
  if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}
- var c=S.current;if(S.proxyAttempt){S.proxyAttempt=false;S.candidateIndex++}else S.proxyAttempt=true;
- if(c&&S.candidateIndex<c.candidates.length){toast((reason||'Nguồn lỗi')+(S.proxyAttempt?' · thử proxy':''));setTimeout(tryCandidate,120);return}
- setStatus('Không phát được '+(c?c.name:'kênh')+'\nĐã thử '+(c&&c.candidates?c.candidates.length:0)+' nguồn');dbg(reason||'playback failed')
+ var c=S.current;
+ if(!c)return;
+ if(S.attemptStep<1){
+  S.attemptStep++;
+  toast((reason||'Nguồn lỗi')+' · thử '+(S.attemptStep===1?'nguồn còn lại':'proxy'));
+  setTimeout(tryCandidate,120);
+  return
+ }
+ S.attemptStep=0;S.proxyAttempt=false;S.candidateIndex++;
+ if(S.candidateIndex<c.candidates.length){
+  toast((reason||'Nguồn lỗi')+' · chuyển nguồn '+(S.candidateIndex+1));
+  setTimeout(tryCandidate,120);return
+ }
+ setStatus('Không phát được '+c.name+'\\nĐã thử '+(c.candidates?c.candidates.length:0)+' nguồn');
+ dbg(reason||'playback failed')
 }
 function tryCandidate(){
  var c=S.current,cand=getCandidate(),v=$('video'),kind,generation=S.generation;
  if(!cand){setStatus('Kênh chưa có URL phát');return}
- clearPlayers();kind=classify(cand);var sourceUrl=cand.resolvedUrl||cand.url;var url=makeProxy(sourceUrl,cand);
- setStatus('Đang mở '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
+ clearPlayers();kind=classify(cand);
+ S.proxyAttempt=attemptUsesProxy(cand,kind);
+ var sourceUrl=cand.resolvedUrl||cand.url,url=makeProxy(sourceUrl,cand);
+ setStatus('Đang mở '+c.name+'\\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
  v.style.display='block';v.autoplay=true;v.controls=false;v.muted=false;v.defaultMuted=false;v.volume=1;
  if(kind==='rtsp'||kind==='rtmp'||kind==='udp'||kind==='srt'){
-  setStatus('Web Browser không phát trực tiếp '+kind.toUpperCase()+'.\nNguồn này cần máy chủ chuyển đổi sang HLS/DASH.');return
+  setStatus('Web Browser không phát trực tiếp '+kind.toUpperCase()+'.\\nNguồn này cần máy chủ chuyển đổi sang HLS/DASH.');return
  }
  if(kind==='http'&&!cand.mime&&!cand.type){probeCandidate(c,cand,generation);return}
  startByType(c,cand,url,kind,generation);
@@ -498,7 +524,7 @@ function probeCandidate(c,cand,gen){
   if(d.type==='mpegts')cand.mpegts=true;
   var resolved=d.resolvedUrl||d.finalUrl||cand.url;
   cand.resolvedUrl=resolved;
-  var url=makeProxy(resolved,cand);
+  S.proxyAttempt=attemptUsesProxy(cand,d.type);var url=makeProxy(resolved,cand);
   clearPlayers();
   setStatus('Đang phát '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':''));
   startByType(c,cand,url,d.type,gen);
@@ -558,7 +584,7 @@ function tryHlsJs(c,cand,url,gen){
 function startFlv(c,cand,url,gen){
  if(!window.flvjs||!flvjs.isSupported()){nextCandidate('FLV/MSE không được hỗ trợ');return}
  try{
-  var p=flvjs.createPlayer({type:'flv',isLive:true,url:url},{enableStashBuffer:true,stashInitialSize:128*1024});
+  var p=flvjs.createPlayer({type:'flv',isLive:true,cors:true,url:url},{enableStashBuffer:true,stashInitialSize:128*1024});
   S.flv=p;p.on(flvjs.Events.ERROR,function(t,d){if(gen===S.generation)nextCandidate('FLV '+(d||t||'lỗi'))});
   p.attachMediaElement($('video'));p.load();var x=$('video').play();if(x&&x.catch)x.catch(function(){})
  }catch(e){nextCandidate('FLV khởi tạo lỗi')}

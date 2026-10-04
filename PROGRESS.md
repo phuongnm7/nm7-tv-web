@@ -149,3 +149,19 @@ Không lấy một bản thử nghiệm mới làm baseline khi vòng test hiệ
 - On Sports 50fps vẫn ưu tiên candidate HLS thật nếu có; Worker đã enrich cả JSON playlist để bổ sung candidate built-in.
 - Đã bổ sung smoke test deploy: kiểm tra HTML phải chứa Shaka 5.2.12 và On Sports phải có URL `.m3u8` thật.
 - Trạng thái: commit mới nhất `82cd9c932a13a4d32810555bcd812bf2ac026dc4`; chờ GitHub Actions/Cloudflare smoke test xác nhận.
+## Ổn định DRM iPhone/iPad — 04/10/2026
+
+- Commit triển khai hiện tại: `98cdb4692e7cdaded99ac544799a972f77df7df0`.
+- Cloudflare deploy + smoke test: **SUCCESS**.
+- Web Browser Validation (Node syntax/assets): **SUCCESS**.
+- Shaka Player: **5.2.12**.
+- iPhone/iPad ClearKey DRM tiếp tục dùng **DASH + Shaka WebCrypto**; không chuyển sang native iOS app và không giải mã/bypass DRM ở server.
+- Với **DASH + DRM trên Apple**, candidate được **proxy-first** để giữ redirect token/CDN segment cùng một đường same-origin; HLS không DRM vẫn native-first.
+- Live DRM recovery đã được nâng cấp: retry network/streaming/MSE lỗi tại chỗ; resync về live edge khi live bị treo; tự reload lại Shaka/MSE cùng candidate khi retry nhẹ không đủ; giới hạn recovery theo burst và tự reset budget sau khi phát ổn định; dọn event listener cũ khi đổi candidate để tránh tích lũy handler.
+- Cấu hình live DASH trên Apple được tăng buffer an toàn, giữ `returnToEndOfLiveWindowWhenOutside`, polling manifest theo nhịp 2 giây và giới hạn ABR TV360 ở 3.5 Mbps.
+- Phân tích TV360 1–10 xác nhận các endpoint DASH DRM đang trả MPD dynamic, cập nhật khoảng 2 giây, cửa sổ khoảng 30 giây, và các ladder chính là H.264/AAC. Một lượt kiểm tra thực tế đã lấy được init/media segment với HTTP 200.
+- Đã bổ sung xử lý ClearKey base64url có padding để tránh bỏ sót KID/KEY hợp lệ.
+- Diagnostics cho nguồn SeeNow cũ vẫn có thể báo HTTP 403 từ upstream; đây là tình trạng nguồn, không phải bằng chứng player DRM mới bị lỗi.
+- Khi test thực tế bằng Safari, URL cache-bust hiện tại:
+  `https://nm7-tv-web.phuongnm7-iptv.workers.dev/?v=20261004-ios-drm-recovery`
+  Có thể thêm `&debug=1` để xem log rolling gồm mã lỗi Shaka, category/data, buffer và codec.

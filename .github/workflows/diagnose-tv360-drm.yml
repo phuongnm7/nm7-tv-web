@@ -45,3 +45,62 @@ jobs:
             print("BODY_HEAD",b[:180].decode('utf-8','replace').replace('\n',' '))
           PY
           done
+
+      - name: Verify live MPD initialization and media segments
+        shell: bash
+        run: |
+          set +euo pipefail
+          id=1
+          U="https://vmttv.dpdns.org/tv360/"
+          echo "===== TV360-$id segment path ====="
+          FINAL="$(curl -L --max-time 20 --get --data-urlencode "id=tv360-$id" -sS -o /tmp/mpd1 -w '%{url_effective}' -A "Dalvik/2.1.0" "$U")"
+          python3 - "$FINAL" /tmp/mpd1 /tmp/segments.txt <<'PY'
+          import sys, re, urllib.parse, xml.etree.ElementTree as ET
+          final, path, outp=sys.argv[1:]
+          b=open(path,'rb').read(); root=ET.fromstring(b)
+          ns={'d':'urn:mpeg:dash:schema:mpd:2011'}
+          base_node=root.find('d:BaseURL',ns)
+          base=(base_node.text.strip() if base_node is not None and base_node.text else final.rsplit('/',1)[0]+'/')
+          def fmt(t,rep,num,time):
+              if not t:return ''
+              vals={'RepresentationID':rep,'Number':str(num),'Time':str(time)}
+              for k,v in vals.items(): t=t.replace('$'+k+'$',v)
+              return t
+          lines=[]
+          for aset in root.findall('.//d:AdaptationSet',ns):
+              reps=aset.findall('d:Representation',ns)
+              if not reps: continue
+              rep=reps[0]; rid=rep.attrib.get('id','')
+              st=rep.find('d:SegmentTemplate',ns) or aset.find('d:SegmentTemplate',ns)
+              if st is None: continue
+              init=fmt(st.attrib.get('initialization'),rid,0,0)
+              if init:
+                  lines.append('init|'+urllib.parse.urljoin(base,init))
+              media=st.attrib.get('media',''); timescale=int(st.attrib.get('timescale','1'))
+              timeline=st.find('d:SegmentTimeline',ns)
+              if media and timeline is not None:
+                  ss=timeline.findall('d:S',ns)
+                  if ss:
+                      cur=0; last=None
+                      for s in ss:
+                          if s.get('t') is not None: cur=int(s.get('t'))
+                          d=int(s.get('d','0')); r=int(s.get('r','0'))
+                          count=(r+1) if r>=0 else 1
+                          for n in range(count):
+                              last=(cur,cur+d);cur+=d
+                      if last:
+                          t,e=last
+                          lines.append('media|'+urllib.parse.urljoin(base,fmt(media,rid,0,t)))
+                  else:
+                      pass
+          lines=lines[:6]
+          open(outp,'w').write('\n'.join(lines))
+          print('SEGMENT_URL_COUNT',len(lines))
+          PY
+          n=0
+          while IFS='|' read -r kind url; do
+            [ -n "$url" ] || continue
+            n=$((n+1))
+            code_size="$(curl -sS -L --max-time 15 -o "/tmp/seg$n" -w '%{http_code} %{size_download}' -A "Dalvik/2.1.0" "$url")"
+            echo "$kind $code_size"
+          done < /tmp/segments.txt

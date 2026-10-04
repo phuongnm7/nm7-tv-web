@@ -34,7 +34,12 @@ var S={
  generation:0,
  loading:false,
  debug:new URLSearchParams(location.search).get('debug')==='1',
- audioMutedByPolicy:false
+ audioMutedByPolicy:false,
+ touchSuppressClick:false,
+ backArmed:false,
+ backTimer:null,
+ historyGuard:false,
+ exitAllow:false
 };
 var $=function(id){return document.getElementById(id)};
 var toastTimer=null;
@@ -160,6 +165,7 @@ function renderHome(){
  activateLogos();
 }
 function onCardClick(e){
+ if(S.touchSuppressClick){S.touchSuppressClick=false;return}
  var b=e.currentTarget,rr=Number(b.dataset.row||0),cc=Number(b.dataset.col||0),a=channelsInGroup(S.groups[rr]||''),c=a[cc];
  if(c)openPlayer(c)
 }
@@ -289,7 +295,7 @@ function showSearch(){
  var q=$('qin');q.focus();q.addEventListener('input',function(){S.query=this.value.trim()});
  $('box').querySelector('[data-dlg="close"]').addEventListener('click',closeDialog)
 }
-function closeDialog(){var type=S.dialog;S.dialog=null;$('dlg').className='hidden';if(type==='search'){rebuildGroups();renderHome()}if(S.player)playerFocus();else if(S.menuOpen)renderMenu();else focusHome(true)}
+function closeDialog(){var type=S.dialog;S.dialog=null;$('dlg').className='hidden';if(type==='search'){rebuildGroups();renderHome()}if(type==='exit')resetBackArm();if(S.player)playerFocus();else if(S.menuOpen)renderMenu();else focusHome(true)}
 function showAddSource(){
  S.dialog='add';$('dlg').className='';$('box').innerHTML='<h2>Thêm nguồn IPTV</h2><input id="srcInput" class="input" placeholder="https://.../playlist.m3u"><p class="guide">Nguồn phải là HTTPS/HTTP. Web Browser vẫn giữ nguyên metadata của playlist cho header và DRM.</p><div class="dialogActions"><button class="db" id="srcOk">Mở nguồn</button><button class="db" id="srcCancel">Hủy</button></div>';
  var i=$('srcInput');i.focus();$('srcOk').onclick=function(){var u=i.value.trim();if(!isHttp(u)){i.focus();toast('URL nguồn không hợp lệ');return}closeDialog();loadCustom(u)};$('srcCancel').onclick=closeDialog
@@ -732,6 +738,124 @@ function switchRelative(delta){
  if(idx<0)idx=0;var next=S.list[(idx+delta+S.list.length)%S.list.length];if(next)openPlayer(next)
 }
 
+
+function isTouchMode(){
+ return !!((window.matchMedia&&window.matchMedia('(pointer: coarse)').matches) ||
+  ('ontouchstart' in window) || (navigator.maxTouchPoints&&navigator.maxTouchPoints>0));
+}
+function resetBackArm(){
+ if(S.backTimer){clearTimeout(S.backTimer);S.backTimer=null}
+ S.backArmed=false;
+}
+function armMobileBack(){
+ if(!isTouchMode())return;
+ if(S.backArmed){
+  resetBackArm();
+  showExitConfirm();
+  return
+ }
+ S.backArmed=true;
+ toast('Nhấn Back lần nữa để thoát');
+ S.backTimer=setTimeout(function(){resetBackArm()},2200);
+}
+function showExitConfirm(){
+ S.dialog='exit';
+ $('dlg').className='';
+ $('box').innerHTML='<h2>Thoát NM7 TV?</h2><p class="guide">Bạn có muốn thoát trang web không?</p><div class="dialogActions"><button class="db" id="exitNo">Ở lại</button><button class="db" id="exitYes">Thoát</button></div>';
+ $('exitNo').onclick=function(){closeDialog()};
+ $('exitYes').onclick=function(){
+  S.exitAllow=true;
+  resetBackArm();
+  try{history.back()}catch(e){window.close()}
+ };
+ $('exitNo').focus();
+}
+function handleBackAction(){
+ if(S.dialog){closeDialog();return true}
+ if(S.menuOpen){closeMenu();return true}
+ if(S.player){closePlayer();return true}
+ if(isTouchMode()){armMobileBack();return true}
+ return false
+}
+function mobileHistoryGuard(){
+ if(!isTouchMode()||S.historyGuard)return;
+ try{history.pushState({nm7TouchGuard:true},'',location.href);S.historyGuard=true}catch(e){return}
+ window.addEventListener('popstate',function(){
+  if(S.exitAllow)return;
+  handleBackAction();
+  try{history.forward()}catch(e){}
+ },false);
+}
+function bindTouchNavigation(){
+ if(!isTouchMode())return;
+ var app=$('app');
+ if(!app||app.dataset.touchBound==='1')return;
+ app.dataset.touchBound='1';
+ var T={active:false,startX:0,startY:0,lastX:0,lastY:0,moved:false,target:null};
+ function ignoredTarget(el){
+  if(!el)return true;
+  if(S.dialog)return true;
+  if(el.closest&&el.closest('#dlg,input,textarea,select,.cb,.db,.quickCard,.menuBtn'))return true;
+  return false
+ }
+ app.addEventListener('touchstart',function(e){
+  if(!e.touches||!e.touches.length)return;
+  if(S.player)restoreAudio();
+  var p=e.touches[0],target=e.target;
+  if(ignoredTarget(target)){T.active=false;return}
+  T.active=true;T.startX=T.lastX=p.clientX;T.startY=T.lastY=p.clientY;T.moved=false;T.target=target;
+ },{passive:false});
+ app.addEventListener('touchmove',function(e){
+  if(!T.active||!e.touches||!e.touches.length)return;
+  var p=e.touches[0],dx=p.clientX-T.startX,dy=p.clientY-T.startY;
+  T.lastX=p.clientX;T.lastY=p.clientY;
+  if(Math.abs(dx)+Math.abs(dy)>=12)T.moved=true;
+  if(T.moved&&(S.player||S.zone==='home'))e.preventDefault();
+ },{passive:false});
+ app.addEventListener('touchend',function(e){
+  if(!T.active)return;
+  var dx=T.lastX-T.startX,dy=T.lastY-T.startY,ax=Math.abs(dx),ay=Math.abs(dy),swipe=Math.max(ax,ay)>=45;
+  var target=T.target;
+  T.active=false;
+  if(!swipe){
+   if(S.player && target && (target.id==='video'||(target.closest&&target.closest('#video')))){
+    showControls();
+   }
+   return
+  }
+  S.touchSuppressClick=true;
+  setTimeout(function(){S.touchSuppressClick=false},450);
+  if(S.dialog||S.menuOpen)return;
+  if(S.player){
+   if(ax>ay){
+    if(dx<0)seek(30);else seek(-10);
+   }else{
+    if(dy<0)switchRelative(1);else switchRelative(-1);
+   }
+   return
+  }
+  if(S.zone==='home'){
+   var a=channelsInGroup(S.groups[S.row]||'');
+   if(ax>ay){
+    if(dx<0){
+     if(a.length)setFocusCard(S.row,Math.min(a.length-1,S.col+1),true)
+    }else{
+     if(S.col===0)openMenu();
+     else setFocusCard(S.row,Math.max(0,S.col-1),true)
+    }
+   }else{
+    if(dy<0){
+     var nr=Math.min(S.groups.length-1,S.row+1),bb=channelsInGroup(S.groups[nr]||'');
+     if(bb.length)setFocusCard(nr,Math.min(S.col,bb.length-1),true)
+    }else{
+     var pr=Math.max(0,S.row-1),aa=channelsInGroup(S.groups[pr]||'');
+     if(aa.length)setFocusCard(pr,Math.min(S.col,aa.length-1),true)
+    }
+   }
+  }
+ },{passive:false});
+}
+
 function onKey(e){
  if(!e)return;
  if(S.player && (e.keyCode||e.which||0)===13) restoreAudio();
@@ -744,12 +868,13 @@ function onKey(e){
  if(e.repeat)return;
  if(k===10009||k===27){
   e.preventDefault();e.stopPropagation();
-  if(S.menuOpen){closeMenu();return}
   if(S.player){
    if(S.quick){hideQuick();playerFocus();return}
    if(S.ctrl){S.ctrl=false;$('ctrl').className='hidden';playerFocus();return}
    closePlayer();return
   }
+  if(S.menuOpen){closeMenu();return}
+  if(isTouchMode()){armMobileBack();return}
   openMenu();return
  }
  if(S.menuOpen){
@@ -817,6 +942,8 @@ $('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồn
 
 function startup(){
  restoreUser();
+ bindTouchNavigation();
+ mobileHistoryGuard();
  document.addEventListener('keydown',onKey,true);
  $('btnYouTubeTab').addEventListener('click',function(){toast('YouTube tích hợp sẽ được nối tiếp từ giao diện 1.0.69');});
  $('appShortcut').addEventListener('click',function(){toast('Chọn ứng dụng');});

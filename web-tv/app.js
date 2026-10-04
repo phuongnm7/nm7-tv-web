@@ -2,7 +2,7 @@
 'use strict';
 var VERSION='1.0.69';
 var PLAYLISTS={
- tv:'/api/playlist?source=tv',
+ tv:'/api/playlist?source=tv&default=android1069',
  sport:'/api/playlist?source=sport'
 };
 var S={
@@ -45,7 +45,7 @@ function toast(s){var t=$('toast');t.textContent=s;t.className='show';clearTimeo
 function isHttp(u){return /^https?:\/\//i.test(String(u||''))}
 function saveUser(){try{localStorage.setItem('nm7:fav',JSON.stringify(S.fav));localStorage.setItem('nm7:recent',JSON.stringify(S.recent.slice(0,80)))}catch(e){}}
 function restoreUser(){try{S.fav=JSON.parse(localStorage.getItem('nm7:fav')||'[]');S.recent=JSON.parse(localStorage.getItem('nm7:recent')||'[]')}catch(e){S.fav=[];S.recent=[]}}
-function cacheKey(){return 'nm7:web:'+S.source}
+function cacheKey(){return 'nm7:web:1.0.69:'+S.source}
 function readCache(){try{var x=JSON.parse(localStorage.getItem(cacheKey())||'null');return x&&Array.isArray(x.channels)&&x.channels.length?x:null}catch(e){return null}}
 function saveCache(){try{localStorage.setItem(cacheKey(),JSON.stringify({at:Date.now(),channels:S.list}))}catch(e){}}
 function norm(c){

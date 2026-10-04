@@ -850,7 +850,7 @@ function startShaka(c,cand,url,drm,gen){
    // Critical: direct Safari DRM means direct MPD + direct media segments.
    // Only proxy when the player has explicitly entered a proxy attempt.
    // This prevents Cloudflare's 403 from killing an otherwise working stream.
-   if(/^https?:/i.test(uri)&&S.proxyAttempt&&uri.indexOf(location.origin+'/api/stream')!==0){
+   if(/^https?:/i.test(uri)&&(!appleDrm||S.proxyAttempt)&&uri.indexOf(location.origin+'/api/stream')!==0){
     request.uris=[makeProxy(uri,cand)];
    }
   });

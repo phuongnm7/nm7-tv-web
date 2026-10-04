@@ -32,13 +32,13 @@ jobs:
             return 0
           }
 
-          if ! probe PAGE https://nm7-tv-web.vercel.app/ /tmp/page.html; then
+          if ! probe PAGE https://nm7-tv-web.phuongnm7-iptv.workers.dev/ /tmp/page.html; then
             rc=$?
             if [[ "$rc" -eq 10 ]]; then exit 0; else exit "$rc"; fi
           fi
           grep -q "NM7 TV" /tmp/page.html
 
-          if ! probe TV_API 'https://nm7-tv-web.vercel.app/api/playlist?source=tv' /tmp/tv.json; then
+          if ! probe TV_API 'https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/playlist?source=tv' /tmp/tv.json; then
             rc=$?
             if [[ "$rc" -eq 10 ]]; then exit 0; else exit "$rc"; fi
           fi
@@ -50,7 +50,7 @@ print('channels=',len(d.get('channels',[])))
 if not d.get('channels'): raise SystemExit('TV playlist returned zero channels')
 PY
 
-          if ! probe SPORT_API 'https://nm7-tv-web.vercel.app/api/playlist?source=sport' /tmp/sport.json; then
+          if ! probe SPORT_API 'https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/playlist?source=sport' /tmp/sport.json; then
             rc=$?
             if [[ "$rc" -eq 10 ]]; then exit 0; else exit "$rc"; fi
           fi

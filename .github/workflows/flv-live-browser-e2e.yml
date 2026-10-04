@@ -77,7 +77,7 @@ jobs:
             p.on('console',m=>console.log('CONSOLE='+m.type()+':'+m.text()));
             await p.goto('http://127.0.0.1:4174/',{waitUntil:'domcontentloaded'});
             await p.waitForTimeout(1500);
-            await p.keyboard.press('Enter');
+            await p.evaluate(()=>{window.openPlayer({id:'live-flv',name:'FLV LIVE TEST',group:'Test',url:'https://playback.livetl004.com/live/6a9a5525864ea536c2577392.flv',candidates:[{url:'https://playback.livetl004.com/live/6a9a5525864ea536c2577392.flv',type:'flv',ua:'Mozilla/5.0'}]})});
             await p.waitForSelector('#player:not(.hidden)',{timeout:5000});
             await p.waitForTimeout(10000);
             const out=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v?.currentTime||0,ready:v?.readyState||0,paused:v?.paused,src:v?.currentSrc||v?.src,err:v?.error?{code:v.error.code,msg:v.error.message}:null,flv:!!window.flvjs,mpegts:!!window.mpegts}});

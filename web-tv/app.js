@@ -511,7 +511,11 @@ function startHls(c,cand,url,gen){
  if(native){
   v.onloadedmetadata=function(){markPlaying(gen)};v.oncanplay=function(){markPlaying(gen)};v.src=url;
   var p=v.play();if(p&&p.catch)p.catch(function(){});
-  v.onerror=function(){if(gen===S.generation)tryHlsJs(c,cand,url,gen)};return
+  v.onerror=function(){
+   if(gen!==S.generation||!S.player)return;
+   if(S.debug)console.log('NM7 NATIVE HLS ERROR',v.error?{code:v.error.code,message:v.error.message}:null,url);
+   nextCandidate('Native HLS lỗi');
+  };return
  }
  tryHlsJs(c,cand,url,gen)
 }

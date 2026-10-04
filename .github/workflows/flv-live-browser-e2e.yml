@@ -1,0 +1,85 @@
+name: FLV live browser playback E2E
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  flv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Playwright and FLV test server
+        run: npm install --no-save playwright@1.55.0
+      - name: Prepare FLV app fixture
+        shell: bash
+        run: |
+          cp -R web-tv /tmp/nm7-flv-site
+          cat > /tmp/nm7-flv-site/playlist.json <<'JSON'
+          {
+            "channels":[
+              {
+                "id":"live-flv",
+                "name":"FLV LIVE TEST",
+                "group":"Test",
+                "logo":"",
+                "candidates":[
+                  {
+                    "url":"https://playback.livetl004.com/live/6a9a5525864ea536c2577392.flv",
+                    "type":"flv",
+                    "ua":"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36"
+                  }
+                ]
+              }
+            ]
+          }
+          JSON
+          cat > /tmp/nm7-flv-site/test-server.cjs <<'NODE'
+          const http=require('http'),fs=require('fs'),path=require('path'),{URL}=require('url'),https=require('https'),http2=require('http');
+          const root='/tmp/nm7-flv-site';
+          function proxy(req,res){
+            const u=new URL(req.url,'http://localhost');
+            const target=u.searchParams.get('u');
+            if(!target){res.writeHead(400);return res.end('bad url')}
+            const h={ 'User-Agent':u.searchParams.get('ua')||'Mozilla/5.0', 'Accept':'*/*' };
+            const mod=target.startsWith('https:')?https:http2;
+            const r=mod.get(target,{headers:h},up=>{
+              res.writeHead(up.statusCode||502,{...up.headers,'access-control-allow-origin':'*','cache-control':'no-store'});
+              up.pipe(res);
+            });
+            r.on('error',e=>{if(!res.headersSent)res.writeHead(502);res.end(String(e))});
+          }
+          const s=http.createServer((req,res)=>{
+            if(req.url.startsWith('/api/stream?')) return proxy(req,res);
+            let p=new URL(req.url,'http://localhost').pathname;
+            if(p==='/')p='/index.html';
+            p=path.join(root,p);
+            if(!p.startsWith(root))return res.writeHead(403),res.end();
+            if(fs.existsSync(p)&&fs.statSync(p).isFile()){const ext=path.extname(p);const ct={'.html':'text/html','.js':'application/javascript','.json':'application/json','.webp':'image/webp','.png':'image/png','.css':'text/css'}[ext]||'application/octet-stream';res.writeHead(200,{'content-type':ct});fs.createReadStream(p).pipe(res);return}
+            res.writeHead(404);res.end();
+          });
+          s.listen(4174,'127.0.0.1');
+          NODE
+      - name: Run browser FLV test
+        shell: bash
+        run: |
+          node /tmp/nm7-flv-site/test-server.cjs &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          sleep 1
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage({viewport:{width:1280,height:720}});
+            p.on('console',m=>console.log('CONSOLE='+m.type()+':'+m.text()));
+            await p.goto('http://127.0.0.1:4174/',{waitUntil:'domcontentloaded'});
+            await p.waitForTimeout(1500);
+            await p.keyboard.press('Enter');
+            await p.waitForSelector('#player:not(.hidden)',{timeout:5000});
+            await p.waitForTimeout(10000);
+            const out=await p.evaluate(()=>{const v=document.querySelector('#video');return {t:v?.currentTime||0,ready:v?.readyState||0,paused:v?.paused,src:v?.currentSrc||v?.src,err:v?.error?{code:v.error.code,msg:v.error.message}:null,flv:!!window.flvjs,mpegts:!!window.mpegts}});
+            console.log('FLV_E2E='+JSON.stringify(out));
+            if(!(out.t>0&&out.ready>=2))throw new Error('FLV playback did not advance '+JSON.stringify(out));
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

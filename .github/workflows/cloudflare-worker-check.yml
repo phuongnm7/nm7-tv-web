@@ -91,14 +91,6 @@ jobs:
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
 
-      - name: Prepare local HLS playback fixture
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/nm7-hls-fixture
-          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i sine=frequency=1000:sample_rate=48000 -t 4 -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p -c:a aac -b:a 96k -f hls -hls_time 2 -hls_list_size 0 -hls_segment_filename /tmp/nm7-hls-fixture/fixture%03d.ts /tmp/nm7-hls-fixture/fixture.m3u8
-          test -s /tmp/nm7-hls-fixture/fixture.m3u8
-          ls -lh /tmp/nm7-hls-fixture
-
       - name: Install Playwright package and browser
         run: |
           npm install --no-save playwright@1.55.0
@@ -142,8 +134,6 @@ jobs:
           const {chromium}=require('playwright');
           const fs=require('fs');
           const base=fs.readFileSync('/tmp/cloudflare-live-url.txt','utf8').trim();
-          const manifest=fs.readFileSync('/tmp/nm7-hls-fixture/fixture.m3u8','utf8');
-          const segment=fs.readFileSync('/tmp/nm7-hls-fixture/fixture000.ts');
           (async()=>{
             const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
             const p=await b.newPage({viewport:{width:1920,height:1080}});
@@ -152,13 +142,11 @@ jobs:
 
             // Replace playlist/API responses with a controlled channel and intercept its HLS.
             const fixturePlaylist=JSON.stringify({channels:[{
-              id:'e2e-fixture',name:'E2E HLS',group:'VTV',logo:'',
-              candidates:[{url:base+'/e2e-fixture.m3u8',type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]
+              id:'e2e-hls',name:'E2E HLS',group:'VTV',logo:'',
+              candidates:[{url:'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]
             }]});
             await p.route('**/playlist.json*',route=>route.fulfill({status:200,contentType:'application/json',body:fixturePlaylist}));
             await p.route('**/api/playlist*',route=>route.fulfill({status:200,contentType:'application/json',body:fixturePlaylist}));
-            await p.route('**/e2e-fixture.m3u8*',route=>route.fulfill({status:200,contentType:'application/vnd.apple.mpegurl',body:manifest}));
-            await p.route('**/fixture000.ts',route=>route.fulfill({status:200,contentType:'video/mp2t',body:segment}));
 
             await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
             await p.waitForSelector('.card',{timeout:15000});

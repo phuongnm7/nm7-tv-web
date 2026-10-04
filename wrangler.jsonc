@@ -6,6 +6,6 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/__nm7/*"]
+    "run_worker_first": ["/api/*"]
   }
 }

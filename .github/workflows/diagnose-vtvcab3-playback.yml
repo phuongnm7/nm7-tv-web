@@ -15,7 +15,7 @@ jobs:
         run: |
           set +e
           U='https://856175157.r.vtvcdn.com/ondrm/THETHAO_HD/m30_index.m3u8'
-          curl -L --max-time 25 -sS -D /tmp/h -o /tmp/b -A 'KhoaTivi'
+          curl -L --max-time 25 -sS -D /tmp/h -o /tmp/b -A 'KhoaTivi' "$U"
           rc=$?
           echo "CURL_RC=$rc"
           test -f /tmp/h && head -20 /tmp/h || true

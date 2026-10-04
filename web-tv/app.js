@@ -511,7 +511,7 @@ function parseClearKey(text){
 function toHex16(v){
  var s=String(v==null?'':v).trim().replace(/^["']|["']$/g,'').replace(/-/g,'').replace(/^0x/i,'');
  if(/^[0-9a-f]{32}$/i.test(s))return s.toLowerCase();
- try{var b=atob(s.replace(/-/g,'+').replace(/_/g,'/')),h='';for(var i=0;i<b.length;i++)h+=('0'+b.charCodeAt(i).toString(16)).slice(-2);if(h.length===32)return h.toLowerCase()}catch(e){}
+ try{var b64=s.replace(/-/g,'+').replace(/_/g,'/');while(b64.length%4)b64+='=';var b=atob(b64),h='';for(var i=0;i<b.length;i++)h+=('0'+b.charCodeAt(i).toString(16)).slice(-2);if(h.length===32)return h.toLowerCase()}catch(e){}
  return ''
 }
 

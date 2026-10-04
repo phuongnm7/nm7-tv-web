@@ -36,6 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
+          export LIVE_URL
           node <<'NODE'
           const base=process.env.LIVE_URL;
           (async()=>{

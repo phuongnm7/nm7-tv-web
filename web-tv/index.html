@@ -85,6 +85,97 @@ button{cursor:pointer}
   #playerTitle{font-size:21px}
   #status{font-size:22px}
 }
+
+/* Mobile responsive layer: TV styles above remain the default. */
+#mobileMenuBtn{display:none;border:0;background:transparent;color:#fff;width:48px;height:48px;border-radius:12px;font-size:27px;line-height:1;outline:none}
+#mobileMenuBtn:focus{outline:2px solid #37d6a6;background:#ffffff18}
+
+@media screen and (max-width:1024px) and (pointer:coarse){
+  html,body{width:100%;height:100%;min-height:100%;overflow:hidden}
+  body{background:#07111f}
+  #app{width:100%;height:100dvh;min-height:100%;background-position:center center;background-size:cover;padding:0}
+  #home{inset:0;padding:0 calc(10px + env(safe-area-inset-left,0px)) 0 calc(10px + env(safe-area-inset-right,0px));}
+  #homeTabs{display:flex;flex:0 0 calc(58px + env(safe-area-inset-top,0px));height:calc(58px + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) 4px 0;align-items:center;gap:4px;position:relative}
+  #mobileMenuBtn{display:flex;align-items:center;justify-content:center;flex:0 0 46px}
+  #btnYouTubeTab{width:auto;min-width:92px;height:46px;padding:0 10px;font-size:14px;gap:6px}
+  .youtubeMark{width:28px;height:19px;font-size:11px}
+  #appShortcut{width:54px;height:46px;margin-left:0}
+  #shortcutIcon{width:25px;height:25px}
+  #shortcutLabel{display:none}
+  #homeTitle{font-size:16px;left:154px;right:58px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #homeRows{padding:4px 0 calc(22px + env(safe-area-inset-bottom,0px));overscroll-behavior-y:contain}
+  .row{margin:0 0 8px}
+  .row h2{height:34px;padding:7px 5px 2px;font-size:16px;line-height:20px}
+  .cards{height:96px;gap:10px;padding:4px 6px 8px 2px;scrollbar-width:none}
+  .card{flex:0 0 clamp(112px,31vw,150px);width:clamp(112px,31vw,150px);height:80px;min-width:112px;border-radius:14px;padding:4px;touch-action:pan-y}
+  .card:focus{transform:none;background:#ffffff0d;box-shadow:0 0 0 2px #37d6a6 inset;border-radius:14px}
+  .thumb{height:48px;flex-basis:48px}
+  .thumb::before{width:54px;height:54px;top:24px;margin:-27px 0 0 -27px;border-width:4px}
+  .thumb::after{width:48px;height:48px;top:24px;margin:-24px 0 0 -24px}
+  .thumb img{width:44px;height:44px;max-width:44px;max-height:44px}
+  .name{height:22px;line-height:20px;font-size:12px;max-width:100%;padding:0 2px}
+  .star{top:3px;right:5px;font-size:14px}
+  .empty{padding:50px 8px;font-size:20px;text-align:center}
+  #side{width:min(340px,88vw);padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(14px + env(safe-area-inset-bottom,0px));box-shadow:12px 0 40px #000}
+  #sideHeader{height:56px;margin-bottom:8px}
+  #sideHeader img{width:46px;height:46px}
+  #sideHeader span{font-size:17px}
+  #sideList{height:calc(100% - 98px)}
+  .menuBtn{height:48px;margin:3px 0;padding:10px 14px;font-size:16px;border-radius:10px}
+  #sideHint{display:none}
+  #playerTop{padding:calc(12px + env(safe-area-inset-top,0px)) 14px 10px;background:linear-gradient(#000d,transparent);padding-right:48px}
+  #playerTitle{font-size:17px;line-height:22px}
+  #playerMeta{display:none}
+  #status{font-size:16px;line-height:23px;padding:70px 22px}
+  #ctrl{left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));transform:none;justify-content:flex-start;gap:6px;padding:8px;overflow-x:auto;max-width:none;border-radius:13px}
+  .cb{flex:0 0 auto;min-width:52px;min-height:44px;padding:9px 12px;font-size:14px;border-radius:9px;touch-action:manipulation}
+  #quick{padding:72px 10px calc(16px + env(safe-area-inset-bottom,0px))}
+  #quickTitle{font-size:15px;margin-left:4px}
+  .quickCards{gap:7px;min-height:72px;padding:3px 5px}
+  .quickCard{flex-basis:126px;height:66px;border-radius:14px;font-size:12px;touch-action:manipulation}
+  #box{width:min(92vw,520px);max-width:92vw;max-height:78dvh;border-radius:14px;padding:20px}
+  #box h2{font-size:22px;margin-bottom:12px}
+  .guide{font-size:15px}
+  .input{font-size:17px;padding:11px}
+  .dialogActions{flex-wrap:wrap;justify-content:stretch}
+  .db{flex:1 1 120px;min-height:46px;font-size:16px}
+  #toast{left:10px;right:10px;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:none;font-size:15px;padding:10px 14px;max-width:none}
+  #debug{max-width:92vw;font-size:10px}
+}
+
+body.mobile-mode #home,
+body.mobile-mode #player,
+body.mobile-mode #side,
+body.mobile-mode #dlg,
+body.mobile-mode #toast,
+body.mobile-mode #debug{font-synthesis:none}
+
+@media screen and (max-width:600px) and (pointer:coarse){
+  #homeTabs{flex-basis:calc(54px + env(safe-area-inset-top,0px));height:calc(54px + env(safe-area-inset-top,0px))}
+  #homeTitle{left:128px;right:48px;font-size:15px}
+  #btnYouTubeTab{min-width:70px;padding:0 6px;font-size:13px}
+  #appShortcut{width:45px}
+  .cards{height:94px}
+  .card{flex-basis:42vw;width:42vw;max-width:150px;min-width:118px}
+  .row h2{font-size:15px}
+  #ctrl{gap:5px}
+  .cb{min-width:48px;padding:9px 10px;font-size:13px}
+}
+
+/* When a phone rotates to landscape, use the extra width instead of forcing the TV layout. */
+@media screen and (orientation:landscape) and (max-height:600px) and (pointer:coarse){
+  #homeTabs{flex-basis:50px;height:50px}
+  #homeRows{padding-top:0}
+  .cards{height:82px}
+  .card{height:68px}
+  .thumb{height:42px;flex-basis:42px}
+  .thumb::before{top:21px}
+  .thumb::after{top:21px}
+  .row h2{height:30px;padding-top:5px}
+  #ctrl{bottom:6px}
+  #status{font-size:15px}
+}
+
 </style>
 <script src="./dash.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>
@@ -94,7 +185,7 @@ button{cursor:pointer}
 </head>
 <body id="nm7-body" tabindex="-1">
 <div id="app">
-  <main id="home"><div id="homeTabs"><button id="btnYouTubeTab" type="button" tabindex="-1"><span class="youtubeMark">▶</span><span>YouTube</span></button><button id="appShortcut" type="button" tabindex="-1"><img id="shortcutIcon" src="/assets/nm7-main-logo.png" alt=""><span id="shortcutLabel">Chọn ứng dụng</span></button><div id="homeTitle">Danh sách kênh TV</div></div><div id="homeRows"><div class="empty">Đang tải danh sách kênh…</div></div></main>
+  <main id="home"><div id="homeTabs"><button id="mobileMenuBtn" type="button" tabindex="-1" aria-label="Mở menu">☰</button><button id="btnYouTubeTab" type="button" tabindex="-1"><span class="youtubeMark">▶</span><span>YouTube</span></button><button id="appShortcut" type="button" tabindex="-1"><img id="shortcutIcon" src="/assets/nm7-main-logo.png" alt=""><span id="shortcutLabel">Chọn ứng dụng</span></button><div id="homeTitle">Danh sách kênh TV</div></div><div id="homeRows"><div class="empty">Đang tải danh sách kênh…</div></div></main>
   <section id="player" class="hidden">
     <div id="playerTop"><div id="playerTitle"></div><div id="playerMeta"></div></div>
     <video id="video" playsinline preload="auto"></video>

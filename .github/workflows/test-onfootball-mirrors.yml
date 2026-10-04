@@ -1,0 +1,29 @@
+name: Test ON Football candidate mirrors
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test ON Football mirror candidates
+        shell: bash
+        run: |
+          set +e
+          items=(
+            "AZURE_DDNS|https://azurex88.ddns.net/premium/bpk-tv/vcab/vtvcab16/index.m3u8"
+            "AZURE_MYFTP|https://azurex88.myftp.biz/livetv/bpk-tv/vstv/userid:vmttv/mac=2F-1E-07-AD-E9-59/vtvcab16/index.m3u8"
+            "KHANG|https://khanggtivi.xyz/vuminhthanh/vmt2024/onfootball/index.m3u8"
+            "HOIQUAN|https://xem.hoiquan.click/TichHop/OnLive/LIVE/?user=onfootball"
+          )
+          for item in "${items[@]}"; do
+            n="${item%%|*}"; u="${item#*|}"
+            echo "=== $n ==="
+            curl -L --max-time 20 -A "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36" -e "http://sctvonline.vn/" -sS -D /tmp/h -o /tmp/b "$u"
+            echo "HTTP=$(head -1 /tmp/h)"
+            grep -iE '^(content-type|content-length|location|access-control-allow-origin|server):' /tmp/h | head -20
+            echo "BYTES=$(wc -c < /tmp/b)"
+            head -c 500 /tmp/b | strings | head -10
+          done

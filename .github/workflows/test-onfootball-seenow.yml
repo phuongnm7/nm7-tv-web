@@ -1,0 +1,46 @@
+name: Test ON Football SeeNow DASH sources
+
+on:
+  push:
+    branches: ["feat/tvdrm-player-integration-20261004"]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe primary MPD
+        shell: bash
+        run: |
+          set -euo pipefail
+          U='https://livevliatmcdw.seenow.vn/live/data8/BONGDA_HD/Live_DASHDRM/BONGDA_HD.mpd'
+          curl -L --fail --max-time 25 -A 'Dalvik/2.1.0' -sS -D /tmp/h1 -o /tmp/m1 "$U"
+          echo "PRIMARY $(head -1 /tmp/h1)"
+          grep -iE '^(content-type|content-length|location|server):' /tmp/h1 | head -20 || true
+          grep -qi '<MPD' /tmp/m1
+          grep -qi 'ContentProtection\|cenc' /tmp/m1
+          echo "PRIMARY_MPD_OK bytes=$(wc -c < /tmp/m1)"
+
+      - name: Probe secondary MPD
+        shell: bash
+        run: |
+          set -euo pipefail
+          U='https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd'
+          curl -L --fail --max-time 25 -A 'Dalvik/2.1.0' -sS -D /tmp/h2 -o /tmp/m2 "$U"
+          echo "SECONDARY $(head -1 /tmp/h2)"
+          grep -iE '^(content-type|content-length|location|server):' /tmp/h2 | head -20 || true
+          grep -qi '<MPD' /tmp/m2
+          grep -qi 'ContentProtection\|cenc' /tmp/m2
+          echo "SECONDARY_MPD_OK bytes=$(wc -c < /tmp/m2)"
+
+      - name: Verify app wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'https://livevliatmcdw.seenow.vn/live/data8/BONGDA_HD/Live_DASHDRM/BONGDA_HD.mpd' worker.js
+          grep -Fq 'https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd' worker.js
+          grep -Fq 'forceProxy:true' worker.js
+          node --check web-tv/app.js
+          node --check worker.js
+          echo "APP_WIRING_OK"

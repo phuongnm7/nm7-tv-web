@@ -72,8 +72,8 @@ jobs:
           print('CLOUDFLARE_SMOKE_OK channels=',len(channels),'groups=',groups[:8])
           PY
 
-          HTML="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/?v=20261004-ios-drm")"
-          echo "$HTML" | grep -q "shaka-player@5.2.4" || {
+          HTML="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/?v=20261005-ios-drm-final1")"
+          echo "$HTML" | grep -q "shaka-player@5.2.12" || {
               echo "Shaka 5.2.4 marker not found in deployed HTML"
               exit 1
           }

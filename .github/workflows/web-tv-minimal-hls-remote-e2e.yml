@@ -36,12 +36,9 @@ jobs:
         run: |
           python3 - <<'PY'
           import json
+          channels=[{"id":chr(65+i),"name":f"Kênh {i+1}","group":"Nhóm 1" if i<25 else "Nhóm 2","logo":"","candidates":[{"url":"/test-hls.m3u8","hls":True}]} for i in range(25)]
           with open("e2e-site/playlist.json","w") as f:
-            json.dump({"channels":[
-              {"id":"A","name":"Kênh A","group":"Nhóm 1","logo":"","candidates":[{"url":"/test-hls.m3u8","hls":True}]},
-              {"id":"B","name":"Kênh B","group":"Nhóm 1","logo":"","candidates":[{"url":"/test-hls.m3u8","hls":True}]},
-              {"id":"C","name":"Kênh C","group":"Nhóm 2","logo":"","candidates":[{"url":"/test-hls.m3u8","hls":True}]}
-            ]},f,ensure_ascii=False)
+            json.dump({"channels":channels},f,ensure_ascii=False)
           p="e2e-site/index.html"
           s=open(p,encoding="utf-8").read()
           s=s.replace('<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>','<script src="/hls.min.js"></script>')
@@ -90,18 +87,26 @@ jobs:
             await p.goto('http://127.0.0.1:4173/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
             await p.waitForSelector('.card',{timeout:15000});
             const cards=await p.locator('.card').count();
-            if(cards!==3)throw new Error('cards='+cards);
+            if(cards!==25)throw new Error('cards='+cards);
+            const geom=await p.evaluate(()=>{const card=document.querySelector('.card'),logo=document.querySelector('.thumb');const cs=getComputedStyle(card),ls=getComputedStyle(logo);return {cardW:cs.width,cardH:cs.height,logoW:ls.width,logoH:ls.height,bg:cs.backgroundColor}});
+            console.log('GEOMETRY='+JSON.stringify(geom));
+            if(geom.cardW!=='128px'||geom.cardH!=='70px'||geom.logoW!=='48px'||geom.logoH!=='48px')throw new Error('1.0.69 geometry '+JSON.stringify(geom));
 
             let init=await p.evaluate(()=>({tag:document.activeElement?.tagName,row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
             if(init.tag!=='BUTTON'||init.row!=='0'||init.col!=='0')throw new Error('initial focus '+JSON.stringify(init));
 
             await p.keyboard.press('ArrowRight');
             await p.waitForTimeout(100);
-            let right=await p.evaluate(()=>({row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
+            let right=await p.evaluate(()=>({row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col,scroll:document.querySelector('.cards')?.scrollLeft||0}));
             if(right.row!=='0'||right.col!=='1')throw new Error('RIGHT focus '+JSON.stringify(right));
+            for(let i=0;i<12;i++){await p.keyboard.press('ArrowRight');await p.waitForTimeout(20);}
+            let edge=await p.evaluate(()=>({col:document.activeElement?.dataset?.col,scroll:document.querySelector('.cards')?.scrollLeft||0}));
+            if(edge.col!=='13'||edge.scroll<=0)throw new Error('RIGHT edge did not scroll '+JSON.stringify(edge));
+            for(let i=0;i<20;i++){await p.keyboard.press('ArrowRight');await p.waitForTimeout(10);}
+            let end=await p.evaluate(()=>({col:document.activeElement?.dataset?.col,scroll:document.querySelector('.cards')?.scrollLeft||0}));
+            if(end.col!=='24')throw new Error('RIGHT reached wrong end '+JSON.stringify(end));
 
-            await p.keyboard.press('ArrowLeft');
-            await p.waitForTimeout(50);
+            for(let i=0;i<24;i++){await p.keyboard.press('ArrowLeft');await p.waitForTimeout(10);}
             await p.keyboard.press('ArrowLeft');
             await p.waitForTimeout(100);
             if(await p.locator('#side:not(.hidden)').count()!==1)throw new Error('LEFT did not open menu');

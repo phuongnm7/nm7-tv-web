@@ -28,6 +28,12 @@ jobs:
         shell: bash
         run: |
           set +e
+          echo "=== PROXY VTV1 FPT HEADERS ==="
+          curl -L --max-time 20 -A "Mozilla/5.0 (Linux; Android 15; SM-S918B) AppleWebKit/537.36 Chrome/135.0.7049.111 Mobile Safari/537.36 vAppTV/1.0.2" -e "https://fptplay.vn/" -H "Origin: https://fptplay.vn" -sS -D /tmp/pvh -o /tmp/pvb "https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u=https%3A%2F%2Flive-a.fptplay53.net%2Flive%2Fmedia%2Fvtv1%2Flive247-hls-avc%2Findex.m3u8&r=https%3A%2F%2Ffptplay.vn%2F&ua=Mozilla%2F5.0%20(Linux%3B%20Android%2015)%20AppleWebKit%2F537.36%20Chrome%2F135.0.7049.111%20Mobile%20Safari%2F537.36%20vAppTV%2F1.0.2&h=%7B%22Origin%22%3A%22https%3A%2F%2Ffptplay.vn%22%7D"
+          echo "HTTP=$(head -1 /tmp/pvh)"
+          grep -iE '^(content-type|location|server|x-channel):' /tmp/pvh | head -20
+          head -c 500 /tmp/pvb | strings | head -10
+
           python3 - <<'PY'
           import urllib.parse, subprocess
           base='https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u='

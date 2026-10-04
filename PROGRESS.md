@@ -165,3 +165,30 @@ Không lấy một bản thử nghiệm mới làm baseline khi vòng test hiệ
 - Khi test thực tế bằng Safari, URL cache-bust hiện tại:
   `https://nm7-tv-web.phuongnm7-iptv.workers.dev/?v=20261004-ios-drm-recovery`
   Có thể thêm `&debug=1` để xem log rolling gồm mã lỗi Shaka, category/data, buffer và codec.
+
+
+## Phục hồi Safari SCTV22 — sửa nguyên nhân gốc — 05/10/2026
+
+Video kiểm thử cho thấy SCTV22 không thất bại ngay khi mở: hình chạy ổn định đến khoảng **9,4 giây**, sau đó chuyển đột ngột sang `Video error · thử proxy`. Điều này chứng minh lỗi nằm trong quá trình phát live sau khi phiên đã khởi tạo, không phải chỉ do thiếu URL.
+
+Đã xác định thêm nguyên nhân gốc trong player:
+
+- `startShaka()` trước đây đăng ký request filter và **ép mọi HTTP MPD/segment qua /api/stream**, ngay cả khi `S.proxyAttempt=false`. Với SCTV22, đường Cloudflare tới upstream hiện bị HTTP 403; vì vậy UI có thể ghi “trực tiếp” nhưng media request thực tế vẫn đi qua proxy và chết sau khi buffer ban đầu hết.
+- Với Apple + DASH + ClearKey, request filter hiện **giữ nguyên URL direct**; chỉ proxy khi thật sự cần ở các loại stream khác.
+- Apple + DASH + ClearKey không còn rơi sang nhánh `thử proxy` khi timeout/video error. Player sẽ retry streaming tại chỗ rồi tái tạo Shaka trực tiếp cùng candidate tối đa 2 lần.
+- `retryStreaming()` đã được xử lý đúng kiểu Promise thay vì coi Promise là boolean.
+- Apple ClearKey DASH được tắt ABR (`abr.enabled=false`) để tránh adaptive representation switch trên live MSE/WebCrypto.
+- Bổ sung `manifest.retryParameters`, `streaming.retryParameters` và DRM retry để giảm lỗi segment tạm thời.
+- Bump schema cache thành `20261005-drm-final-1` để **loại bỏ toàn bộ playlist localStorage cũ** của các bản thử trước, tránh SCTV22 bị mở bằng metadata DRM stale.
+- Shaka nâng lên **5.2.12**, bản phát hành 25/09/2026 có các sửa DASH/DRM/live-network liên quan trực tiếp đến trường hợp này.
+
+### Nguyên tắc cuối cho SCTV22 trên Apple
+
+Không dùng Cloudflare proxy như đường DRM chính. Safari/iPad phải lấy MPD, init/media segment và ClearKey trực tiếp từ nguồn khi nguồn cho phép; Cloudflare chỉ phục vụ HTML/API playlist và các stream cần proxy.
+
+### Mốc code
+
+- `f932408a223a9aa55b0101381f6d28e058e93929`: sửa request path direct/proxy, cache schema và recovery.
+- `dd72918a8c0bc2c2dd3f041bb1839b6a41afbada`: Shaka 5.2.12 + cache-bust player.
+- `55bedcfb1dc622915ada361f7a3cdbd8afedb531`: cập nhật smoke test Cloudflare.
+

@@ -1,8 +1,8 @@
 const SOURCES = {
   tv: [
+    'https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/',
     'https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u',
-    'https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u',
-    'https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/'
+    'https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u'
   ],
   sport: ['https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u']
 };

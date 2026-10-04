@@ -61,7 +61,17 @@ function parseM3U(t,base=''){
 function headersFromQuery(req,q){const h=new Headers();h.set('User-Agent',q.get('ua')||req.headers.get('user-agent')||'NM7-TV-Web/1.0.69');if(q.get('r'))h.set('Referer',q.get('r'));for(const k of ['range','accept','accept-language','origin','if-none-match','if-modified-since']){const v=req.headers.get(k);if(v)h.set(k,v)}try{const extra=JSON.parse(q.get('h')||'{}');for(const [k,v] of Object.entries(extra||{})){const lk=k.toLowerCase();if(['host','connection','content-length','cookie','user-agent','referer'].includes(lk))continue;if(typeof v==='string'&&v.length<4000)h.set(k,v)}}catch{}return h}
 function apiUrl(path,u,q){let x=path+'?u='+encodeURIComponent(u);for(const k of ['r','ua','h']){const v=q.get(k)||'';if(v)x+='&'+k+'='+encodeURIComponent(v)}return x}
 function rewriteHls(text,finalUrl,q){const px=u=>{try{const abs=safeUrl(u,finalUrl);if(/^data:|^blob:/i.test(abs))return u;return apiUrl('/api/stream',abs,q)}catch{return u}};text=String(text||'').replace(/URI\s*=\s*"([^"]+)"/gi,(m,u)=>'URI="'+px(u)+'"');const lines=text.split(/\r?\n/);for(let i=0;i<lines.length;i++){const z=lines[i].trim();if(z&&!z.startsWith('#')&&!/^data:|^blob:/i.test(z))lines[i]=px(z)}return lines.join('\n')}
-function rewriteDash(text,finalUrl){if(/<BaseURL(?:\s|>)/i.test(text))return text.replace(/(<BaseURL[^>]*>)([^<]*)(<\/BaseURL>)/gi,(m,a,u,b)=>{try{return a+safeUrl(u.trim(),finalUrl)+b}catch{return m}});return String(text||'').replace(/(<MPD\b[^>]*>)/i,'$1<BaseURL>'+safeUrl('./',finalUrl)+'</BaseURL>')}
+function rewriteDash(text,finalUrl){
+  text=String(text||'');
+  const base=safeUrl('./',finalUrl);
+  if(/<BaseURL\b[^>]*\/\s*>/i.test(text)){
+    return text.replace(/<BaseURL\b[^>]*\/\s*>/i,'<BaseURL>'+base+'</BaseURL>');
+  }
+  if(/<BaseURL\b[^>]*>[\s\S]*?<\/BaseURL>/i.test(text)){
+    return text.replace(/<BaseURL\b[^>]*>[\s\S]*?<\/BaseURL>/i,'<BaseURL>'+base+'</BaseURL>');
+  }
+  return text.replace(/(<MPD\b[^>]*>)/i,'$1<BaseURL>'+base+'</BaseURL>');
+}
 function cors(h){h.set('Access-Control-Allow-Origin','*');h.set('Access-Control-Allow-Methods','GET,HEAD,POST,OPTIONS');h.set('Access-Control-Allow-Headers','Range,Accept,Content-Type,Origin,Referer,User-Agent,X-Requested-With');h.set('Access-Control-Expose-Headers','Content-Length,Content-Range,Accept-Ranges,Content-Type,ETag');return h}
 async function fetchWithTimeout(url,init={},ms=9000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{return await fetch(url,{...init,signal:c.signal,redirect:'follow',cache:'no-store'})}finally{clearTimeout(t)}}
 async function playlistResponse(source,exactDefault=false,env=null){

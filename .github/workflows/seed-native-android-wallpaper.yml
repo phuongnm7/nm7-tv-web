@@ -21,17 +21,10 @@ jobs:
           unzip -q -p "$APK" 'res/tf.webp' > web-tv/assets/nm7-default-background.webp
           file web-tv/assets/nm7-default-background.webp
           sha256sum web-tv/assets/nm7-default-background.webp
-          python3 - <<'PY'
-          import struct
-          p='web-tv/assets/nm7-default-background.webp'
-          b=open(p,'rb').read(64)
-          if b[:4]!=b'RIFF' or b[8:12]!=b'WEBP': raise SystemExit('not webp')
-          w=h=None
-          if b[12:16]==b'VP8X':
-              w=1+int.from_bytes(b[24:27],'little'); h=1+int.from_bytes(b[27:30],'little')
-          print('WEBP_SIZE=',w,h)
-          if (w,h)!=(3840,2160): raise SystemExit(f'unexpected size {(w,h)}')
-          PY
+          META="$(file web-tv/assets/nm7-default-background.webp)"
+          echo "$META"
+          echo "$META" | grep -q "3840x2160"
+          test "$(sha256sum web-tv/assets/nm7-default-background.webp | cut -d' ' -f1)" = "d8af6ac8ba532db465dcb8c44e00b71865e6c9a712c8cc21cd0a2118400bd00d"
       - name: Commit native wallpaper and remove seed workflow
         shell: bash
         run: |

@@ -704,6 +704,8 @@ function getAppleDrmRuntime(){
 }
 function startDash(c,cand,url,gen){
  var drm=browserDrm(cand);
+ if(S.debug&&isAppleTouchDevice())dbg('Apple DRM runtime '+JSON.stringify(getAppleDrmRuntime()));
+
  if(window.shaka&&shaka.Player){
   startShaka(c,cand,url,drm,gen);return
  }

@@ -359,6 +359,19 @@ function fallbackOriginal(cached,firstError){
  });
 }
 
+function sanitizeAppleCandidates(c){
+ if(!c||!Array.isArray(c.candidates))return c;
+ var id=String(c.id||'').toLowerCase().replace(/[\\s_-]+/g,''),name=String(c.name||'').toLowerCase();
+ if(id!=='vtvcab3hd'&&name.indexOf('vtvcab3')<0&&name.indexOf('on sports hd')<0)return c;
+ var out=[];
+ for(var i=0;i<c.candidates.length;i++){
+  var u=String(c.candidates[i]&&c.candidates[i].url||'');
+  if(/e3\.endpoint\.cdn\.sctvonline\.vn\/hls\/vtvcab3\/index\.m3u8/i.test(u))continue;
+  if(/856175157\.r\.vtvcdn\.com\/ondrm\/THETHAO_HD\/m30_index\.m3u8/i.test(u))continue;
+  out.push(c.candidates[i]);
+ }
+ return Object.assign({},c,{candidates:out});
+}
 function normalizeCandidate(cand){
  cand=cand||{};cand.headers=cand.headers||{};
  if(!cand.ref&&!cand.headers.Referer&&!cand.headers.referer)cand.ref='';
@@ -399,16 +412,16 @@ function startupCandidateIndex(c){
  var a=c&&Array.isArray(c.candidates)?c.candidates:[];
  if(!a.length)return 0;
  if(isAppleTouchDevice()){
-  var id=String(c.id||'').toLowerCase().replace(/[\\s_-]+/g,'');
-  var name=String(c.name||'').toLowerCase().replace(/[\\s_-]+/g,'');
-  // VTVcab 3 / ON Sports has a matching HLS rendition. On Apple, use the
-  // native HLS path first; keep DASH/ClearKey as a fallback.
-  if(id==='vtvcab3hd'||name.indexOf('vtvcab3')>=0||name.indexOf('onsportshd')>=0){
-   for(var h=0;h<a.length;h++)if(classify(a[h])==='hls'&&!a[h].drm)return h;
+  var id=String(c.id||'').toLowerCase().replace(/[\\s_-]+/g,''),name=String(c.name||'').toLowerCase();
+  var isCab3=id==='vtvcab3hd'||name.indexOf('vtvcab3')>=0||name.indexOf('on sports hd')>=0;
+  if(isCab3){
+   for(var d0=0;d0<a.length;d0++)if(isDashDrmCandidate(a[d0]))return d0;
+   for(var h0=0;h0<a.length;h0++)if(classify(a[h0])==='hls'&&!a[h0].drm)return h0;
+  }else{
+   for(var d=0;d<a.length;d++)if(isDashDrmCandidate(a[d]))return d;
+   for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;
+   for(var q=0;q<a.length;q++){var qk=classify(a[q]);if((qk==='mp4'||qk==='hls')&&!a[q].drm)return q}
   }
-  for(var d=0;d<a.length;d++)if(isDashDrmCandidate(a[d]))return d;
-  for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;
-  for(var q=0;q<a.length;q++){var qk=classify(a[q]);if((qk==='mp4'||qk==='hls')&&!a[q].drm)return q}
  }
  if(isDashDrmCandidate(a[0])){
   for(var i=0;i<a.length;i++)if(classify(a[i])==='hls'&&!a[i].drm)return i;
@@ -520,7 +533,9 @@ function hideStatus(){$('status').style.display='none'}
 function getCandidate(){return S.current&&S.current.candidates?normalizeCandidate(S.current.candidates[S.candidateIndex]):null}
 
 function openPlayer(c){
+ c=sanitizeAppleCandidates(c);
  c=addAppleHlsAlternatives(c);
+ c=sanitizeAppleCandidates(c);
  if(!c||!c.candidates||!c.candidates.length){toast('Kênh chưa có URL phát');return}
  S.current=c;S.candidateIndex=startupCandidateIndex(c);S.attemptStep=0;S.proxyAttempt=false;S.player=true;S.drmRecoveryCount=0;S.drmHardRecoveryCount=0;S.drmStallAnchor=0;S.drmStallSince=0;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;
  S.zone='player';$('player').className='';$('ctrl').className='hidden';$('quick').className='hidden';
@@ -897,20 +912,22 @@ function startShaka(c,cand,url,drm,gen){
     }
    },1000);
   }
+  // Do not restart the player on a transient 'waiting'/'stalled'
+  // event. Shaka's live pipeline already handles rebuffering internally.
+  // We only record the condition for diagnostics.
   v.addEventListener('waiting',function(){
-   if(appleDrm&&!S.drmStallTimer){
-    S.drmStallTimer=setTimeout(function(){S.drmStallTimer=null;armDrmStallWatch('waiting')},1500);
+   if(appleDrm&&gen===S.generation&&S.player){
+    dbg('DRM waiting t='+(isFinite(v.currentTime)?v.currentTime.toFixed(2):'NaN')+
+        ' rs='+v.readyState+' buffered='+(v.buffered.length?v.buffered.end(v.buffered.length-1).toFixed(2):'0'));
    }
   });
   v.addEventListener('stalled',function(){
-   if(appleDrm&&!S.drmStallTimer){
-    S.drmStallTimer=setTimeout(function(){S.drmStallTimer=null;armDrmStallWatch('stalled')},1500);
+   if(appleDrm&&gen===S.generation&&S.player){
+    dbg('DRM stalled t='+(isFinite(v.currentTime)?v.currentTime.toFixed(2):'NaN')+
+        ' rs='+v.readyState+' net='+v.networkState);
    }
   });
-  v.addEventListener('playing',function(){
-   if(S.drmStallTimer){clearInterval(S.drmStallTimer);clearTimeout(S.drmStallTimer);S.drmStallTimer=null}
-   S.drmStallSince=0;S.drmStallAnchor=isFinite(v.currentTime)?v.currentTime:0;
-  });
+
  }catch(e){
   if(isAppleTouchDevice()&&isDashDrmCandidate(cand)){
    hardRestartDrm(c,cand,gen,'Shaka init '+String(e&&e.message||e));

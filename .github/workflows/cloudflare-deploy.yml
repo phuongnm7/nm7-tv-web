@@ -67,10 +67,29 @@ jobs:
               candidates=ons[0].get('candidates') or []
               if not any((x.get('type') or '').lower()=='hls' or x.get('hls') for x in candidates):
                   raise SystemExit('On Sports 50fps has no HLS fallback candidate')
-              if not any(str(x.get('url','')).lower().endswith('.m3u8') or '.m3u8?' in str(x.get('url','')).lower() for x in candidates):
+              hls=[x for x in candidates if str(x.get('url','')).lower().split('?',1)[0].endswith('.m3u8')]
+          if not hls:
                   raise SystemExit('On Sports 50fps has no real m3u8 candidate')
+          with open('/tmp/on_sports_hls.txt','w',encoding='utf-8') as f:
+              f.write(hls[0].get('url','')+'\n'+hls[0].get('ua','')+'\n'+hls[0].get('ref','')+'\n')
           print('CLOUDFLARE_SMOKE_OK channels=',len(channels),'groups=',groups[:8])
           PY
+
+          SHAKA_OK="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app.js?v=20261004-apple-hls" | grep -o "shaka-player@5.2.12" | head -1 || true)"
+          if [ "$SHAKA_OK" != "shaka-player@5.2.12" ]; then
+              echo "Shaka 5.2.12 marker not found in deployed HTML"
+              exit 1
+          fi
+          ON_URL="$(sed -n '1p' /tmp/on_sports_hls.txt)"
+          ON_UA="$(sed -n '2p' /tmp/on_sports_hls.txt)"
+          ON_REF="$(sed -n '3p' /tmp/on_sports_hls.txt)"
+          if [ -n "$ON_REF" ]; then
+              curl -fsSL --max-redirs 3 --max-time 20 -A "$ON_UA" -e "$ON_REF" "$ON_URL" -o /tmp/on-sports.m3u8
+          else
+              curl -fsSL --max-redirs 3 --max-time 20 -A "$ON_UA" "$ON_URL" -o /tmp/on-sports.m3u8
+          fi
+          grep -q "#EXTM3U" /tmp/on-sports.m3u8
+          echo "ON_SPORTS_HLS_SMOKE_OK url=$ON_URL"
 
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport.json
           python3 - <<'PY'

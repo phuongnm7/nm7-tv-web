@@ -559,7 +559,10 @@ function startByType(c,cand,url,kind,gen){
  else if(kind==='flv')startFlv(c,cand,url,gen);
  else if(kind==='mpegts')startMpegTs(c,cand,url,gen);
  else startDirect(c,cand,url,gen);
- S.watchdog=setTimeout(function(){if(S.generation!==gen||!S.player)return;if($('video').readyState<2||$('video').paused)nextCandidate('Timeout phát 15s')},15000)
+ var wait=15000;
+ if(isAppleTouchDevice()&&kind==='hls'&&c&&c.candidates&&c.candidates.length>1)wait=5000;
+ if(isAppleTouchDevice()&&kind==='dash'&&cand&&cand.drm)wait=8000;
+ S.watchdog=setTimeout(function(){if(S.generation!==gen||!S.player)return;if($('video').readyState<2||$('video').paused)nextCandidate('Timeout phát '+Math.round(wait/1000)+'s')},wait)
 }
 function probeCandidate(c,cand,gen){
  setStatus('Đang xác định định dạng '+c.name+'…');
@@ -598,11 +601,15 @@ function startHls(c,cand,url,gen){
   v.oncanplay=function(){markPlaying(gen)};
   v.onerror=function(){
    if(gen!==S.generation)return;
+   if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}
    if(!S.proxyAttempt){
     S.proxyAttempt=true;
     var pu=makeProxy(cand.resolvedUrl||cand.url,cand);
     setStatus('HLS trực tiếp lỗi · chuyển proxy '+c.name);
-    try{v.src=pu;var p=v.play();if(p&&p.catch)p.catch(function(){})}catch(e){nextCandidate('HLS proxy lỗi')}
+    try{
+     v.src=pu;var p=v.play();if(p&&p.catch)p.catch(function(){});
+     S.watchdog=setTimeout(function(){if(gen===S.generation&&S.player&&($('video').readyState<2||$('video').paused))nextCandidate('HLS proxy timeout 5s')},5000)
+    }catch(e){nextCandidate('HLS proxy lỗi')}
     return
    }
    nextCandidate('HLS native lỗi')

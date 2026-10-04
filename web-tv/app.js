@@ -412,7 +412,6 @@ function startupCandidateIndex(c){
 function shouldProxyFirst(cand,kind){
  cand=normalizeCandidate(cand||{});
  if(kind==='flv'||kind==='mpegts')return true;
- if(isAppleTouchDevice()&&(kind==='hls'||kind==='http'))return true;
  if(cand.forceProxy===true)return true;
  return false
 }
@@ -598,9 +597,22 @@ function startHls(c,cand,url,gen){
  var native=!!(v.canPlayType&&(v.canPlayType('application/vnd.apple.mpegurl')||v.canPlayType('application/x-mpegURL')))&&(safariLike||tizenLike);
  if(native){
   v.muted=false;v.defaultMuted=false;v.volume=1;
-  v.onloadedmetadata=function(){markPlaying(gen)};v.oncanplay=function(){markPlaying(gen)};v.src=url;
+  v.onloadedmetadata=function(){markPlaying(gen)};
+  v.oncanplay=function(){markPlaying(gen)};
+  v.onerror=function(){
+   if(gen!==S.generation)return;
+   if(!S.proxyAttempt){
+    S.proxyAttempt=true;
+    var pu=makeProxy(cand.resolvedUrl||cand.url,cand);
+    setStatus('HLS trực tiếp lỗi · chuyển proxy '+c.name);
+    try{v.src=pu;var p=v.play();if(p&&p.catch)p.catch(function(){})}catch(e){nextCandidate('HLS proxy lỗi')}
+    return
+   }
+   nextCandidate('HLS native lỗi')
+  };
+  v.src=url;
   var p=v.play();if(p&&p.catch)p.catch(function(){});
-  v.onerror=function(){if(gen===S.generation)tryHlsJs(c,cand,url,gen)};return
+  return
  }
  tryHlsJs(c,cand,url,gen)
 }

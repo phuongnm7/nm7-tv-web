@@ -36,7 +36,8 @@ jobs:
         run: |
           python3 - <<'PY'
           import json
-          channels=[{"id":chr(65+i),"name":f"Kênh {i+1}","group":"Nhóm 1" if i<25 else "Nhóm 2","logo":"","candidates":[{"url":"/test-hls.m3u8","hls":True}]} for i in range(25)]
+          logo="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+          channels=[{"id":chr(65+i),"name":f"Kênh {i+1}","group":"Nhóm 1" if i<25 else "Nhóm 2","logo":logo,"candidates":[{"url":"/test-hls.m3u8","hls":True}]} for i in range(25)]
           with open("e2e-site/playlist.json","w") as f:
             json.dump({"channels":channels},f,ensure_ascii=False)
           p="e2e-site/index.html"
@@ -92,6 +93,9 @@ jobs:
             const geom=await p.evaluate(()=>{const card=document.querySelector('.card'),logo=document.querySelector('.thumb img');const cs=getComputedStyle(card),ls=logo?getComputedStyle(logo):null;return {cardW:cs.width,cardH:cs.height,logoW:ls?.width||'',logoH:ls?.height||'',bg:cs.backgroundColor}});
             console.log('GEOMETRY='+JSON.stringify(geom));
             if(geom.cardW!=='128px'||geom.cardH!=='70px'||geom.logoW!=='48px'||geom.logoH!=='48px')throw new Error('1.0.69 geometry '+JSON.stringify(geom));
+            const align=await p.evaluate(()=>{const card=document.querySelector('.card'),thumb=document.querySelector('.thumb'),img=document.querySelector('.thumb img');const a=card.getBoundingClientRect(),t=thumb.getBoundingClientRect(),i=img.getBoundingClientRect();return {card:[a.left+a.width/2,a.top+a.height/2],thumb:[t.left+t.width/2,t.top+26],img:[i.left+i.width/2,i.top+i.height/2]}});
+            console.log('FOCUS_ANCHOR='+JSON.stringify(align));
+            if(Math.abs(align.thumb[0]-align.img[0])>1||Math.abs(align.thumb[1]-align.img[1])>1)throw new Error('focus/logo center mismatch '+JSON.stringify(align));
 
             let init=await p.evaluate(()=>({tag:document.activeElement?.tagName,row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
             if(init.tag!=='BUTTON'||init.row!=='0'||init.col!=='0')throw new Error('initial focus '+JSON.stringify(init));

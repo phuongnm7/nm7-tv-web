@@ -3,6 +3,8 @@ name: Cloudflare Final TV Web Check
 on:
   push:
     branches: ["cloudflare-migration"]
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:

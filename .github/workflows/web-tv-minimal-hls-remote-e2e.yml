@@ -95,6 +95,7 @@ jobs:
             if(geom.cardW!=='128px'||geom.cardH!=='70px'||geom.logoW!=='48px'||geom.logoH!=='48px')throw new Error('1.0.69 geometry '+JSON.stringify(geom));
             const align=await p.evaluate(()=>{const card=document.querySelector('.card'),thumb=document.querySelector('.thumb'),img=document.querySelector('.thumb img');const a=card.getBoundingClientRect(),t=thumb.getBoundingClientRect(),i=img.getBoundingClientRect();return {card:[a.left+a.width/2,a.top+a.height/2],thumb:[t.left+t.width/2,t.top+26],img:[i.left+i.width/2,i.top+i.height/2]}});
             console.log('FOCUS_ANCHOR='+JSON.stringify(align));
+            await p.screenshot({path:'e2e-site/final-home.png'});
             if(Math.abs(align.thumb[0]-align.img[0])>1||Math.abs(align.thumb[1]-align.img[1])>1)throw new Error('focus/logo center mismatch '+JSON.stringify(align));
 
             let init=await p.evaluate(()=>({tag:document.activeElement?.tagName,row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
@@ -135,3 +136,11 @@ jobs:
             await b.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
+
+      - name: Upload final UI screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nm7-tv-web-final-ui-screenshot
+          path: e2e-site/final-home.png
+          if-no-files-found: ignore

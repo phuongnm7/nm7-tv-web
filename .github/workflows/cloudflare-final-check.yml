@@ -98,8 +98,12 @@ jobs:
             }));
             console.log('LIBS='+JSON.stringify(libs));
             await p.locator('.card').first().click();
-            await p.waitForTimeout(5000);
-            try{await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&v.readyState>=2&&v.currentTime>0},{timeout:8000});}catch(e){}
+            await p.waitForTimeout(3000);
+            if(libs.avcMse){
+              try{await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&v.readyState>=2&&v.currentTime>0},{timeout:8000});}catch(e){}
+            } else {
+              await p.waitForTimeout(3000);
+            }
             const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {time:v.currentTime,ready:v.readyState,paused:v.paused,error:v.error?{code:v.error.code,message:v.error.message}:null,status:document.querySelector('#status')?.textContent||'',debug:document.querySelector('#debug')?.textContent||''}});
             console.log('INITIAL='+JSON.stringify(initial));
             console.log('RIGHT='+JSON.stringify(right));

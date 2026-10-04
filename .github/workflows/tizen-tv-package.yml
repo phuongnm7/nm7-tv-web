@@ -39,7 +39,8 @@ jobs:
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-save playwright@1.55.0 >/dev/null 2>&1
-          cat > /tmp/nm7-tizen-echo.html <<'EOF'
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          cat > /tmp/nm7-tizen-echo.html <<'EOF
           <!doctype html><html><body>
           <div id="received">NONE</div>
           <script>

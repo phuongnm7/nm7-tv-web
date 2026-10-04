@@ -1,4 +1,4 @@
-const SOURCES={tv:["https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/","https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u","https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u"],sport:["https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"]};
+const SOURCES={tv:["https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u","https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u","https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/"],sport:["https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"]};
 function parse(t){const lines=String(t||"").replace(/^\uFEFF/,"").split(/\r?\n/),out=[];let m=null,ua="",ref="",origin="",manifestType="",licenseType="",licenseKey="";
 for(const raw of lines){const l=raw.trim();
  if(l.indexOf("#EXTINF:")===0){

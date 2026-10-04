@@ -13,7 +13,7 @@ jobs:
       - name: Inspect live DASH DRM manifests
         shell: bash
         run: |
-          set -euo pipefail
+          set +euo pipefail
           urls=(
             "SEENOW_A|https://livevliatmcdw.seenow.vn/live/data8/BONGDA_HD/Live_DASHDRM/BONGDA_HD.mpd"
             "SEENOW_B|https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd"
@@ -54,9 +54,11 @@ jobs:
           done
 
       - name: Inspect deployed proxy manifests
+        if: always()
+
         shell: bash
         run: |
-          set -euo pipefail
+          set +euo pipefail
           urls=(
             "PROXY_A|https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u=https%3A%2F%2Flivevliatmcdw.seenow.vn%2Flive%2Fdata8%2FBONGDA_HD%2FLive_DASHDRM%2FBONGDA_HD.mpd"
             "PROXY_B|https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/stream?u=https%3A%2F%2Flivevlisctcdnw.seenow.vn%2Fmean%2FBONGDA_HD%2Fmanifest.mpd"

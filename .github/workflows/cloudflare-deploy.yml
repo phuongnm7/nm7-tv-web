@@ -79,7 +79,7 @@ jobs:
               raise SystemExit('Shaka 5.2.12 marker not found in deployed HTML')
           print('SHAKA_5_2_12_SMOKE_OK')
           PY
-          APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app.js?v=20261005-ios-drm-final1")"
+          APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app.js?v=20261005-drm-stable-final3")"
           python3 - "$APP" <<'PY'
           import sys
           app=sys.argv[1]

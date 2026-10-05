@@ -86,7 +86,10 @@ jobs:
           checks={
               "DRM cache schema":"CACHE_SCHEMA='20261005-drm-final-1'",
               "Apple direct DASH request filter":"(!appleDrm||S.proxyAttempt)",
-              "Apple DRM ABR lock":"abr:{enabled:appleDrm?false:undefined}",
+              "Apple DRM ABR enabled":"enabled:appleDrm",
+              "Apple DRM safe delay":"defaultPresentationDelay:appleDrm?8",
+              "Apple DRM buffer":"bufferingGoal:appleDrm?18",
+              "Apple DRM segment prefetch":"segmentPrefetchLimit:appleDrm?2",
               "DRM hard recovery":"hardRestartDrm",
               "real stall watchdog":"function armDrmStallWatch(reason)",
               "VTVcab3 HLS preference":"id==='vtvcab3hd'||name.indexOf('vtvcab3')>=0",

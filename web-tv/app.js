@@ -847,7 +847,7 @@ function startShaka(c,cand,url,drm,gen){
     startAtSegmentBoundary:appleDrm,
     updateIntervalSeconds:appleDrm?2:1,
     allowMediaSourceRecoveries:apple&&drm,
-    minTimeBetweenRecoveries:8,
+    minTimeBetweenRecoveries:12,
     returnToEndOfLiveWindowWhenOutside:true
    },
    abr:{
@@ -920,14 +920,15 @@ function startShaka(c,cand,url,drm,gen){
   });
 
   p.addEventListener('error',function(ev){
-   if(gen!==S.generation||!ev||!ev.detail)return;
+   if(gen!==S.generation||S.shaka!==p||!ev||!ev.detail)return;
    var e=ev.detail,code=e.code||'',cat=e.category||'';
    dbg('Shaka '+code+' cat='+cat+' data='+(e.data?JSON.stringify(e.data):'')+' '+(e.message||''));
    if(appleDrm){
     if(transientDrmError(e)){
-     if(retryDrmInPlace(c,cand,url,p,gen,e))return;
-     if(hardRestartDrm(c,cand,gen,'media error '+code))return;
-     setStatus('DRM media error '+code+'\\n'+c.name);
+     // Let Shaka's built-in MediaSource recovery handle transient iOS MSE errors.
+     // A second retryStreaming() here can race the built-in recovery and destroy
+     // a healthy live DRM session.
+     dbg('Apple DRM transient media error '+code+' — defer to Shaka MSE recovery');
      return;
     }
     if(window.shaka&&shaka.util&&shaka.util.Error&&cat===shaka.util.Error.Category.NETWORK){
@@ -962,7 +963,7 @@ function startShaka(c,cand,url,drm,gen){
 
   var v=$('video');
   function armDrmStallWatch(reason){
-   if(!appleDrm||gen!==S.generation||!S.player||S.drmStallTimer)return;
+   if(!appleDrm||gen!==S.generation||!S.player||S.shaka!==p||S.drmStallTimer)return;
    S.drmStallSince=Date.now();
    S.drmStallAnchor=isFinite(v.currentTime)?v.currentTime:0;
    S.drmStallTimer=setInterval(function(){
@@ -973,7 +974,7 @@ function startShaka(c,cand,url,drm,gen){
      clearInterval(S.drmStallTimer);S.drmStallTimer=null;S.drmStallSince=0;S.drmStallAnchor=v.currentTime;return;
     }
     if(v.readyState>=3&&!v.paused)return;
-    if((Date.now()-S.drmStallSince)/1000>=6){
+    if((Date.now()-S.drmStallSince)/1000>=10){
      clearInterval(S.drmStallTimer);S.drmStallTimer=null;
      dbg('DRM real stall reason='+reason+' t='+(isFinite(v.currentTime)?v.currentTime.toFixed(2):'NaN'));
      hardRestartDrm(c,cand,gen,'real playback stall');
@@ -984,21 +985,21 @@ function startShaka(c,cand,url,drm,gen){
   // event. Shaka's live pipeline already handles rebuffering internally.
   // We only record the condition for diagnostics.
   v.addEventListener('waiting',function(){
-   if(appleDrm&&gen===S.generation&&S.player){
+   if(appleDrm&&gen===S.generation&&S.player&&S.shaka===p){
     dbg('DRM waiting t='+(isFinite(v.currentTime)?v.currentTime.toFixed(2):'NaN')+
         ' rs='+v.readyState+' buffered='+(v.buffered.length?v.buffered.end(v.buffered.length-1).toFixed(2):'0'));
     if(!S.drmStallTimer)armDrmStallWatch('waiting');
    }
   });
   v.addEventListener('stalled',function(){
-   if(appleDrm&&gen===S.generation&&S.player){
+   if(appleDrm&&gen===S.generation&&S.player&&S.shaka===p){
     dbg('DRM stalled t='+(isFinite(v.currentTime)?v.currentTime.toFixed(2):'NaN')+
         ' rs='+v.readyState+' net='+v.networkState);
     if(!S.drmStallTimer)armDrmStallWatch('stalled');
    }
   });
   v.addEventListener('playing',function(){
-   if(appleDrm&&gen===S.generation&&S.player&&S.drmStallTimer){
+   if(appleDrm&&gen===S.generation&&S.player&&S.shaka===p&&S.drmStallTimer){
     clearInterval(S.drmStallTimer);S.drmStallTimer=null;S.drmStallSince=0;S.drmStallAnchor=isFinite(v.currentTime)?v.currentTime:0;
    }
   });
@@ -1297,8 +1298,9 @@ $('video').addEventListener('error',function(){
       ' rs='+v.readyState+' net='+v.networkState);
   if(S.drmStallTimer){clearInterval(S.drmStallTimer);clearTimeout(S.drmStallTimer);S.drmStallTimer=null}
   var src=cand.resolvedUrl||cand.url;
-  if(S.shaka&&retryDrmInPlace(S.current,cand,src,S.shaka,S.generation,'video element error'))return;
-  if(hardRestartDrm(S.current,cand,S.generation,'video element error'))return;
+  // Do not immediately retry/restart Apple DRM from the media element error.
+  // Shaka's MSE recovery gets first chance; the verified-stall watchdog is the
+  // only path allowed to perform a hard restart.
   return;
  }
  if(!S.proxyAttempt)nextCandidate('Video error');

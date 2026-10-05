@@ -1162,6 +1162,12 @@ function bindTouchNavigation(){
 
 function onKey(e){
  if(!e)return;
+ // Samsung TV Browser can deliver remote events to Window rather than the focused button.
+ // Mark the event once so the Window + Document capture listeners never execute twice.
+ if(e.__nm7Handled)return;
+ var rk=remoteCode(e);
+ if(!(rk===37||rk===38||rk===39||rk===40||rk===13||rk===10009||rk===27||rk===461||rk===8))return;
+ try{Object.defineProperty(e,'__nm7Handled',{value:true,configurable:true})}catch(_){e.__nm7Handled=true}
  if(S.player && (e.keyCode||e.which||0)===13) restoreAudio();
  var k=remoteCode(e);
  if(S.dialog){
@@ -1229,13 +1235,16 @@ function onKey(e){
 }
 function remoteCode(e){
  var k=Number(e.keyCode||e.which||0),key=String(e.key||'').toLowerCase(),code=String(e.code||'').toLowerCase();
- if(key==='arrowleft'||code==='arrowleft')return 37;
- if(key==='arrowup'||code==='arrowup')return 38;
- if(key==='arrowright'||code==='arrowright')return 39;
- if(key==='arrowdown'||code==='arrowdown')return 40;
- if(key==='enter'||key==='select'||key==='ok')return 13;
+ if(key==='arrowleft'||key==='left'||code==='arrowleft')return 37;
+ if(key==='arrowup'||key==='up'||code==='arrowup')return 38;
+ if(key==='arrowright'||key==='right'||code==='arrowright')return 39;
+ if(key==='arrowdown'||key==='down'||code==='arrowdown')return 40;
+ if(key==='enter'||key==='select'||key==='ok'||key==='return')return 13;
  if(key==='escape'||key==='esc')return 27;
- if(key==='back'||key==='backspace'||key==='return')return 10009;
+ if(key==='back'||key==='backspace'||key==='browserback'||key==='browserbackspace')return 10009;
+ // Samsung/Tizen models expose RETURN/BACK as 461 or 10009 depending on browser generation.
+ if(k===461||k===10009)return 10009;
+ if(k===8)return 10009;
  return k
 }
 
@@ -1258,18 +1267,40 @@ $('video').addEventListener('error',function(){
 });
 $('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồng kết thúc')});
 
+function swallowRemoteDefaults(e){
+ var k=remoteCode(e);
+ if(k===37||k===38||k===39||k===40||k===13||k===10009||k===27||k===461){
+  // The Samsung browser may otherwise scroll the page or move native focus
+  // after our application-level navigation has handled the remote key.
+  e.preventDefault();
+ }
+}
+function restoreRemoteFocus(){
+ if(S.dialog||S.menuOpen)return;
+ setTimeout(function(){
+  if(S.player)playerFocus();
+  else focusHome(false);
+ },20);
+}
 function startup(){
  restoreUser();
  applyDeviceMode();
  bindTouchNavigation();
  mobileHistoryGuard();
+ // Capture at Window first: Samsung TV Browser may not bubble remote events
+ // through the focused button/document in the same way as desktop Chrome.
+ window.addEventListener('keydown',onKey,true);
+ window.addEventListener('keyup',swallowRemoteDefaults,true);
  document.addEventListener('keydown',onKey,true);
+ document.addEventListener('keyup',swallowRemoteDefaults,true);
  window.addEventListener('resize',mobileModeChange);
  window.addEventListener('orientationchange',mobileModeChange);
  $('mobileMenuBtn').addEventListener('click',function(){openMenu()});
  $('btnYouTubeTab').addEventListener('click',function(){toast('YouTube tích hợp sẽ được nối tiếp từ giao diện 1.0.69');});
  $('appShortcut').addEventListener('click',function(){toast('Chọn ứng dụng');});
- window.addEventListener('focus',function(){if(!S.dialog&&!S.menuOpen){setTimeout(function(){if(S.player)playerFocus();else focusHome(false)},30)}},true);
+ window.addEventListener('focus',restoreRemoteFocus,true);
+ window.addEventListener('pageshow',restoreRemoteFocus,true);
+ document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')restoreRemoteFocus()},true);
  var cached=readCache();if(cached){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome()}
  loadSource('tv',false);
 }

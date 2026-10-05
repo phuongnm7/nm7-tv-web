@@ -875,6 +875,16 @@ function startShaka(c,cand,url,drm,gen){
   p.getNetworkingEngine().registerRequestFilter(function(type,request){
    if(gen!==S.generation)return;
    var uri=request.uris&&request.uris[0]||'';
+   if(appleDrm&&S.debug){
+    var tn='';
+    try{
+     tn=type===net.RequestType.MANIFEST?'MANIFEST':
+        type===net.RequestType.SEGMENT?'SEGMENT':
+        type===net.RequestType.LICENSE?'LICENSE':
+        type===net.RequestType.INIT_SEGMENT?'INIT':'OTHER';
+    }catch(_){}
+    dbg('DRM request '+tn+' '+String(uri).slice(0,260)+(S.proxyAttempt?' [proxy]':' [direct]'));
+   }
    if(type===net.RequestType.LICENSE){
     if(drm&&drm.remote&&drm.license){
      request.uris=[makeLicenseProxy(drm.license,cand)];
@@ -888,6 +898,27 @@ function startShaka(c,cand,url,drm,gen){
     request.uris=[makeProxy(uri,cand)];
    }
   });
+  p.getNetworkingEngine().registerResponseFilter(function(type,response){
+   if(gen!==S.generation||!appleDrm||!S.debug)return;
+   try{
+    var status=Number(response&&response.status||0),uri=String(response&&response.uri||'');
+    var tn=type===net.RequestType.MANIFEST?'MANIFEST':
+      type===net.RequestType.SEGMENT?'SEGMENT':
+      type===net.RequestType.LICENSE?'LICENSE':
+      type===net.RequestType.INIT_SEGMENT?'INIT':'OTHER';
+    if(status>=400||status===0){
+     dbg('DRM response '+tn+' HTTP='+status+' '+uri.slice(0,320));
+     // A direct CDN rejection is a transport problem, not an EME/MSE problem.
+     // Switch to the same-origin proxy only after observing the rejection.
+     if((status>=400||status===0)&&!S.proxyAttempt&&type!==net.RequestType.LICENSE){
+      S.proxyAttempt=true;
+      dbg('DRM direct response rejected -> enable proxy for subsequent requests');
+      try{if(S.shaka===p&&p.retryStreaming)Promise.resolve(p.retryStreaming(.15)).catch(function(e){dbg('proxy retry rejected '+String(e&&e.message||e))})}catch(e){}
+     }
+    }
+   }catch(e){dbg('DRM response filter '+String(e&&e.message||e))}
+  });
+
   p.addEventListener('error',function(ev){
    if(gen!==S.generation||!ev||!ev.detail)return;
    var e=ev.detail,code=e.code||'',cat=e.category||'';
@@ -956,12 +987,19 @@ function startShaka(c,cand,url,drm,gen){
    if(appleDrm&&gen===S.generation&&S.player){
     dbg('DRM waiting t='+(isFinite(v.currentTime)?v.currentTime.toFixed(2):'NaN')+
         ' rs='+v.readyState+' buffered='+(v.buffered.length?v.buffered.end(v.buffered.length-1).toFixed(2):'0'));
+    if(!S.drmStallTimer)armDrmStallWatch('waiting');
    }
   });
   v.addEventListener('stalled',function(){
    if(appleDrm&&gen===S.generation&&S.player){
     dbg('DRM stalled t='+(isFinite(v.currentTime)?v.currentTime.toFixed(2):'NaN')+
         ' rs='+v.readyState+' net='+v.networkState);
+    if(!S.drmStallTimer)armDrmStallWatch('stalled');
+   }
+  });
+  v.addEventListener('playing',function(){
+   if(appleDrm&&gen===S.generation&&S.player&&S.drmStallTimer){
+    clearInterval(S.drmStallTimer);S.drmStallTimer=null;S.drmStallSince=0;S.drmStallAnchor=isFinite(v.currentTime)?v.currentTime:0;
    }
   });
 

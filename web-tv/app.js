@@ -51,7 +51,16 @@ var $=function(id){return document.getElementById(id)};
 var toastTimer=null;
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-function dbg(s){if(!S.debug)return;var d=$('debug');d.style.display='block';d.textContent=String(s||'')}
+function dbg(s){
+ if(!S.debug)return;
+ var d=$('debug');if(!d)return;
+ dbg.lines=dbg.lines||[];
+ dbg.lines.push(new Date().toLocaleTimeString()+' '+String(s||''));
+ if(dbg.lines.length>120)dbg.lines.splice(0,dbg.lines.length-120);
+ d.style.display='block';
+ d.textContent=dbg.lines.join('\\n');
+ d.scrollTop=d.scrollHeight;
+}
 function toast(s){var t=$('toast');t.textContent=s;t.className='show';clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.className=''},2600)}
 function isHttp(u){return /^https?:\/\//i.test(String(u||''))}
 function saveUser(){try{localStorage.setItem('nm7:fav',JSON.stringify(S.fav));localStorage.setItem('nm7:recent',JSON.stringify(S.recent.slice(0,80)))}catch(e){}}
@@ -963,20 +972,37 @@ function startShaka(c,cand,url,drm,gen){
 
   var v=$('video');
   function armDrmStallWatch(reason){
-   if(!appleDrm||gen!==S.generation||!S.player||S.shaka!==p||S.drmStallTimer)return;
+   if(!appleDrm||gen!==S.generation||!S.player||S.shaka!==p)return;
+   if(S.drmStallTimer)return;
    S.drmStallSince=Date.now();
    S.drmStallAnchor=isFinite(v.currentTime)?v.currentTime:0;
    S.drmStallTimer=setInterval(function(){
     if(gen!==S.generation||!S.player||S.shaka!==p){
      clearInterval(S.drmStallTimer);S.drmStallTimer=null;return;
     }
-    if(!v.paused&&isFinite(v.currentTime)&&Math.abs(v.currentTime-S.drmStallAnchor)>0.25){
-     clearInterval(S.drmStallTimer);S.drmStallTimer=null;S.drmStallSince=0;S.drmStallAnchor=v.currentTime;return;
+    if(v.paused||!isFinite(v.currentTime)){
+     S.drmStallSince=Date.now();
+     S.drmStallAnchor=isFinite(v.currentTime)?v.currentTime:S.drmStallAnchor;
+     return;
     }
-    if(v.readyState>=3&&!v.paused)return;
+    if(Math.abs(v.currentTime-S.drmStallAnchor)>0.25){
+     S.drmStallSince=Date.now();
+     S.drmStallAnchor=v.currentTime;
+     return;
+    }
+    var ahead=0;
+    try{
+     if(v.buffered&&v.buffered.length)ahead=Math.max(0,v.buffered.end(v.buffered.length-1)-v.currentTime);
+    }catch(_){}
+    // A stalled live timeline with no meaningful buffer for 10s is a real
+    // playback failure. Do not restart while there is healthy buffered media.
+    if(ahead>1.5){
+     S.drmStallSince=Date.now();
+     return;
+    }
     if((Date.now()-S.drmStallSince)/1000>=10){
      clearInterval(S.drmStallTimer);S.drmStallTimer=null;
-     dbg('DRM real stall reason='+reason+' t='+(isFinite(v.currentTime)?v.currentTime.toFixed(2):'NaN'));
+     dbg('DRM real stall reason='+reason+' t='+(isFinite(v.currentTime)?v.currentTime.toFixed(2):'NaN')+' ahead='+ahead.toFixed(2));
      hardRestartDrm(c,cand,gen,'real playback stall');
     }
    },1000);
@@ -999,10 +1025,11 @@ function startShaka(c,cand,url,drm,gen){
    }
   });
   v.addEventListener('playing',function(){
-   if(appleDrm&&gen===S.generation&&S.player&&S.shaka===p&&S.drmStallTimer){
-    clearInterval(S.drmStallTimer);S.drmStallTimer=null;S.drmStallSince=0;S.drmStallAnchor=isFinite(v.currentTime)?v.currentTime:0;
+   if(appleDrm&&gen===S.generation&&S.player&&S.shaka===p){
+    if(!S.drmStallTimer)armDrmStallWatch('playing');
    }
   });
+  if(appleDrm)armDrmStallWatch('startup');
 
  }catch(e){
   if(isAppleTouchDevice()&&isDashDrmCandidate(cand)){

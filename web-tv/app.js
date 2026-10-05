@@ -597,7 +597,7 @@ function startByType(c,cand,url,kind,gen){
  else startDirect(c,cand,url,gen);
  var wait=15000;
  if(isAppleTouchDevice()&&kind==='hls'&&c&&c.candidates&&c.candidates.length>1)wait=5000;
- if(isAppleTouchDevice()&&kind==='dash'&&cand&&cand.drm)wait=12000;
+ if(isAppleTouchDevice()&&kind==='dash'&&cand&&cand.drm)wait=30000;
  S.watchdog=setTimeout(function(){if(S.generation!==gen||!S.player)return;if($('video').readyState<2||$('video').paused)nextCandidate('Timeout phát '+Math.round(wait/1000)+'s')},wait)
 }
 function probeCandidate(c,cand,gen){
@@ -749,10 +749,9 @@ function startDash(c,cand,url,gen){
  nextCandidate('Thiếu Shaka Player để phát DRM')
 }
 function transientDrmError(e){
- var E=window.shaka&&shaka.util&&shaka.util.Error,code=Number(e&&e.code||0),cat=Number(e&&e.category||0);
- if(!E)return cat===1||cat===5||code===1002;
- return cat===E.Category.NETWORK||cat===E.Category.STREAMING||
-   code===E.Code.MEDIA_SOURCE_OPERATION_FAILED||
+ var E=window.shaka&&shaka.util&&shaka.util.Error,code=Number(e&&e.code||0);
+ if(!E)return code===3016||code===3017||code===3018||code===3007||code===3015;
+ return code===E.Code.MEDIA_SOURCE_OPERATION_FAILED||
    code===E.Code.MEDIA_SOURCE_OPERATION_THREW||
    code===E.Code.VIDEO_ERROR||
    code===E.Code.QUOTA_EXCEEDED_ERROR;
@@ -817,30 +816,53 @@ function startShaka(c,cand,url,drm,gen){
   if(shaka.polyfill&&shaka.polyfill.installAll)shaka.polyfill.installAll();
   var p=new shaka.Player($('video'));S.shaka=p;
   if(drm&&drm.error)throw new Error(drm.error);
-  var apple=isAppleTouchDevice&&isAppleTouchDevice(),appleDrm=!!(apple&&drm&&isDashDrmCandidate(cand));
+  var apple=isAppleTouchDevice&&isAppleTouchDevice();
+  var appleDrm=!!(apple&&drm&&isDashDrmCandidate(cand));
   var retry={
-   maxAttempts:5,
-   baseDelay:250,
-   backoffFactor:1.5,
-   fuzzFactor:.15,
-   timeout:12000,
-   stallTimeout:4000,
-   connectionTimeout:6000
+   maxAttempts:6,
+   baseDelay:500,
+   backoffFactor:1.6,
+   fuzzFactor:0.15,
+   timeout:15000,
+   stallTimeout:5000,
+   connectionTimeout:7000
   };
   var cfg={
    drm:{servers:{},retryParameters:retry},
-   manifest:{retryParameters:retry},
+   manifest:{
+    retryParameters:retry,
+    defaultPresentationDelay:appleDrm?8:undefined,
+    dash:{
+     autoCorrectDrift:true,
+     ignoreSuggestedPresentationDelay:true
+    }
+   },
    streaming:{
     preferNativeHls:false,
     retryParameters:retry,
-    bufferingGoal:apple&&drm?12:undefined,
-    rebufferingGoal:apple&&drm?3:undefined,
-    bufferBehind:apple&&drm?20:undefined,
+    bufferingGoal:appleDrm?18:undefined,
+    rebufferingGoal:appleDrm?6:undefined,
+    bufferBehind:appleDrm?25:undefined,
+    segmentPrefetchLimit:appleDrm?2:undefined,
+    startAtSegmentBoundary:appleDrm,
+    updateIntervalSeconds:appleDrm?2:1,
     allowMediaSourceRecoveries:apple&&drm,
-    minTimeBetweenRecoveries:5,
+    minTimeBetweenRecoveries:8,
     returnToEndOfLiveWindowWhenOutside:true
    },
-   abr:{enabled:appleDrm?false:undefined}
+   abr:{
+    enabled:appleDrm,
+    defaultBandwidthEstimate:appleDrm?1500000:undefined,
+    switchInterval:appleDrm?12:undefined,
+    bandwidthUpgradeTarget:appleDrm?0.85:undefined,
+    bandwidthDowngradeTarget:appleDrm?0.95:undefined,
+    restrictions:appleDrm?{
+      maxWidth:1280,
+      maxHeight:720,
+      maxFrameRate:60,
+      maxPixels:921600
+    }:undefined
+   }
   };
   if(drm){
    if(drm.clearKeys)cfg.drm.clearKeys=drm.clearKeys;
@@ -868,30 +890,45 @@ function startShaka(c,cand,url,drm,gen){
   });
   p.addEventListener('error',function(ev){
    if(gen!==S.generation||!ev||!ev.detail)return;
-   var e=ev.detail;
-   dbg('Shaka '+(e.code||'')+' '+(e.message||''));
-   if(transientDrmError(e)&&retryDrmInPlace(c,cand,url,p,gen,e))return;
+   var e=ev.detail,code=e.code||'',cat=e.category||'';
+   dbg('Shaka '+code+' cat='+cat+' data='+(e.data?JSON.stringify(e.data):'')+' '+(e.message||''));
    if(appleDrm){
-    if(hardRestartDrm(c,cand,gen,'fatal Shaka '+(e.code||'')))return;
-    setStatus('DRM không ổn định trên Safari\\n'+c.name);
+    if(transientDrmError(e)){
+     if(retryDrmInPlace(c,cand,url,p,gen,e))return;
+     if(hardRestartDrm(c,cand,gen,'media error '+code))return;
+     setStatus('DRM media error '+code+'\\n'+c.name);
+     return;
+    }
+    if(window.shaka&&shaka.util&&shaka.util.Error&&cat===shaka.util.Error.Category.NETWORK){
+     dbg('Apple DRM network error — keep session alive');
+     return;
+    }
+    if(window.shaka&&shaka.util&&shaka.util.Error&&cat===shaka.util.Error.Category.STREAMING){
+     dbg('Apple DRM streaming error — keep session alive');
+     return;
+    }
+    if(hardRestartDrm(c,cand,gen,'fatal DRM/manifest '+code))return;
+    setStatus('DRM lỗi '+code+'\\n'+c.name);
     return;
    }
-   nextCandidate('DASH/DRM lỗi '+(e.code||''));
+   nextCandidate('DASH/DRM lỗi '+code);
   });
+
   p.load(url).then(function(){
    markPlaying(gen);
    var x=$('video').play();if(x&&x.catch)x.catch(function(){});
   }).catch(function(e){
    if(gen!==S.generation)return;
-   dbg('Shaka '+(e.code||'')+' '+(e.message||''));
-   if(transientDrmError(e)&&retryDrmInPlace(c,cand,url,p,gen,e))return;
+   dbg('Shaka load '+(e.code||'')+' cat='+(e.category||'')+' '+(e.message||''));
    if(appleDrm){
+    if(transientDrmError(e)&&retryDrmInPlace(c,cand,url,p,gen,e))return;
     if(hardRestartDrm(c,cand,gen,'load failure '+(e.code||'')))return;
-    setStatus('DRM không ổn định trên Safari\\n'+c.name);
+    setStatus('DRM không khởi tạo được '+(e.code||'')+'\\n'+c.name);
     return;
    }
    nextCandidate('DASH/DRM lỗi '+(e.code||''));
   });
+
   var v=$('video');
   function armDrmStallWatch(reason){
    if(!appleDrm||gen!==S.generation||!S.player||S.drmStallTimer)return;

@@ -840,31 +840,31 @@ function startShaka(c,cand,url,drm,gen){
    drm:{servers:{},retryParameters:retry},
    manifest:{
     retryParameters:retry,
-    defaultPresentationDelay:appleDrm?8:undefined,
+    defaultPresentationDelay:appleDrm?12:undefined,
     dash:{
      autoCorrectDrift:true,
-     ignoreSuggestedPresentationDelay:true
+     ignoreSuggestedPresentationDelay:false
     }
    },
    streaming:{
     preferNativeHls:false,
     retryParameters:retry,
-    bufferingGoal:appleDrm?18:undefined,
-    rebufferingGoal:appleDrm?6:undefined,
-    bufferBehind:appleDrm?25:undefined,
-    segmentPrefetchLimit:appleDrm?2:undefined,
-    startAtSegmentBoundary:appleDrm,
+    bufferingGoal:appleDrm?45:undefined,
+    rebufferingGoal:appleDrm?10:undefined,
+    bufferBehind:appleDrm?Infinity:undefined,
+    segmentPrefetchLimit:appleDrm?0:undefined,
+    startAtSegmentBoundary:false,
     updateIntervalSeconds:appleDrm?2:1,
-    allowMediaSourceRecoveries:apple&&drm,
-    minTimeBetweenRecoveries:12,
+    allowMediaSourceRecoveries:false,
+    minTimeBetweenRecoveries:15,
     returnToEndOfLiveWindowWhenOutside:true
    },
    abr:{
-    enabled:appleDrm,
-    defaultBandwidthEstimate:appleDrm?1500000:undefined,
-    switchInterval:appleDrm?12:undefined,
-    bandwidthUpgradeTarget:appleDrm?0.85:undefined,
-    bandwidthDowngradeTarget:appleDrm?0.95:undefined,
+    enabled:false,
+    defaultBandwidthEstimate:undefined,
+    switchInterval:undefined,
+    bandwidthUpgradeTarget:undefined,
+    bandwidthDowngradeTarget:undefined,
     restrictions:appleDrm?{
       maxWidth:1280,
       maxHeight:720,
@@ -934,10 +934,12 @@ function startShaka(c,cand,url,drm,gen){
    dbg('Shaka '+code+' cat='+cat+' data='+(e.data?JSON.stringify(e.data):'')+' '+(e.message||''));
    if(appleDrm){
     if(transientDrmError(e)){
-     // Let Shaka's built-in MediaSource recovery handle transient iOS MSE errors.
-     // A second retryStreaming() here can race the built-in recovery and destroy
-     // a healthy live DRM session.
-     dbg('Apple DRM transient media error '+code+' — defer to Shaka MSE recovery');
+     // Safari/iPadOS can report MEDIA_ERR_DECODE after a live encrypted segment reaches WebKit.
+     // Disable Shaka's internal MSE recovery and recreate the player cleanly so the
+     // session re-anchors at the current live edge instead of replaying stale state.
+     dbg('Apple DRM transient media error '+code+' — clean player restart');
+     if(hardRestartDrm(c,cand,gen,'Safari VIDEO_ERROR '+code))return;
+     setStatus('Safari không giải mã ổn định '+code+'\\n'+c.name);
      return;
     }
     if(window.shaka&&shaka.util&&shaka.util.Error&&cat===shaka.util.Error.Category.NETWORK){

@@ -207,3 +207,26 @@ Video `00-58-34` cho thấy đúng trình tự lỗi: **VTVcab 3 - ON Sports HD*
 - `app.js` đã được kiểm tra syntax thành công sau bản sửa.
 
 Các thay đổi này chỉ tác động vào đường phát VTVcab/DRM và recovery; giao diện 1.0.69 không bị thay đổi.
+
+## Phân tích video 07:43 và ổn định live DRM — 05/10/2026
+
+Video `video_2026-10-05_07-43-35.mp4` (125,4 giây) cho thấy rõ đây không phải lỗi Safari không hỗ trợ DRM. ON Sports 50fps, SCTV15 và SCTV17 đều phát được hình trong các khoảng ngắn rồi lặp chu kỳ **phát khoảng 6–7 giây → mất hình/rebuffer khoảng 4–5 giây → tự recovery → phát lại**. Ở ON Sports, video ghi rõ `Đang tự khôi phục DRM · lần 1/3`, sau đó lần 3/3. Đây là dấu hiệu player đang can thiệp quá mạnh vào một live pipeline đã có thể giải mã.
+
+Đã sửa theo nguyên nhân gốc:
+
+- Không còn coi mọi Shaka `NETWORK`/`STREAMING` error là lỗi DRM cần gọi `retryStreaming()`. Shaka tự xử lý retry segment bằng `streaming.retryParameters`; application chỉ can thiệp với lỗi MediaSource/video thực sự.
+- Apple ClearKey DASH được đặt **defaultPresentationDelay = 8s**, `bufferingGoal = 18s`, `rebufferingGoal = 6s`, `bufferBehind = 25s`, `segmentPrefetchLimit = 2`, `updateIntervalSeconds = 2`, `startAtSegmentBoundary = true`.
+- ABR được **bật lại** cho Apple DRM và giới hạn tối đa `1280x720/60fps`, bắt đầu với `defaultBandwidthEstimate = 1.5 Mbps` và chuyển bitrate chậm hơn. Đây thay thế bản trước đã khóa ABR, vốn không phù hợp với live 50fps.
+- Startup watchdog cho Apple DASH DRM tăng lên 30 giây để không cắt ngang quá trình tạo session/buffer ban đầu.
+- VTVcab3/ON Sports không còn được ưu tiên bởi HLS endpoint sai đã xuất hiện ON Vie Giải Trí trong video.
+- Giữ DASH/ClearKey direct trên Safari; không chuyển Cloudflare proxy cho Apple DRM vì upstream hiện trả 403/530 từ edge của chúng ta.
+- Cache-bust player cuối: `app.js?v=20261005-drm-stable-final3`.
+
+### Production verification
+
+Cloudflare deployment mới nhất đã `success`, smoke test production đã `success`, xác nhận Shaka 5.2.12 và các marker của cấu hình live DRM mới.
+
+Bản test production:
+`https://nm7-tv-web.phuongnm7-iptv.workers.dev/?v=20261005-drm-stable-final3`
+
+Lưu ý: chưa có khả năng điều khiển một thiết bị iPad Safari thật trong môi trường CI, nên việc xác nhận cuối cùng phải dựa trên playback thực tế trên iPad. Nhưng bản production hiện tại đã đúng với mô hình lỗi quan sát từ video và loại bỏ cơ chế recovery gây gián đoạn trước đó.

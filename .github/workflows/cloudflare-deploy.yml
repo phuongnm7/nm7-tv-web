@@ -79,29 +79,23 @@ jobs:
               raise SystemExit('Shaka 5.2.12 marker not found in deployed HTML')
           print('SHAKA_5_2_12_SMOKE_OK')
           PY
-          APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app.js?v=20261005-ios-mse3")"
+          APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app.js?v=20261005-safari-policy2")"
           python3 - "$APP" <<'PY'
           import sys
           app=sys.argv[1]
           checks={
-              "DRM cache schema":"CACHE_SCHEMA='20261005-drm-final-1'",
+              "ClearKey Safari guard":"if(isAppleTouchDevice()&&drm&&isDashDrmCandidate(cand))",
+              "Safari official fallback":"function safariOfficialUrl(c)",
+              "On Sports official URL":"vtvprime.vn/content/channel/02efed81-3e71-4328-89dc-667c33fa0e9f",
+              "Safari fallback UI":"officialBtn",
               "Apple direct DASH request filter":"(!appleDrm||S.proxyAttempt)",
-              "Apple DRM ABR disabled":"enabled:false",
-              "Apple DRM safe delay":"defaultPresentationDelay:appleDrm?12",
-              "Apple DRM buffer":"bufferingGoal:appleDrm?45",
-    "Apple DRM buffer behind":"bufferBehind:appleDrm?Infinity",
-              "Apple DRM segment prefetch":"segmentPrefetchLimit:appleDrm?0",
               "DRM hard recovery":"hardRestartDrm",
-    "Apple DRM recovery disabled":"allowMediaSourceRecoveries:false",
-              "real stall watchdog":"function armDrmStallWatch(reason)",
-              "VTVcab3 HLS preference":"id==='vtvcab3hd'||name.indexOf('vtvcab3')>=0",
-              "VTVcab3 candidate sanitizer":"function sanitizeAppleCandidates(c)",
-              "VTVcab3 wrong HLS removed":"e3\\.endpoint\\.cdn\\.sctvonline\\.vn\\/hls\\/vtvcab3\\/index\\.m3u8"
+              "real stall watchdog":"function armDrmStallWatch(reason)"
           }
           for label,needle in checks.items():
               if needle not in app:
                   raise SystemExit(label+' marker missing: '+needle)
-          print('APPLE_DRM_ROOT_FIX_SMOKE_OK')
+          print('SAFARI_DRM_POLICY_SMOKE_OK')
           PY
 
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport.json

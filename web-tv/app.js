@@ -747,8 +747,32 @@ function getAppleDrmRuntime(){
  var apple=isAppleTouchDevice();
  return {apple:apple,ios17plus:apple && !!window.ManagedMediaSource,webCrypto:typeof crypto!=='undefined'&&!!crypto.subtle,shaka:String(window.shaka&&shaka.version||'')};
 }
+function safariOfficialUrl(c){
+ var id=String(c&&c.id||'').toLowerCase().replace(/[\s_-]+/g,'');
+ var name=String(c&&c.name||'').toLowerCase();
+ if(id==='onsports'&&name.indexOf('50fps')>=0)return 'https://vtvprime.vn/content/channel/02efed81-3e71-4328-89dc-667c33fa0e9f';
+ return '';
+}
+function showSafariOfficialFallback(c,gen){
+ var u=safariOfficialUrl(c);
+ if(gen!==S.generation||!S.player)return;
+ clearPlayers();
+ setStatus(u?'Safari không hỗ trợ DASH ClearKey của kênh này.\\nDùng trình phát chính thức để phát ổn định.':'Safari không hỗ trợ DASH ClearKey của kênh này.');
+ var b=$('officialBtn');
+ if(b){
+  b.className=u?'cb':'cb hidden';
+  b.onclick=function(){try{window.open(u,'_blank','noopener,noreferrer')}catch(e){location.href=u}};
+  setTimeout(function(){try{b.focus()}catch(e){}},30);
+ }
+ dbg('Safari ClearKey unsupported; official fallback='+(u||'none'));
+}
+
 function startDash(c,cand,url,gen){
  var drm=browserDrm(cand);
+ if(isAppleTouchDevice()&&drm&&isDashDrmCandidate(cand)){
+  showSafariOfficialFallback(c,gen);
+  return;
+ }
  if(S.debug&&isAppleTouchDevice())dbg('Apple DRM runtime '+JSON.stringify(getAppleDrmRuntime()));
 
  if(window.shaka&&shaka.Player){
@@ -840,31 +864,31 @@ function startShaka(c,cand,url,drm,gen){
    drm:{servers:{},retryParameters:retry},
    manifest:{
     retryParameters:retry,
-    defaultPresentationDelay:appleDrm?12:undefined,
+    defaultPresentationDelay:appleDrm?8:undefined,
     dash:{
      autoCorrectDrift:true,
-     ignoreSuggestedPresentationDelay:false
+     ignoreSuggestedPresentationDelay:true
     }
    },
    streaming:{
     preferNativeHls:false,
     retryParameters:retry,
-    bufferingGoal:appleDrm?45:undefined,
-    rebufferingGoal:appleDrm?10:undefined,
-    bufferBehind:appleDrm?Infinity:undefined,
-    segmentPrefetchLimit:appleDrm?0:undefined,
-    startAtSegmentBoundary:false,
+    bufferingGoal:appleDrm?18:undefined,
+    rebufferingGoal:appleDrm?6:undefined,
+    bufferBehind:appleDrm?25:undefined,
+    segmentPrefetchLimit:appleDrm?2:undefined,
+    startAtSegmentBoundary:appleDrm,
     updateIntervalSeconds:appleDrm?2:1,
-    allowMediaSourceRecoveries:false,
-    minTimeBetweenRecoveries:15,
+    allowMediaSourceRecoveries:apple&&drm,
+    minTimeBetweenRecoveries:12,
     returnToEndOfLiveWindowWhenOutside:true
    },
    abr:{
-    enabled:false,
-    defaultBandwidthEstimate:undefined,
-    switchInterval:undefined,
-    bandwidthUpgradeTarget:undefined,
-    bandwidthDowngradeTarget:undefined,
+    enabled:appleDrm,
+    defaultBandwidthEstimate:appleDrm?1500000:undefined,
+    switchInterval:appleDrm?12:undefined,
+    bandwidthUpgradeTarget:appleDrm?0.85:undefined,
+    bandwidthDowngradeTarget:appleDrm?0.95:undefined,
     restrictions:appleDrm?{
       maxWidth:1280,
       maxHeight:720,
@@ -934,12 +958,10 @@ function startShaka(c,cand,url,drm,gen){
    dbg('Shaka '+code+' cat='+cat+' data='+(e.data?JSON.stringify(e.data):'')+' '+(e.message||''));
    if(appleDrm){
     if(transientDrmError(e)){
-     // Safari/iPadOS can report MEDIA_ERR_DECODE after a live encrypted segment reaches WebKit.
-     // Disable Shaka's internal MSE recovery and recreate the player cleanly so the
-     // session re-anchors at the current live edge instead of replaying stale state.
-     dbg('Apple DRM transient media error '+code+' — clean player restart');
-     if(hardRestartDrm(c,cand,gen,'Safari VIDEO_ERROR '+code))return;
-     setStatus('Safari không giải mã ổn định '+code+'\\n'+c.name);
+     // Let Shaka's built-in MediaSource recovery handle transient iOS MSE errors.
+     // A second retryStreaming() here can race the built-in recovery and destroy
+     // a healthy live DRM session.
+     dbg('Apple DRM transient media error '+code+' — defer to Shaka MSE recovery');
      return;
     }
     if(window.shaka&&shaka.util&&shaka.util.Error&&cat===shaka.util.Error.Category.NETWORK){

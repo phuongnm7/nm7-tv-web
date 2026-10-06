@@ -145,3 +145,31 @@ Không thay đổi UI/player/DRM hiện tại nếu lỗi không liên quan tr�
 
 NM7 TV Web → https://www.youtube.com/ → Native Tizen EWK host → request interception + page-level fallback
 
+
+## Chạy nền mobile — 2026-10-06
+
+### IPTV
+
+- Thêm `web-tv/mobile-background.js`.
+- Dùng Media Session API để đưa metadata và Play/Pause/tua vào khu vực điều khiển media của browser/OS khi browser hỗ trợ.
+- Thêm nút **◩ Chạy nền** trong player mobile.
+- Safari/WebKit: ưu tiên `webkitSetPresentationMode('picture-in-picture')`; browser chuẩn: dùng `requestPictureInPicture()` khi khả dụng.
+- Theo dõi `visibilitychange`, `pagehide`, `pageshow` nhưng không tự phá player khi ứng dụng chuyển nền.
+- Khi thiết bị/browser không có PiP, không giả vờ hỗ trợ; Media Session vẫn được duy trì nơi có thể.
+
+### YouTube
+
+- YouTube vẫn mở bằng trang YouTube chính thức.
+- NM7 Web không thể ép `youtube.com` chạy nền trái với chính sách của YouTube bằng JavaScript cross-origin.
+- Google hiện xác nhận background playback trên mobile browser là tính năng của YouTube Premium.
+
+### Kiểm tra
+
+- `mobile-background.js` đã thêm vào `index.html`.
+- `app.js` và `app-safari-policy.js` đã đồng bộ hook nút **Chạy nền**.
+- Cloudflare workflow có smoke test cho Media Session, PiP, WebKit presentation mode và visibility handling.
+- Cần kiểm tra thiết bị thật: Android Chrome khóa màn hình/chuyển app; iPhone/iPad Safari PiP/chuyển app/khóa màn hình.
+
+### Trạng thái
+
+**Đã triển khai lớp Web cần thiết cho IPTV background playback.** Khả năng cuối cùng vẫn phụ thuộc browser/OS; YouTube gốc tuân theo giới hạn của YouTube.

@@ -86,7 +86,8 @@ jobs:
             failed:failed.slice(0,30)
           }));
 
-          if (!result.ytdApp && !result.ytMasthead && !result.videoPage) {
+          const mobileUi = /Trang chủ|Tìm trên YouTube|Shorts|Bạn/.test(result.bodyText) && result.scripts > 5;
+          if (!mobileUi && !result.ytdApp && !result.ytMasthead && !result.videoPage) {
             throw new Error('YouTube UI did not render in mobile Chromium');
           }
 

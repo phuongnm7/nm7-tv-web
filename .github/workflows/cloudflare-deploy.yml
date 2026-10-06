@@ -50,6 +50,13 @@ jobs:
           ad_rc=$?
           echo "AD_RC=$ad_rc"
 
+          curl -sS --max-redirs 3 --max-time 30 -A "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36" "$YTBASE/" -o /tmp/nm7-youtube-mobile.html -w "MOBILE_ROOT_STATUS=%{http_code} MOBILE_ROOT_BYTES=%{size_download}\\n"
+          mobile_root_rc=$?
+          echo "MOBILE_ROOT_RC=$mobile_root_rc"
+          curl -sS --max-redirs 3 --max-time 30 -A "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36" "$YTBASE/watch?v=dQw4w9WgXcQ" -o /tmp/nm7-youtube-mobile-watch.html -w "MOBILE_WATCH_STATUS=%{http_code} MOBILE_WATCH_BYTES=%{size_download}\\n"
+          mobile_watch_rc=$?
+          echo "MOBILE_WATCH_RC=$mobile_watch_rc"
+          grep -Eiq "YouTube" /tmp/nm7-youtube-mobile-watch.html; echo "MOBILE_WATCH_YT_MARKER_RC=$?"
           curl -sS --max-redirs 3 --max-time 30 "$YTBASE/watch?v=dQw4w9WgXcQ" -o /tmp/nm7-youtube-watch.html -w "WATCH_STATUS=%{http_code} WATCH_BYTES=%{size_download}\\n"
           watch_rc=$?
           echo "WATCH_RC=$watch_rc"

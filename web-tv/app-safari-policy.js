@@ -802,7 +802,7 @@ function showSafariOfficialFallback(c,gen){
  var message='Safari không phát được DASH/ClearKey nội tuyến.';
  if(u){
   var provider=u.indexOf('vtvgo.vn')>=0?'VTVgo':u.indexOf('apps.apple.com')>=0?'ứng dụng SCTV':'VTVprime';
-  message+='\\nMở '+provider+' chính thức để xem; có thể cần đăng nhập hoặc gói thuê bao.';
+  message+='\nMở '+provider+' chính thức để xem; có thể cần đăng nhập hoặc gói thuê bao.';
  }
  setStatus(message);
  var b=$('officialBtn');

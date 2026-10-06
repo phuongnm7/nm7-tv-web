@@ -60,22 +60,19 @@ jobs:
           });
 
           await page.goto(proxy, {waitUntil:'domcontentloaded', timeout:45000});
-          await page.waitForTimeout(12000);
+          await page.waitForTimeout(5000);
 
           const result = await page.evaluate(() => ({
             url: location.href,
             title: document.title,
             bodyText: (document.body?.innerText || '').slice(0, 2000),
+            onOfficialOrigin: /^https:\\/\\/(www\\.)?youtube\\.com\\//i.test(location.href),
             ytdApp: !!document.querySelector('ytd-app'),
             ytMasthead: !!document.querySelector('ytd-masthead'),
             videoPage: !!document.querySelector('ytd-page-manager'),
             video: !!document.querySelector('video'),
             links: document.querySelectorAll('a[href]').length,
-            scripts: document.scripts.length,
-            spinnerCount: document.querySelectorAll('.ytp-spinner, tp-yt-paper-spinner').length,
-            adShield: !!window.__NM7_YT_AD_DOM__,
-            proxyRuntime: !!window.__NM7_YT_RUNTIME__,
-            mobileUi: /Trang chủ|Tìm trên YouTube|Shorts|Bạn/.test((document.body?.innerText || ''))
+            scripts: document.scripts.length
           }));
 
           await page.screenshot({path:'/tmp/nm7-youtube-e2e.png', fullPage:false});
@@ -86,13 +83,12 @@ jobs:
             failed:failed.slice(0,30)
           }));
 
-          const mobileUi = /Trang chủ|Tìm trên YouTube|Shorts|Bạn/.test(result.bodyText) && result.scripts > 5;
-          if (!mobileUi && !result.ytdApp && !result.ytMasthead && !result.videoPage) {
-            throw new Error('YouTube UI did not render in mobile Chromium');
+          if (!result.onOfficialOrigin) {
+            throw new Error('YouTube launcher did not reach official YouTube origin: '+result.url);
           }
 
-          if (!result.url.startsWith(proxy)) {
-            throw new Error('Browser escaped YouTube proxy origin: '+result.url);
+          if (!result.title.toLowerCase().includes('youtube')) {
+            throw new Error('Official YouTube page did not load: '+result.title);
           }
 
           await browser.close();

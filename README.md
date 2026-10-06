@@ -91,6 +91,10 @@ Mốc `4fff84e7cfe495311c3623179b87b9e8a97c0acc` đã vượt qua các kiểm tr
 
 Dự án Web tách biệt với WGT Samsung Tizen native. URL Web có thể mở trực tiếp bằng trình duyệt và không cần cài WGT.
 
+## Production verification — 06/10/2026
+
+Bản `a36b3c0...` đã vượt qua Cloudflare deploy + smoke test. Tài liệu và tính năng nhập M3U cục bộ được ghi nhận ở commit tài liệu mới nhất trên branch.
+
 ## Nội dung đang cần test thực tế
 
 - Chrome Android: cuộn dài, phản hồi chạm và thao tác menu.

@@ -305,26 +305,17 @@ function selectMenu(){
 }
 function youtubeProviderList(){
  return [
-  {id:'invidious-tiekoetter',label:'Invidious · máy chủ chính',url:'https://invidious.tiekoetter.com/'},
-  {id:'piped',label:'Piped · SponsorBlock',url:'https://piped.video/'},
-  {id:'invidious-chocolate',label:'Invidious · dự phòng',url:'https://yt.chocolatemoo53.com/'}
+  {id:'piped-backend',label:'NM7 YouTube Web',url:'/api/youtube'},
+  {id:'piped-backend-fallback',label:'NM7 YouTube Web · dự phòng',url:'/api/youtube'}
  ];
 }
 function openYouTube(raw){
- var list=youtubeProviderList(),chosen=null;
- try{
-  var saved=localStorage.getItem('nm7:youtubeProvider')||'';
-  for(var i=0;i<list.length;i++)if(list[i].id===saved){chosen=list[i];break}
- }catch(e){}
- if(!chosen)chosen=list[0];
- var u=chosen.url;
- var text=String(raw||'').trim();
- if(text){
-  var m=text.match(/(?:v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/i);
-  if(m)u=chosen.url.replace(/\/$/,'')+'/watch?v='+encodeURIComponent(m[1]);
+ if(window.NM7YouTube&&typeof window.NM7YouTube.open==='function'){
+  window.NM7YouTube.open();
+  if(raw&&typeof window.NM7YouTube.watch==='function')setTimeout(function(){window.NM7YouTube.watch(raw)},100);
+  return;
  }
- toast('Đang mở '+chosen.label+'…');
- try{location.href=u}catch(e){window.open(u,'_blank','noopener,noreferrer')}
+ toast('YouTube Web chưa sẵn sàng');
 }
 function showSubset(kind){
  var a=[],ids=S.fav;

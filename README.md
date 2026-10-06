@@ -5,33 +5,36 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 ## Mốc hiện tại
 
 - Ngày cập nhật: **06/10/2026**
-- Nhánh: `fix/safari-drm-final-20261005`
-- Tính năng mới nhất: **nhập nguồn IPTV bằng tệp M3U/M3U8 cục bộ**
+- Nhánh: `fix/youtube-original-coccoc-adblock-20261006`
+- Tính năng mới nhất: **YouTube gốc + native AdBlock host cho Tizen**
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Nơi triển khai: **Cloudflare Workers**
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
 - Các chức năng/player/DRM hiện tại được giữ nguyên; local M3U là phần bổ sung riêng.
 
-## YouTube không quảng cáo trên Web
+## YouTube gốc + AdBlock kiểu trình duyệt
 
-- Menu TV có mục **▶ YouTube không quảng cáo**.
-- Nút YouTube trên giao diện mobile dùng cùng cơ chế.
-- Web không nhúng SmartTube Android: SmartTube là ứng dụng native cho Android TV/TV box và không hỗ trợ Samsung Tizen hoặc iOS. Web vì vậy dùng frontend YouTube không quảng cáo chạy trực tiếp trong trình duyệt.
-- Máy chủ mặc định: **Invidious** (`https://invidious.tiekoetter.com/`), với **Piped** (`https://piped.video/`) và một Invidious instance khác làm dự phòng.
-- Provider mặc định có thể thay đổi bằng khóa `nm7:youtubeProvider` trong localStorage; cấu hình này giúp giữ lựa chọn máy chủ trong cùng trình duyệt.
-- Tích hợp có thể nhận URL video YouTube và chuyển sang trang xem tương ứng trên frontend đã chọn.
-- Đây là frontend bên thứ ba, không phải YouTube chính thức; tình trạng instance phụ thuộc nhà cung cấp và thay đổi của YouTube.
+Mốc này không dùng Invidious, Piped hoặc YouTube Web Shell nữa.
 
-## YouTube tích hợp không quảng cáo
+- Menu YouTube không quảng cáo và nút YouTube trên mobile mở trang YouTube chính thức: https://www.youtube.com/.
+- Web launcher chỉ làm nhiệm vụ điều hướng; không giả lập giao diện YouTube và không thay thế tài khoản/đăng nhập YouTube.
+- Chặn quảng cáo kiểu trình duyệt không thể thực hiện đầy đủ bằng JavaScript của trang NM7 khi YouTube là origin khác. Vì vậy bộ chặn được chuyển lên native host WebView cho Samsung Tizen.
+- Thư mục tizen-youtube-host/ chứa scaffold native EWK: intercept request trước khi gửi mạng, trả 204 cho các URL quảng cáo rõ ràng, và inject page-level fallback để bấm Skip/tua quảng cáo khi quảng cáo vẫn lọt qua.
+- Kiến trúc này tương tự mô hình mà Cốc Cốc công khai: YouTube vẫn là YouTube gốc, còn lớp lọc nằm ở tầng trình duyệt. Cốc Cốc cho biết họ tích hợp Adblock Plus và liên tục cập nhật để xử lý anti-adblock của YouTube.
+- Đây không phải mã Adblock Plus/Cốc Cốc nguyên bản và hiện chưa phải ABP core hoàn chỉnh; rule set trong native host là bộ lọc bảo thủ để không làm hỏng media CDN.
 
-- Không còn dùng Invidious làm giao diện người dùng.
-- NM7 TV Web có một YouTube Web Shell riêng với bố cục kiểu YouTube: thanh tìm kiếm, trang chủ/thịnh hành, chip chủ đề, lưới thumbnail, trang xem, video liên quan và toàn màn hình.
-- Nút YouTube không quảng cáo trong menu TV và nút YouTube trên mobile mở shell này.
-- Cloudflare Worker cung cấp các endpoint `/api/youtube/search`, `/api/youtube/trending`, `/api/youtube/streams/<videoId>` và tự động thử nhiều Piped API backend khi một backend lỗi.
-- Video được lấy từ stream backend không chứa quảng cáo YouTube; player của NM7 phát HLS/progressive stream qua `/api/stream`.
-- Giao diện shell không phụ thuộc giao diện của Piped/Invidious nên có thể giữ phong cách NM7 và tiếp tục tùy chỉnh theo màn hình Samsung TV.
-- Chức năng đăng nhập/tài khoản YouTube chính thức không được giả lập. Đây là một client web độc lập dùng backend thay thế.
+### Quan trọng với Samsung UA49M5500 / Tizen 3.0
 
+Bản Web chạy trực tiếp trên trình duyệt TV không thể tự biến thành trình duyệt có network interception. Muốn có YouTube gốc + chặn quảng cáo ở tầng request cần chạy NM7 bên trong native Tizen host có EWK WebView.
+
+Native host dùng các API EWK request interception và script injection tương ứng với Tizen 3.0.
+
+### Trạng thái
+
+- Đã đổi launcher sang YouTube gốc.
+- Đã bỏ dependency Piped/Invidious khỏi Worker và frontend.
+- Đã thêm native host source scaffold.
+- Chưa thể tuyên bố chặn quảng cáo thành công trên UA49M5500 cho tới khi source native được build/sign và cài thử trên TV thật. Tizen SDK/firmware của thiết bị không có trong môi trường build hiện tại.
 ## Giao diện TV
 
 - Giữ hình nền và phong cách thẻ kênh theo Android TV 1.0.69.

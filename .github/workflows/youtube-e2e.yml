@@ -66,7 +66,7 @@ jobs:
             url: location.href,
             title: document.title,
             bodyText: (document.body?.innerText || '').slice(0, 2000),
-            onOfficialOrigin: /^https:\\/\\/(www\\.)?youtube\\.com\\//i.test(location.href),
+            onOfficialOrigin: /^https:\/\/(www\.)?youtube\.com\//i.test(location.href),
             ytdApp: !!document.querySelector('ytd-app'),
             ytMasthead: !!document.querySelector('ytd-masthead'),
             videoPage: !!document.querySelector('ytd-page-manager'),

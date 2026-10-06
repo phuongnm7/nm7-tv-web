@@ -25,3 +25,4 @@ jobs:
           name: tv365-primary-playlist
           path: tv365_primary.m3u
           if-no-files-found: error
+          overwrite: true

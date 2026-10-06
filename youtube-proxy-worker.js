@@ -489,18 +489,39 @@ function maybeRewriteHtml(upstream, proxyOrigin) {
     .transform(new Response(upstream.body, { status: upstream.status, headers }));
 }
 
+function cleanPlayerResponseValue(value, depth) {
+  if (!value || typeof value !== "object" || depth > 20) return value;
+
+  const deny = new Set([
+    "adPlacements","adSlots","playerAds",
+    "adBreakHeartbeatParams","adBreaks",
+    "playerAdParams","adPodMetadata","adClientParams"
+  ]);
+
+  if (Array.isArray(value)) {
+    const out = [];
+    for (const item of value) {
+      const cleaned = cleanPlayerResponseValue(item, depth + 1);
+      if (cleaned !== undefined) out.push(cleaned);
+    }
+    return out;
+  }
+
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (deny.has(key)) continue;
+    out[key] = cleanPlayerResponseValue(item, depth + 1);
+  }
+  return out;
+}
+
 function cleanPlayerResponseText(body) {
-  if (!body || body.length > 4 * 1024 * 1024) return body;
-  return String(body)
-    .replace(/"adPlacements"\s*:/g, '"no_ads":')
-    .replace(/"adSlots"\s*:/g, '"no_ads":')
-    .replace(/"playerAds"\s*:/g, '"no_ads":')
-    .replace(/"adBreakHeartbeatParams"\s*:/g, '"no_ads":')
-    .replace(/"adBreaks"\s*:/g, '"no_ads":')
-    .replace(/"playerAdParams"\s*:/g, '"no_ads":')
-    .replace(/"adPodMetadata"\s*:/g, '"no_ads":')
-    .replace(/"isAd"\s*:\s*true/g, '"isAd":false')
-    .replace(/"is_ad"\s*:\s*true/g, '"is_ad":false');
+  if (!body || body.length > 8 * 1024 * 1024) return body;
+  try {
+    return JSON.stringify(cleanPlayerResponseValue(JSON.parse(body), 0));
+  } catch {
+    return body;
+  }
 }
 
 async function fetchUpstream(request, target) {
@@ -521,16 +542,9 @@ async function fetchUpstream(request, target) {
 
   let body;
   if (request.method !== "GET" && request.method !== "HEAD") {
-    const contentType = request.headers.get("content-type") || "";
-    if (contentType.includes("application/json") &&
-        isPlayerEndpoint(target.pathname)) {
-      const raw = await request.text();
-      body = raw
-        .replace(/"clientScreen"\s*:\s*"WATCH"/g, '"clientScreen":"ADUNIT"')
-        .replace(/"clientScreen"\s*:\s*"WATCH_CARDS"/g, '"clientScreen":"ADUNIT"');
-    } else {
-      body = request.body;
-    }
+    // Preserve YouTube's player POST payload exactly. Rewriting clientScreen
+    // can break player bootstrap and leave mobile UI on skeleton state.
+    body = request.body;
   }
 
   return fetch(target.toString(), {

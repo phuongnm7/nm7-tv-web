@@ -31,68 +31,30 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler.youtube.toml
 
-      - name: Smoke test dedicated YouTube proxy
+      - name: Smoke test YouTube redirect and ad guard
         shell: bash
         run: |
           set -euo pipefail
           YTBASE="https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev"
-          set +e
-          curl -sS --max-redirs 3 --max-time 45 "$YTBASE/" -o /tmp/nm7-youtube-proxy.html -w "ROOT_STATUS=%{http_code} ROOT_BYTES=%{size_download}\\n"
-          root_rc=$?
-          echo "ROOT_RC=$root_rc"
-          echo "ROOT_HEAD:"
-          head -c 500 /tmp/nm7-youtube-proxy.html 2>/dev/null || true
-          echo
-          grep -Eiq "YouTube|Google" /tmp/nm7-youtube-proxy.html; echo "ROOT_YT_MARKER_RC=$?"
-          grep -q "__NM7_YT_AD_DOM__" /tmp/nm7-youtube-proxy.html; echo "ROOT_SHIELD_MARKER_RC=$?"
 
-          curl -sS --max-redirs 3 --max-time 30 "$YTBASE/pagead/" -o /tmp/nm7-youtube-ad-204.txt -w "AD_STATUS=%{http_code} AD_BYTES=%{size_download}\\n"
-          ad_rc=$?
-          echo "AD_RC=$ad_rc"
+          echo "=== Default YouTube navigation ==="
+          curl -sS --max-time 30 -D /tmp/yt-headers.txt -o /dev/null "$YTBASE/"
+          code="$(awk 'toupper($1) ~ /^HTTP\\// {c=$2} END {print c}' /tmp/yt-headers.txt)"
+          location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]*:[[:space:]]*/,"",$0); print $0}' /tmp/yt-headers.txt | tail -1 | tr -d '\\r')"
+          echo "YOUTUBE_REDIRECT_STATUS=$code"
+          echo "YOUTUBE_REDIRECT_LOCATION=$location"
+          test "$code" = "302"
+          test "$location" = "https://www.youtube.com/"
 
-          curl -sS --max-redirs 3 --max-time 30 -A "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36" "$YTBASE/" -o /tmp/nm7-youtube-mobile.html -w "MOBILE_ROOT_STATUS=%{http_code} MOBILE_ROOT_BYTES=%{size_download}\\n"
-          mobile_root_rc=$?
-          echo "MOBILE_ROOT_RC=$mobile_root_rc"
-          curl -sS --max-redirs 3 --max-time 30 -A "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36" "$YTBASE/watch?v=dQw4w9WgXcQ" -o /tmp/nm7-youtube-mobile-watch.html -w "MOBILE_WATCH_STATUS=%{http_code} MOBILE_WATCH_BYTES=%{size_download}\\n"
-          mobile_watch_rc=$?
-          echo "MOBILE_WATCH_RC=$mobile_watch_rc"
-          grep -Eiq "YouTube" /tmp/nm7-youtube-mobile-watch.html; echo "MOBILE_WATCH_YT_MARKER_RC=$?"
-          curl -sS --max-redirs 3 --max-time 30 "$YTBASE/watch?v=dQw4w9WgXcQ" -o /tmp/nm7-youtube-watch.html -w "WATCH_STATUS=%{http_code} WATCH_BYTES=%{size_download}\\n"
-          watch_rc=$?
-          echo "WATCH_RC=$watch_rc"
-          echo "WATCH_HEAD:"
-          head -c 500 /tmp/nm7-youtube-watch.html 2>/dev/null || true
-          echo
-          grep -Eiq "YouTube|ytInitialPlayerResponse" /tmp/nm7-youtube-watch.html; echo "WATCH_YT_MARKER_RC=$?"
-          grep -q "__NM7_YT_AD_DOM__" /tmp/nm7-youtube-watch.html; echo "WATCH_SHIELD_MARKER_RC=$?"
+          echo "=== Ad endpoint guard ==="
+          ad_code="$(curl -sS --max-time 30 -o /tmp/yt-ad.txt -w "%{http_code}" "$YTBASE/pagead/")"
+          echo "YOUTUBE_AD_ENDPOINT_STATUS=$ad_code"
+          test "$ad_code" = "204"
 
-          if [ "$root_rc" -ne 0 ] || [ "$ad_rc" -ne 0 ] || [ "$watch_rc" -ne 0 ]; then
-            echo "YOUTUBE_PROXY_REQUESTS_FAILED"
-            exit 1
-          fi
-          grep -Eiq "YouTube|Google" /tmp/nm7-youtube-proxy.html || exit 1
-          grep -q "__NM7_YT_AD_DOM__" /tmp/nm7-youtube-proxy.html || exit 1
-          # /watch can be upstream-rate-limited from CI egress; the browser E2E
-          # below is the authoritative mobile rendering check.
-          echo "YOUTUBE_PROXY_WORKER_SMOKE_OK"
-          echo "YOUTUBE_WATCH_STATUS=$watch_rc"
-          echo "YOUTUBE_AD_SHIELD_HTML_OK"
-          echo "YOUTUBE_AD_ENDPOINT_BLOCK_OK"
-          echo "YOUTUBE_WATCH_PROXY_OK"
-          echo "=== Upstream YouTube diagnostics ==="
-          for u in             "https://www.youtube.com/watch?v=dQw4w9WgXcQ"             "https://m.youtube.com/watch?v=dQw4w9WgXcQ"             "https://www.youtube.com/embed/dQw4w9WgXcQ"             "https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ&format=json"; do
-            code="$(curl -sS -L --max-time 25 -o /tmp/yt-direct.tmp -w "%{http_code}" -A "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36" "$u" || true)"
-            bytes="$(wc -c </tmp/yt-direct.tmp 2>/dev/null || echo 0)"
-            echo "DIRECT $code $bytes $u"
-          done
-
-          echo "=== Proxied youtubei player POST probe ==="
-          curl -sS --max-time 25 -A "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36"             -H "Content-Type: application/json"             -X POST             --data '{"context":{"client":{"clientName":"WEB","clientVersion":"2.20260929.01.00","hl":"en","gl":"US"}},"videoId":"dQw4w9WgXcQ"}'             "$YTBASE/https/www.youtube.com/youtubei/v1/player?prettyPrint=false"             -o /tmp/yt-player-probe.json -w "PLAYER_PROXY_STATUS=%{http_code} PLAYER_BYTES=%{size_download}
-" || true
-          head -c 500 /tmp/yt-player-probe.json 2>/dev/null || true
-          echo
-          echo "YTBASE=$YTBASE"
-          set -e
+          echo "=== Explicit proxy mode is opt-in ==="
+          proxy_code="$(curl -sS --max-time 30 -o /tmp/yt-proxy.html -w "%{http_code}" "$YTBASE/?proxy=1")"
+          echo "YOUTUBE_EXPLICIT_PROXY_STATUS=$proxy_code"
+          echo "YOUTUBE_DIRECT_NAVIGATION_SMOKE_OK"
 
       - name: Smoke test deployed Cloudflare Worker
         shell: bash
@@ -205,7 +167,7 @@ jobs:
           print("YOUTUBE_ORIGINAL_LAUNCHER_SMOKE_OK")
           PY
 
-          echo "Starting post-deploy mobile Chromium E2E..."
+          echo "Starting post-deploy YouTube direct-navigation E2E..."
           mkdir -p /tmp/nm7-e2e
           npm init -y >/tmp/nm7-e2e/npm-init.log 2>&1
           npm i --no-save playwright@1.55.1 >>/tmp/nm7-e2e/npm-install.log 2>&1
@@ -225,30 +187,17 @@ jobs:
           page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
           page.on('requestfailed', r => failed.push({url:r.url(), error:r.failure()?.errorText || 'unknown'}));
           await page.goto(proxy, {waitUntil:'domcontentloaded', timeout:45000});
-          await page.waitForTimeout(15000);
+          await page.waitForTimeout(5000);
           const result = await page.evaluate(() => ({
             url: location.href,
             title: document.title,
-            ytdApp: !!document.querySelector('ytd-app'),
-            masthead: !!document.querySelector('ytd-masthead'),
-            pageManager: !!document.querySelector('ytd-page-manager'),
-            video: !!document.querySelector('video'),
-            bodyText: (document.body?.innerText || '').slice(0, 1500),
-            runtime: !!window.__NM7_YT_RUNTIME__,
-            adDomShield: !!window.__NM7_YT_AD_DOM__
+            bodyText: (document.body?.innerText || '').slice(0, 1200),
+            onOfficialOrigin: /^https:\/\/(www\.)?youtube\.com\//i.test(location.href)
           }));
           await page.screenshot({path:'/tmp/nm7-e2e/youtube.png'});
-          console.log('NM7_YOUTUBE_E2E='+JSON.stringify({
-            ...result,
-            errors:errors.slice(0,30),
-            failed:failed.slice(0,30)
-          }));
-          if (!result.ytdApp && !result.masthead && !result.pageManager) {
-            throw new Error('YouTube UI did not render; likely proxy/runtime failure');
-          }
-          if (!result.url.startsWith(proxy)) {
-            throw new Error('Browser escaped YouTube proxy: '+result.url);
-          }
+          console.log('NM7_YOUTUBE_E2E='+JSON.stringify({...result,errors:errors.slice(0,20),failed:failed.slice(0,20)}));
+          if (!result.onOfficialOrigin) throw new Error('YouTube did not reach official origin: '+result.url);
+          if (!result.title.toLowerCase().includes('youtube')) throw new Error('Official YouTube title missing: '+result.title);
           await browser.close();
           EOF
           node /tmp/nm7-e2e/youtube.mjs

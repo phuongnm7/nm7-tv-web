@@ -385,9 +385,12 @@ async function fetchTarget(request, target) {
     h.set(k, v);
   }
 
-  // Present the request to YouTube as a first-party mobile request.
-  h.set("Origin", "https://" + target.host);
-  h.set("Referer", "https://" + target.host + "/");
+  // YouTube endpoints benefit from first-party Origin/Referer headers.
+  // Static asset hosts are fetched without these headers to avoid upstream 403s.
+  if (isYoutubeHost(target.host)) {
+    h.set("Origin", "https://" + target.host);
+    h.set("Referer", "https://" + target.host + "/");
+  }
 
   const init = {
     method: request.method,

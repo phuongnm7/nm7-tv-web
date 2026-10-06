@@ -149,8 +149,9 @@ jobs:
           python3 - "$HOME_YT" "$YTJS" <<'PY'
           import sys
           html,js=sys.argv[1],sys.argv[2]
-          if "YouTube không quảng cáo" not in html:
-              raise SystemExit("YouTube menu marker missing")
+          for needle in ("btnYouTubeTab","youtube.js"):
+              if needle not in html:
+                  raise SystemExit("YouTube launcher marker missing: "+needle)
           for needle in ("https://www.youtube.com/","function openOriginal","nm7youtube://open?url="):
               if needle not in js:
                   raise SystemExit("Official YouTube launcher marker missing: "+needle)

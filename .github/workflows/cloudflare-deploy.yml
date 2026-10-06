@@ -44,7 +44,7 @@ jobs:
           head -c 500 /tmp/nm7-youtube-proxy.html 2>/dev/null || true
           echo
           grep -Eiq "YouTube|Google" /tmp/nm7-youtube-proxy.html; echo "ROOT_YT_MARKER_RC=$?"
-          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-proxy.html; echo "ROOT_SHIELD_MARKER_RC=$?"
+          grep -q "__NM7_YT_AD_DOM__" /tmp/nm7-youtube-proxy.html; echo "ROOT_SHIELD_MARKER_RC=$?"
 
           curl -sS --max-redirs 3 --max-time 30 "$YTBASE/pagead/" -o /tmp/nm7-youtube-ad-204.txt -w "AD_STATUS=%{http_code} AD_BYTES=%{size_download}\\n"
           ad_rc=$?
@@ -64,15 +64,15 @@ jobs:
           head -c 500 /tmp/nm7-youtube-watch.html 2>/dev/null || true
           echo
           grep -Eiq "YouTube|ytInitialPlayerResponse" /tmp/nm7-youtube-watch.html; echo "WATCH_YT_MARKER_RC=$?"
-          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-watch.html; echo "WATCH_SHIELD_MARKER_RC=$?"
+          grep -q "__NM7_YT_AD_DOM__" /tmp/nm7-youtube-watch.html; echo "WATCH_SHIELD_MARKER_RC=$?"
 
           if [ "$root_rc" -ne 0 ] || [ "$ad_rc" -ne 0 ] || [ "$watch_rc" -ne 0 ]; then
             echo "YOUTUBE_PROXY_REQUESTS_FAILED"
             exit 1
           fi
           grep -Eiq "YouTube|Google" /tmp/nm7-youtube-proxy.html || exit 1
-          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-proxy.html || exit 1
-          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-watch.html || exit 1
+          grep -q "__NM7_YT_AD_DOM__" /tmp/nm7-youtube-proxy.html || exit 1
+          grep -q "__NM7_YT_AD_DOM__" /tmp/nm7-youtube-watch.html || exit 1
           echo "YOUTUBE_PROXY_WORKER_SMOKE_OK"
           echo "YOUTUBE_AD_SHIELD_HTML_OK"
           echo "YOUTUBE_AD_ENDPOINT_BLOCK_OK"

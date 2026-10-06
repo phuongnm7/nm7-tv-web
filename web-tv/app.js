@@ -1160,6 +1160,12 @@ function controlAction(){
  if(a==='fwd30'){seek(30);return}
  if(a==='play'){togglePlay();return}
  if(a==='next'){switchRelative(1);return}
+ if(a==='background'){
+  if(window.NM7Background&&typeof window.NM7Background.enter==='function'){
+   window.NM7Background.enter().then(function(){toast('Đã bật chạy nền / PiP')}).catch(function(){toast('Thiết bị/trình duyệt không hỗ trợ PiP · Media Session vẫn được giữ')});
+  }else toast('Chưa có module chạy nền');
+  return
+ }
 }
 function togglePlay(){
  if(isNativeVideo()){$('video').paused?$('video').play():$('video').pause();return}

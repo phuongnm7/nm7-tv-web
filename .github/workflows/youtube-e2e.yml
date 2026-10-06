@@ -96,7 +96,7 @@ jobs:
           await browser.close();
           EOF
 
-          node /tmp/nm7-youtube-e2e.mjs
+          node ./nm7-youtube-e2e.mjs
 
       - name: Upload E2E screenshot
         if: always()

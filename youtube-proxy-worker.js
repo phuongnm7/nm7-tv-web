@@ -364,7 +364,7 @@ async function fetchTarget(request, target) {
     h.set(k, v);
   }
 
-  h.set("Host", target.host);
+  // Cloudflare sets Host from target.toString(); setting Host manually can fail in the Worker runtime.
   h.set("Referer", "https://" + target.host + "/");
 
   const init = {

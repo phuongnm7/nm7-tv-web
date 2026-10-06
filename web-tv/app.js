@@ -1302,6 +1302,15 @@ function onKey(e){
  var k=remoteCode(e);
  if(S.dialog){
   if(k===10009||k===27){e.preventDefault();e.stopPropagation();closeDialog();return}
+  if(S.dialog==='add'){
+   e.preventDefault();e.stopPropagation();
+   var af=[$('srcInput'),$('srcFileBtn'),$('srcOk'),$('srcCancel')].filter(function(x){return !!x});
+   var ai=af.indexOf(document.activeElement);if(ai<0)ai=0;
+   if(k===37||k===38){ai=(ai-1+af.length)%af.length;af[ai].focus();return}
+   if(k===39||k===40){ai=(ai+1)%af.length;af[ai].focus();return}
+   if(k===13){af[ai].click();return}
+   return
+  }
   if(k===13 && S.dialog==='search'){e.preventDefault();e.stopPropagation();closeDialog();return}
   return
  }

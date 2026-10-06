@@ -162,3 +162,20 @@ Bản Web dùng Arrow/Enter/Back làm lớp điều khiển remote TV portable. 
 ## Nguyên tắc phát triển tiếp theo
 
 Chỉ sửa phần có lỗi tái hiện rõ. Không thay đổi UI/player/DRM nếu lỗi không liên quan trực tiếp đến phần cần sửa. Mọi bản sửa tiếp theo phải cô lập để bảo vệ Android TV 1.0.69 làm chuẩn.
+
+## 2026-10-06 — YouTube AdShield mobile: nguyên nhân đã xác định
+
+Ảnh test mobile cho thấy quảng cáo đang được YouTube chèn và render trong player của YouTube gốc. Luồng cũ của NM7 chỉ thực hiện `location.href` sang `youtube.com`; sau khi đổi origin, JavaScript của NM7 không còn là lớp kiểm soát request của YouTube.
+
+uBlock hiện phải xử lý cả player-response (`adPlacements`, `adSlots`, `playerAds`) và request media quảng cáo; vì vậy danh sách vài domain quảng cáo không đủ để xử lý ổn định. citeturn413338search0turn413338search2
+
+### Hướng xử lý mới
+
+- Android mobile: launcher NM7 thử handoff `nm7youtube://open?url=...` sang native host; nếu không có host thì quay về YouTube gốc.
+- Native host được tạo riêng từ baseline NM7 TV 1.0.69, giữ YouTube là giao diện chính thức.
+- Host dùng `shouldInterceptRequest()` cho URL quảng cáo rõ ràng và `WebViewCompat.addDocumentStartJavaScript()` để xử lý player response sớm. Android WebView chính thức hỗ trợ cả request interception và document-start injection. citeturn413338search7
+- `youtube_adshield.js` xử lý `fetch`, `JSON.parse`, player response và DOM ad/skip; các rule được đối chiếu với bộ lọc YouTube cập nhật tháng 09/2026. citeturn413338search0
+
+### Trạng thái
+
+Đây chưa phải bản đã xác nhận 100% trên điện thoại thật. APK native host đang chờ một GitHub Actions runner hoạt động bình thường để build; các run vừa qua dừng lỗi rất sớm và không có log step. Không đánh dấu thành công cho tới khi cài APK lên Android và kiểm tra quảng cáo thực tế.

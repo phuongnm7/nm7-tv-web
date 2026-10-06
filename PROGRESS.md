@@ -144,3 +144,29 @@ SmartTube không có bản Web/Tizen/iOS; nó là ứng dụng Android TV/TV box
 ### Trạng thái
 
 **HOÀN THÀNH PHẦN TÍCH HỢP WEB + CI/DEPLOY.** Cần test thực tế trên Samsung TV Tizen và iPhone/iPad để xác nhận điều hướng remote, tìm kiếm và phát video tại thời điểm người dùng kiểm tra.
+
+## YouTube Web Shell — 2026-10-06
+
+### Thay đổi theo yêu cầu mới
+
+- Đã loại bỏ phương án dùng Invidious làm giao diện người dùng vì giao diện không phù hợp trải nghiệm mong muốn.
+- Đã xây dựng YouTube Web Shell riêng trong `web-tv/youtube.js`, mô phỏng bố cục sử dụng quen thuộc của YouTube nhưng không phụ thuộc giao diện Invidious/Piped.
+- Có thanh tìm kiếm, trang chủ/thịnh hành, nhóm chủ đề, danh sách thumbnail, trang xem, mô tả, video liên quan, nút chia sẻ và toàn màn hình.
+- Side menu TV có mục YouTube không quảng cáo; nút YouTube trên mobile dùng cùng shell.
+
+### Backend
+
+- Cloudflare Worker có các route `/api/youtube/trending`, `/api/youtube/search` và `/api/youtube/streams/<videoId>`.
+- Worker tự thử 3 Piped API backend: `pipedapi.kavin.rocks`, `pipedapi.leptons.xyz`, `pipedapi.nosebs.ru`.
+- Frontend không hiển thị địa chỉ hoặc giao diện Piped; chỉ nhận JSON cần thiết để dựng UI và stream.
+- HLS/progressive stream được đưa qua `/api/stream` để dùng chung CORS/header/rewrite hiện có.
+
+### Tương thích
+
+- Thiết kế cho Desktop Chrome/Edge/Safari, iPhone/iPad Safari và Samsung TV browser/Tizen.
+- Điều hướng D-pad trên Samsung được xử lý trong shell YouTube riêng.
+- Không thay đổi player IPTV, DRM, playlist 1.0.69 hoặc local M3U.
+
+### Trạng thái
+
+**CODE HOÀN THIỆN.** Cần xác nhận thực tế trên Samsung UA49M5500/Tizen 3.0 và iPhone/iPad vì môi trường hiện tại không có quyền chạy trực tiếp trình duyệt của TV/thiết bị người dùng.

@@ -456,7 +456,7 @@ async function handler(request) {
   // can be rate-limited by YouTube, which leaves the real page stuck on skeleton UI.
   // The same-origin proxy remains available only when ?proxy=1 is explicitly requested.
   const explicitProxy = incoming.searchParams.get("proxy") === "1";
-  const isInternalProxyPath = /^\\/(https|http)\\//i.test(incoming.pathname);
+  const isInternalProxyPath = /^\/(https|http)\//i.test(incoming.pathname);
   if (!explicitProxy && !isInternalProxyPath) {
     const direct = new URL("https://www.youtube.com" + (incoming.pathname || "/") + incoming.search);
     return Response.redirect(direct.toString(), 302);

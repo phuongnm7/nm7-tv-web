@@ -1,5 +1,5 @@
-const YT_ORIGIN = "https://www.youtube.com";
-const YT_HOSTS = new Set([
+const DEFAULT_HOST = "www.youtube.com";
+const YOUTUBE_HOSTS = new Set([
   "www.youtube.com",
   "youtube.com",
   "m.youtube.com",
@@ -15,315 +15,121 @@ const AD_HOSTS = [
 ];
 
 const AD_PATHS = [
-  /^\/pagead\//i,
-  /^\/api\/stats\/ads(?:$|\/|\?)/i,
-  /^\/ads\//i,
-  /^\/get_midroll_info(?:$|\/|\?)/i
+  /^\/pagead(?:\/|$)/i,
+  /^\/api\/stats\/ads(?:\/|$)/i,
+  /^\/ads(?:\/|$)/i,
+  /^\/get_midroll_info(?:\/|$)/i
 ];
 
-const PLAYER_ENDPOINTS = [
-  "/youtubei/v1/player",
-  "/youtubei/v1/get_watch",
-  "/youtubei/v1/next"
-];
+const BLOCKED_SCHEMES = /^(javascript|data|blob|chrome|file):/i;
 
-const AD_SHIELD = String.raw`
-(function(){
-'use strict';
-if(window.__NM7_YT_ADSHIELD__)return;
-window.__NM7_YT_ADSHIELD__=true;
+function proxyTargetFromPath(pathname, search) {
+  let path = pathname || "/";
+  let scheme = "https";
+  let host = DEFAULT_HOST;
 
-var AD_KEYS={
-  adPlacements:1,adSlots:1,playerAds:1,no_ads:0,
-  adBreakHeartbeatParams:1,adBreaks:1,playerAdParams:1,
-  adPodMetadata:1,adClientParams:1
-};
-
-function prune(v,d){
-  if(!v||typeof v!=='object'||d>18)return v;
-  if(Array.isArray(v)){for(var i=0;i<v.length;i++)prune(v[i],d+1);return v;}
-  for(var k in v){
-    if(!Object.prototype.hasOwnProperty.call(v,k))continue;
-    if(AD_KEYS[k]){
-      try{delete v[k];}catch(e){try{v[k]=undefined;}catch(e2){}}
-      continue;
-    }
-    prune(v[k],d+1);
+  const m = path.match(/^\/(https|http)\/([^/]+)(\/.*)?$/i);
+  if (m) {
+    scheme = m[1].toLowerCase();
+    host = m[2].toLowerCase();
+    path = m[3] || "/";
   }
-  return v;
+
+  if (!/^[a-z0-9.-]+$/i.test(host)) host = DEFAULT_HOST;
+  return new URL(scheme + "://" + host + (path.startsWith("/") ? path : "/" + path) + (search || ""));
 }
 
-function looks(t){
-  return typeof t==='string' &&
-    (t.indexOf('"adPlacements"')>=0||
-     t.indexOf('"adSlots"')>=0||
-     t.indexOf('"playerAds"')>=0||
-     t.indexOf('"adBreakHeartbeatParams"')>=0||
-     t.indexOf('"playbackTracking"')>=0||
-     t.indexOf('/youtubei/v1/player')>=0||
-     t.indexOf('/youtubei/v1/get_watch')>=0||
-     t.indexOf('/youtubei/v1/next')>=0);
+function isYoutubeHost(host) {
+  return YOUTUBE_HOSTS.has(String(host || "").toLowerCase());
 }
 
-function cleanText(t){
-  if(!looks(t))return t;
-  try{return JSON.stringify(prune(JSON.parse(t),0));}
-  catch(e){
-    return t
-      .replace(/"adPlacements"\s*:/g,'"no_ads":')
-      .replace(/"adSlots"\s*:/g,'"no_ads":')
-      .replace(/"playerAds"\s*:/g,'"no_ads":')
-      .replace(/"adBreakHeartbeatParams"\s*:/g,'"no_ads":')
-      .replace(/"adBreaks"\s*:/g,'"no_ads":');
-  }
-}
-
-var nativeJSON=JSON.parse;
-var wrappedJSON=null;
-var nativeFetch=null;
-var wrappedFetch=null;
-var nativeRespJson=null;
-var nativeRespText=null;
-
-function installJSON(){
-  try{
-    if(JSON.parse===wrappedJSON)return;
-    if(!nativeJSON)nativeJSON=JSON.parse;
-    wrappedJSON=function(t,r){
-      var v=nativeJSON.call(JSON,t,r);
-      try{if(looks(t))return prune(v,0);}catch(e){}
-      return v;
-    };
-    JSON.parse=wrappedJSON;
-  }catch(e){}
-}
-
-function cleanHeaders(h){
-  var o=new Headers();
-  try{h.forEach(function(v,k){
-    var x=String(k).toLowerCase();
-    if(x==='content-length'||x==='content-encoding'||x==='transfer-encoding')return;
-    o.set(k,v);
-  });}catch(e){}
-  return o;
-}
-
-function installResponse(){
-  try{
-    if(!window.Response||!Response.prototype)return;
-    if(typeof Response.prototype.json==='function'){
-      if(Response.prototype.json!==nativeRespJson){
-        if(!nativeRespJson)nativeRespJson=Response.prototype.json;
-        Response.prototype.json=function(){
-          return nativeRespJson.call(this).then(function(v){return prune(v,0);});
-        };
-      }
-    }
-    if(typeof Response.prototype.text==='function'){
-      if(Response.prototype.text!==nativeRespText){
-        if(!nativeRespText)nativeRespText=Response.prototype.text;
-        Response.prototype.text=function(){
-          return nativeRespText.call(this).then(cleanText);
-        };
-      }
-    }
-  }catch(e){}
-}
-
-function isYTHost(h){
-  h=String(h||'').toLowerCase();
-  return h==='youtube.com'||h==='www.youtube.com'||h==='m.youtube.com'||h==='music.youtube.com';
-}
-
-function localize(u){
-  try{
-    var x=new URL(String(u||''),location.href);
-    if(isYTHost(x.hostname)){
-      return location.origin+x.pathname+x.search+x.hash;
-    }
-  }catch(e){}
-  return u;
-}
-
-function localizeNavigation(){
-  try{
-    document.querySelectorAll('a[href]').forEach(function(a){
-      var v=a.getAttribute('href'),n=localize(v);
-      if(n&&n!==v)a.setAttribute('href',n);
-    });
-  }catch(e){}
-}
-
-function installHistory(){
-  try{
-    ['pushState','replaceState'].forEach(function(k){
-      var n=history[k];
-      if(n.__nm7wrapped)return;
-      var w=function(state,title,url){
-        return n.call(history,state,title,url?localize(url):url);
-      };
-      w.__nm7wrapped=true;
-      w.__nm7native=n;
-      history[k]=w;
-    });
-  }catch(e){}
-  try{
-    var ow=window.open;
-    if(ow&&!ow.__nm7wrapped){
-      var wopen=function(url,name,specs){
-        return ow.call(window,url?localize(url):url,name,specs);
-      };
-      wopen.__nm7wrapped=true;
-      window.open=wopen;
-    }
-  }catch(e){}
-}
-
-function installXHR(){
-  try{
-    if(!window.XMLHttpRequest)return;
-    var op=XMLHttpRequest.prototype.open;
-    if(op.__nm7wrapped)return;
-    var w=function(method,url,a,b,c){
-      return op.call(this,method,localize(url),a,b,c);
-    };
-    w.__nm7wrapped=true;
-    w.__nm7native=op;
-    XMLHttpRequest.prototype.open=w;
-  }catch(e){}
-}
-
-function installFetch(){
-  try{
-    if(typeof window.fetch!=='function')return;
-    if(window.fetch===wrappedFetch)return;
-    if(!nativeFetch||nativeFetch===wrappedFetch)nativeFetch=window.fetch;
-
-    wrappedFetch=function(input,init){
-      var raw='';
-      try{raw=typeof input==='string'?input:(input&&input.url)||String(input||'');}catch(e){}
-      var localized=localize(raw);
-      var actual=input;
-      try{
-        if(localized&&localized!==raw){
-          if(typeof input==='string') actual=localized;
-          else if(input instanceof Request) actual=new Request(localized,input);
-        }
-      }catch(e){actual=input;}
-
-      return nativeFetch.call(this,actual,init).then(function(resp){
-        if(!looks(raw)&&!looks(localized))return resp;
-        try{
-          return resp.clone().text().then(function(body){
-            var cleaned=cleanText(body);
-            if(cleaned===body)return resp;
-            return new Response(cleaned,{
-              status:resp.status,
-              statusText:resp.statusText,
-              headers:cleanHeaders(resp.headers)
-            });
-          });
-        }catch(e){return resp;}
-      });
-    };
-    window.fetch=wrappedFetch;
-  }catch(e){}
-}
-
-function patchGlobals(){
-  try{
-    if(window.ytInitialPlayerResponse)window.ytInitialPlayerResponse=prune(window.ytInitialPlayerResponse,0);
-    if(window.playerResponse)window.playerResponse=prune(window.playerResponse,0);
-  }catch(e){}
-}
-
-function ads(){
-  var selectors=[
-    '.ytp-ad-skip-button',
-    '.ytp-ad-skip-button-modern',
-    '.ytp-skip-ad-button',
-    '.ytp-ad-overlay-container',
-    '.ytp-ad-overlay-slot',
-    '.ytp-ad-text-overlay',
-    '.ytp-ad-player-overlay',
-    '#player-ads',
-    'ytd-ad-slot-renderer',
-    'ytd-display-ad-renderer',
-    'ytd-in-feed-ad-layout-renderer',
-    'ytd-promoted-video-renderer',
-    'ytd-action-companion-ad-renderer',
-    'ytm-ad-slot-renderer'
-  ];
-  for(var i=0;i<selectors.length;i++){
-    var nodes=document.querySelectorAll(selectors[i]);
-    for(var j=0;j<nodes.length;j++){
-      try{nodes[j].click();}catch(e){}
-      try{nodes[j].remove();}catch(e){}
-    }
-  }
-  var ad=document.querySelector('.ad-showing');
-  var v=document.querySelector('video');
-  if(ad&&v){
-    try{
-      if(isFinite(v.duration)&&v.duration>0&&v.currentTime+0.5<v.duration)
-        v.currentTime=Math.max(0,v.duration-0.05);
-    }catch(e){}
-  }
-}
-
-function install(){
-  installJSON();
-  installResponse();
-  installFetch();
-  installXHR();
-  installHistory();
-  localizeNavigation();
-  patchGlobals();
-  ads();
-}
-install();
-setInterval(install,400);
-try{new MutationObserver(install).observe(document.documentElement||document,{subtree:true,childList:true});}catch(e){}
-})();`;
-
-function isYouTubeHost(host) {
-  const h = String(host || "").toLowerCase();
-  return YT_HOSTS.has(h);
-}
-
-function isPlayerEndpoint(pathname) {
-  return PLAYER_ENDPOINTS.some(p => pathname === p || pathname.startsWith(p + "?"));
-}
-
-function isExplicitAdTarget(u) {
-  const host = String(u.hostname || "").toLowerCase();
-  if (AD_HOSTS.some(re => re.test(host))) return true;
-  if (isYouTubeHost(host) && AD_PATHS.some(re => re.test(u.pathname))) return true;
+function adBlocked(url) {
+  const h = String(url.hostname || "").toLowerCase();
+  if (AD_HOSTS.some(re => re.test(h))) return true;
+  if (isYoutubeHost(h) && AD_PATHS.some(re => re.test(url.pathname || "/"))) return true;
   return false;
 }
 
-function sanitizeCookie(v) {
-  return String(v || "")
-    .replace(/;\s*domain=[^;]+/ig, "")
-    .replace(/;\s*secure/ig, "; Secure");
+function proxyUrlFor(raw, proxyOrigin) {
+  if (!raw) return raw;
+  const value = String(raw).trim();
+  if (!value || value.startsWith("#") || BLOCKED_SCHEMES.test(value)) return value;
+
+  try {
+    const u = new URL(value, "https://" + DEFAULT_HOST + "/");
+    if (!isYoutubeHost(u.hostname)) return value;
+    return proxyOrigin + "/https/" + u.hostname + u.pathname + u.search + u.hash;
+  } catch {
+    return value;
+  }
 }
 
-function rewriteSetCookie(value) {
-  return String(value || "")
-    .replace(/;\\s*Domain=[^;]+/ig, "")
-    .replace(/;\\s*SameSite=None/ig, "; SameSite=None")
-    .replace(/;\\s*Partitioned/ig, "");
+function rewriteCssUrls(text, proxyOrigin) {
+  return String(text || "").replace(
+    /url\(\s*(['"]?)(https?:\/\/(?:www|m|music)\.youtube\.com[^'")]+)\1\s*\)/gi,
+    (m, q, url) => "url(" + q + proxyUrlFor(url, proxyOrigin) + q + ")"
+  );
 }
 
-function copyUpstreamHeaders(upstream) {
+function rewriteRuntimeText(text, proxyOrigin) {
+  let body = String(text || "");
+  const hosts = [
+    "www.youtube.com",
+    "youtube.com",
+    "m.youtube.com",
+    "music.youtube.com"
+  ];
+
+  for (const host of hosts) {
+    const p = proxyOrigin + "/https/" + host;
+    body = body.split("https://" + host).join(p);
+    body = body.split("http://" + host).join(p);
+    body = body.split("//" + host).join(p);
+    body = body.split("\\/\\/" + host).join(p);
+  }
+
+  body = rewriteCssUrls(body, proxyOrigin);
+
+  // Common YouTube absolute API/player endpoints embedded in JS/JSON strings.
+  body = body
+    .replace(/(["'])\/youtubei\//g, "$1" + proxyOrigin + "/https/" + DEFAULT_HOST + "/youtubei/")
+    .replace(/(["'])\/api\/stats\//g, "$1" + proxyOrigin + "/https/" + DEFAULT_HOST + "/api/stats/");
+
+  return body;
+}
+
+function rewriteSrcset(value, proxyOrigin) {
+  return String(value || "").split(",").map(part => {
+    const bits = part.trim().split(/\s+/);
+    if (!bits[0]) return part;
+    bits[0] = proxyUrlFor(bits[0], proxyOrigin);
+    return bits.join(" ");
+  }).join(", ");
+}
+
+function rewriteLocation(location, proxyOrigin) {
+  return location ? proxyUrlFor(location, proxyOrigin) : location;
+}
+
+function rewriteSetCookie(cookie) {
+  return String(cookie || "")
+    .replace(/;\s*Domain=[^;]+/ig, "")
+    .replace(/;\s*Partitioned/ig, "");
+}
+
+function copyHeaders(upstream) {
   const h = new Headers();
+
   for (const [k, v] of upstream.headers.entries()) {
     const key = k.toLowerCase();
     if ([
-      "content-length","content-encoding","transfer-encoding",
-      "content-security-policy","content-security-policy-report-only",
-      "x-frame-options","cross-origin-opener-policy",
-      "cross-origin-embedder-policy","cross-origin-resource-policy"
+      "content-length",
+      "content-encoding",
+      "transfer-encoding",
+      "content-security-policy",
+      "content-security-policy-report-only",
+      "x-frame-options",
+      "clear-site-data"
     ].includes(key)) continue;
     if (key === "set-cookie") continue;
     h.set(k, v);
@@ -336,11 +142,7 @@ function copyUpstreamHeaders(upstream) {
       }
     } else {
       const c = upstream.headers.get("set-cookie");
-      if (c) {
-        for (const part of String(c).split(/,(?=[^;,]+=)/)) {
-          h.append("Set-Cookie", rewriteSetCookie(part));
-        }
-      }
+      if (c) h.append("Set-Cookie", rewriteSetCookie(c));
     }
   } catch {}
 
@@ -350,304 +152,304 @@ function copyUpstreamHeaders(upstream) {
   return h;
 }
 
-function rewriteTargetUrl(value, proxyOrigin) {
-  if (!value) return value;
-  const s = String(value);
-  try {
-    const u = new URL(s, YT_ORIGIN + "/");
-    if (isYouTubeHost(u.hostname)) {
-      return proxyOrigin + u.pathname + u.search + u.hash;
-    }
-    return s;
-  } catch {
-    return s;
-  }
-}
-
-function rewriteYouTubeRuntimeText(text, proxyOrigin) {
-  let body = String(text || "");
-  const escOrigin = proxyOrigin.replace(/\\/g, "\\\\");
-  const originForJs = escOrigin.replace(/\\/g, "\\\\");
-  const abs = [
-    ["https://www.youtube.com", proxyOrigin],
-    ["http://www.youtube.com", proxyOrigin],
-    ["https://m.youtube.com", proxyOrigin],
-    ["http://m.youtube.com", proxyOrigin]
-  ];
-  for (const [from, to] of abs) {
-    body = body.split(from).join(to);
-  }
-  body = body
-    .replace(/https:\\\/\\\/www\\.youtube\\.com/g, originForJs.replace(/:\\/\\//, ":\\\\/\\\\/"))
-    .replace(/https:\\\/\\\/m\\.youtube\\.com/g, originForJs.replace(/:\\/\\//, ":\\\\/\\\\/"))
-    .replace(/\\/\\/www\\.youtube\\.com/g, proxyOrigin)
-    .replace(/\\/\\/m\\.youtube\\.com/g, proxyOrigin);
-
-  // Runtime APIs used by the YouTube SPA often carry an absolute origin
-  // inside JSON/JS rather than as an HTML attribute.
-  body = body
-    .replace(/(["'])\/\/www\\.youtube\\.com/g, "$1" + proxyOrigin)
-    .replace(/(["'])\/\/m\\.youtube\\.com/g, "$1" + proxyOrigin);
-
-  return body;
-}
-
-const PROXY_RUNTIME = String.raw\`
+const RUNTIME = String.raw\`
 (function(){
 'use strict';
-if(window.__NM7_YT_PROXY_RUNTIME__)return;
-window.__NM7_YT_PROXY_RUNTIME__=true;
+if(window.__NM7_YT_RUNTIME__)return;
+window.__NM7_YT_RUNTIME__=true;
+
 var ORIGIN=location.origin;
-function local(v){
+
+function localize(value){
   try{
-    if(!v)return v;
-    var u=new URL(String(v),location.href);
+    if(!value)return value;
+    var u=new URL(String(value),location.href);
     var h=(u.hostname||'').toLowerCase();
-    if(h==='www.youtube.com'||h==='youtube.com'||h==='m.youtube.com'||h==='music.youtube.com')
-      return ORIGIN+u.pathname+u.search+u.hash;
+    if(h==='www.youtube.com'||h==='youtube.com'||h==='m.youtube.com'||h==='music.youtube.com'){
+      return ORIGIN+'/https/'+h+u.pathname+u.search+u.hash;
+    }
   }catch(e){}
-  return v;
+  return value;
 }
-try{
-  var of=window.fetch;
-  if(of&&!of.__nm7){
-    var wf=function(input,init){
+
+function patchFetch(){
+  try{
+    var f=window.fetch;
+    if(!f||f.__nm7)return;
+    var w=function(input,init){
       try{
-        if(typeof input==='string')input=local(input);
+        if(typeof input==='string') input=localize(input);
         else if(input&&input.url){
-          var nu=local(input.url);
-          if(nu!==input.url)input=new Request(nu,input);
+          var u=localize(input.url);
+          if(u!==input.url) input=new Request(u,input);
         }
       }catch(e){}
-      return of.call(this,input,init);
+      return f.call(this,input,init);
     };
-    wf.__nm7=true; wf.__nm7native=of; window.fetch=wf;
-  }
-}catch(e){}
-try{
-  var xo=XMLHttpRequest.prototype.open;
-  if(xo&&!xo.__nm7){
-    var wx=function(method,url,a,b,c){return xo.call(this,method,local(url),a,b,c)};
-    wx.__nm7=true; wx.__nm7native=xo; XMLHttpRequest.prototype.open=wx;
-  }
-}catch(e){}
-try{
-  ['pushState','replaceState'].forEach(function(k){
-    var n=history[k];
-    if(n&&!n.__nm7){
-      var w=function(st,title,url){return n.call(history,st,title,url?local(url):url)};
-      w.__nm7=true; history[k]=w;
-    }
-  });
-}catch(e){}
-try{
-  var ow=window.open;
-  if(ow&&!ow.__nm7){
-    var wo=function(url,name,specs){return ow.call(window,url?local(url):url,name,specs)};
-    wo.__nm7=true; window.open=wo;
-  }
-}catch(e){}
-try{
-  document.addEventListener('click',function(ev){
-    var a=ev.target&&ev.target.closest?ev.target.closest('a[href]'):null;
-    if(!a)return;
-    var href=a.getAttribute('href'),nu=local(href);
-    if(nu&&nu!==href)a.setAttribute('href',nu);
-  },true);
-}catch(e){}
-setInterval(function(){
+    w.__nm7=true;
+    window.fetch=w;
+  }catch(e){}
+}
+
+function patchXHR(){
+  try{
+    var o=XMLHttpRequest.prototype.open;
+    if(!o||o.__nm7)return;
+    var w=function(method,url,a,b,c){
+      return o.call(this,method,localize(url),a,b,c);
+    };
+    w.__nm7=true;
+    XMLHttpRequest.prototype.open=w;
+  }catch(e){}
+}
+
+function patchHistory(){
+  try{
+    ['pushState','replaceState'].forEach(function(k){
+      var o=history[k];
+      if(!o||o.__nm7)return;
+      var w=function(s,t,u){return o.call(history,s,t,u?localize(u):u)};
+      w.__nm7=true;
+      history[k]=w;
+    });
+  }catch(e){}
+}
+
+function patchOpen(){
+  try{
+    var o=window.open;
+    if(!o||o.__nm7)return;
+    var w=function(u,n,s){return o.call(window,u?localize(u):u,n,s)};
+    w.__nm7=true;
+    window.open=w;
+  }catch(e){}
+}
+
+function rewriteLinks(){
   try{
     document.querySelectorAll('a[href]').forEach(function(a){
-      var h=a.getAttribute('href'),n=local(h);
+      var h=a.getAttribute('href'),n=localize(h);
       if(n&&n!==h)a.setAttribute('href',n);
     });
   }catch(e){}
-},750);
+}
+
+function install(){
+  patchFetch();
+  patchXHR();
+  patchHistory();
+  patchOpen();
+  rewriteLinks();
+}
+install();
+setInterval(install,700);
+try{
+  new MutationObserver(install).observe(document.documentElement||document,{
+    childList:true,subtree:true
+  });
+}catch(e){}
 })();\`;
 
-function maybeRewriteHtml(upstream, proxyOrigin) {
-  const headers = copyUpstreamHeaders(upstream);
+const ADS = String.raw\`
+(function(){
+'use strict';
+if(window.__NM7_YT_AD_DOM__)return;
+window.__NM7_YT_AD_DOM__=true;
+
+function work(){
+  var skip=[
+    '.ytp-ad-skip-button',
+    '.ytp-ad-skip-button-modern',
+    '.ytp-skip-ad-button'
+  ];
+
+  for(var i=0;i<skip.length;i++){
+    var a=document.querySelectorAll(skip[i]);
+    for(var j=0;j<a.length;j++){
+      try{a[j].click()}catch(e){}
+    }
+  }
+
+  var remove=[
+    '.ytp-ad-overlay-container',
+    '.ytp-ad-overlay-slot',
+    '.ytp-ad-text-overlay',
+    '.ytp-ad-player-overlay',
+    '#player-ads',
+    'ytd-ad-slot-renderer',
+    'ytd-display-ad-renderer',
+    'ytd-in-feed-ad-layout-renderer',
+    'ytd-promoted-video-renderer',
+    'ytd-action-companion-ad-renderer',
+    'ytm-ad-slot-renderer'
+  ];
+
+  for(var x=0;x<remove.length;x++){
+    var nodes=document.querySelectorAll(remove[x]);
+    for(var y=0;y<nodes.length;y++){
+      try{nodes[y].remove()}catch(e){}
+    }
+  }
+
+  var container=document.querySelector('.ad-showing');
+  var video=document.querySelector('video');
+  if(container&&video){
+    try{
+      if(isFinite(video.duration)&&video.duration>0&&video.currentTime+0.4<video.duration){
+        video.currentTime=Math.max(0,video.duration-0.05);
+      }
+    }catch(e){}
+  }
+}
+
+try{
+  new MutationObserver(work).observe(document.documentElement||document,{
+    childList:true,subtree:true
+  });
+}catch(e){}
+setInterval(work,350);
+work();
+})();\`;
+
+function rewriteHtml(upstream, proxyOrigin) {
+  const headers = copyHeaders(upstream);
   headers.set("content-type", "text/html; charset=utf-8");
   headers.set("cache-control", "no-store");
 
   return new HTMLRewriter()
     .on("head", {
       element(el) {
-        el.prepend("<script>" + PROXY_RUNTIME + "</script><script>" + AD_SHIELD + "</script>", { html: true });
+        el.prepend(
+          "<script>" + RUNTIME + "</script>" +
+          "<script>" + ADS + "</script>",
+          {html:true}
+        );
       }
     })
     .on("*", {
       element(el) {
         for (const attr of ["href","src","action","poster","data-src","data-url","data-href"]) {
-          const value = el.getAttribute(attr);
-          if (!value) continue;
-          const rewritten = rewriteTargetUrl(value, proxyOrigin);
-          if (rewritten !== value) el.setAttribute(attr, rewritten);
+          const v = el.getAttribute(attr);
+          if (!v) continue;
+          const n = attr === "srcset" ? rewriteSrcset(v, proxyOrigin) : proxyUrlFor(v, proxyOrigin);
+          if (n !== v) el.setAttribute(attr, n);
+        }
+        const ss = el.getAttribute("srcset");
+        if (ss) {
+          const n = rewriteSrcset(ss, proxyOrigin);
+          if (n !== ss) el.setAttribute("srcset", n);
         }
       }
     })
-    .transform(new Response(upstream.body, { status: upstream.status, headers }));
+    .on("meta[http-equiv]", {
+      element(el) {
+        if ((el.getAttribute("http-equiv") || "").toLowerCase() === "refresh") {
+          const c = el.getAttribute("content") || "";
+          el.setAttribute("content", c.replace(/url\s*=\s*([^;]+)/i, (_, u) => "url=" + proxyUrlFor(u.trim(), proxyOrigin)));
+        }
+      }
+    })
+    .transform(new Response(upstream.body, {status: upstream.status, headers}));
 }
 
-function cleanPlayerResponseValue(value, depth) {
-  if (!value || typeof value !== "object" || depth > 20) return value;
-
-  const deny = new Set([
-    "adPlacements","adSlots","playerAds",
-    "adBreakHeartbeatParams","adBreaks",
-    "playerAdParams","adPodMetadata","adClientParams"
-  ]);
-
-  if (Array.isArray(value)) {
-    const out = [];
-    for (const item of value) {
-      const cleaned = cleanPlayerResponseValue(item, depth + 1);
-      if (cleaned !== undefined) out.push(cleaned);
-    }
-    return out;
-  }
-
-  const out = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (deny.has(key)) continue;
-    out[key] = cleanPlayerResponseValue(item, depth + 1);
-  }
-  return out;
-}
-
-function cleanPlayerResponseText(body) {
-  if (!body || body.length > 8 * 1024 * 1024) return body;
-  try {
-    return JSON.stringify(cleanPlayerResponseValue(JSON.parse(body), 0));
-  } catch {
-    return body;
-  }
-}
-
-async function fetchUpstream(request, target) {
+async function fetchTarget(request, target) {
   const h = new Headers();
   for (const [k, v] of request.headers.entries()) {
     const key = k.toLowerCase();
     if ([
       "host","connection","content-length",
-      "origin","referer",
-      "sec-fetch-site","sec-fetch-mode","sec-fetch-dest",
-      "cf-connecting-ip","cf-ray","cf-visitor"
+      "cf-connecting-ip","cf-ray","cf-visitor",
+      "x-forwarded-for","x-forwarded-proto","x-real-ip"
     ].includes(key)) continue;
     h.set(k, v);
   }
 
-  h.set("Origin", YT_ORIGIN);
-  h.set("Referer", YT_ORIGIN + "/");
+  h.set("Host", target.host);
+  h.set("Referer", "https://" + target.host + "/");
 
-  let body;
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    // Preserve YouTube's player POST payload exactly. Rewriting clientScreen
-    // can break player bootstrap and leave mobile UI on skeleton state.
-    body = request.body;
-  }
-
-  return fetch(target.toString(), {
+  const init = {
     method: request.method,
     headers: h,
-    body,
     redirect: "follow",
     cache: "no-store"
-  });
-}
+  };
 
-async function handleYouTubeRequest(request) {
-  const incoming = new URL(request.url);
-  let target = new URL(YT_ORIGIN + incoming.pathname + incoming.search);
-
-  if (incoming.pathname === "/" || incoming.pathname === "/tv" || incoming.pathname === "/embed") {
-    target = new URL(YT_ORIGIN + incoming.pathname + incoming.search);
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = request.body;
   }
 
-  if (isExplicitAdTarget(target)) {
-    return new Response("", {
-      status: 204,
-      headers: {
-        "cache-control": "no-store",
-        "access-control-allow-origin": "*"
+  return fetch(target.toString(), init);
+}
+
+async function handler(request) {
+  const incoming = new URL(request.url);
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status:204,
+      headers:{
+        "access-control-allow-origin":"*",
+        "access-control-allow-methods":"GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
+        "access-control-allow-headers":"*",
+        "access-control-max-age":"86400"
       }
     });
   }
 
-  const upstream = await fetchUpstream(request, target);
+  const target = proxyTargetFromPath(incoming.pathname, incoming.search);
+
+  if (!isYoutubeHost(target.hostname)) {
+    return new Response("NM7 YouTube proxy: unsupported host", {status:403});
+  }
+
+  if (adBlocked(target)) {
+    return new Response("", {
+      status:204,
+      headers:{
+        "cache-control":"no-store",
+        "access-control-allow-origin":"*"
+      }
+    });
+  }
+
+  const upstream = await fetchTarget(request, target);
   const ct = (upstream.headers.get("content-type") || "").toLowerCase();
+  const headers = copyHeaders(upstream);
   const proxyOrigin = incoming.origin;
 
+  let out = upstream;
+
   if (ct.includes("text/html")) {
-    return maybeRewriteHtml(upstream, proxyOrigin);
-  }
-
-  if (isPlayerEndpoint(target.pathname) &&
-      (ct.includes("application/json") || ct.includes("text/json") || ct === "")) {
+    out = rewriteHtml(upstream, proxyOrigin);
+  } else if (ct.includes("javascript") || ct.includes("text/css")) {
     const body = await upstream.text();
-    const cleaned = cleanPlayerResponseText(body);
-    const h = copyUpstreamHeaders(upstream);
-    h.set("content-type", "application/json; charset=utf-8");
-    h.set("cache-control", "no-store");
-    h.set("access-control-allow-origin", "*");
-    return new Response(cleaned, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: h
+    const rewritten = rewriteRuntimeText(body, proxyOrigin);
+    headers.delete("content-length");
+    headers.delete("content-encoding");
+    out = new Response(rewritten, {
+      status:upstream.status,
+      statusText:upstream.statusText,
+      headers
+    });
+  } else {
+    out = new Response(upstream.body, {
+      status:upstream.status,
+      statusText:upstream.statusText,
+      headers
     });
   }
 
-  const h = copyUpstreamHeaders(upstream);
-  h.set("cache-control", h.get("cache-control") || "no-store");
-
-  if (ct.includes("javascript") || ct.includes("text/css") ||
-      ct.includes("text/plain")) {
-    const textBody = await upstream.text();
-    const rewritten = rewriteYouTubeRuntimeText(textBody, proxyOrigin);
-    if (rewritten !== textBody) {
-      h.delete("content-length");
-      h.delete("content-encoding");
-      return new Response(rewritten, {
-        status: upstream.status,
-        statusText: upstream.statusText,
-        headers: h
-      });
-    }
-    return new Response(textBody, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: h
-    });
-  }
-
-  return new Response(upstream.body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers: h
-  });
+  return out;
 }
 
 export default {
   async fetch(request) {
-    const url = new URL(request.url);
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          "access-control-allow-origin": "*",
-          "access-control-allow-methods": "GET,HEAD,POST,OPTIONS",
-          "access-control-allow-headers": "*",
-          "access-control-max-age": "86400"
-        }
-      });
-    }
-
     try {
-      return await handleYouTubeRequest(request);
+      return await handler(request);
     } catch (e) {
       return new Response("NM7 YouTube proxy error", {
-        status: 502,
-        headers: {"content-type":"text/plain; charset=utf-8"}
+        status:502,
+        headers:{"content-type":"text/plain; charset=utf-8"}
       });
     }
   }

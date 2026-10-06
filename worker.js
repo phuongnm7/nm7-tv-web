@@ -95,6 +95,54 @@ async function streamResponse(request,q){
 }
 async function imageResponse(q){const u=q.get('u');if(!isHttp(u))return new Response('bad image url',{status:400});const h=new Headers({'User-Agent':q.get('ua')||'NM7-TV-Web/1.0.69'});if(q.get('r'))h.set('Referer',q.get('r'));const r=await fetch(u,{headers:h,redirect:'follow',cache:'no-store'});if(!r.ok)return new Response('upstream image HTTP '+r.status,{status:r.status});const ct=r.headers.get('content-type')||'';if(!/^image\//i.test(ct)&&!ct.toLowerCase().includes('svg'))return new Response('not an image',{status:415});const ab=await r.arrayBuffer();if(ab.byteLength>2*1024*1024)return new Response('image too large',{status:413});const out=cors(new Headers());out.set('Content-Type',ct);out.set('Content-Length',String(ab.byteLength));out.set('Cache-Control','public,max-age=86400');return new Response(ab,{status:200,headers:out})}
 async function licenseResponse(request,q){const u=q.get('u');if(!isHttp(u))return new Response('bad url',{status:400});const h=headersFromQuery(request,q),ua=q.get('ua')||'',ref=q.get('r')||'';if(ua)h.set('User-Agent',ua);if(ref)h.set('Referer',ref);let body;if(request.method==='POST'){const raw=await request.text();if(q.get('base64')==='1'){try{body=Uint8Array.from(atob(raw),c=>c.charCodeAt(0));h.set('Content-Type','application/octet-stream')}catch{return new Response('bad base64 body',{status:400})}}else body=raw}let r=await fetch(u,{method:request.method==='POST'?'POST':'GET',headers:h,body,redirect:'follow',cache:'no-store'});if(!r.ok&&request.method==='POST')r=await fetch(u,{method:'GET',headers:h,redirect:'follow',cache:'no-store'});return new Response(r.body,{status:r.status,headers:cors(new Headers(r.headers))})}
+
+const YOUTUBE_API_BASES = [
+  'https://pipedapi.kavin.rocks',
+  'https://pipedapi.leptons.xyz',
+  'https://pipedapi.nosebs.ru'
+];
+async function youtubeApiResponse(path){
+  const errors=[];
+  for(const base of YOUTUBE_API_BASES){
+    try{
+      const r=await fetchWithTimeout(base+path,{headers:{
+        'User-Agent':'NM7-TV-Web/1.0.69',
+        'Accept':'application/json,text/plain,*/*',
+        'Cache-Control':'no-cache'
+      }},8500);
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const body=await r.text();
+      if(!body||body.length<2)throw new Error('empty response');
+      let json;try{json=JSON.parse(body)}catch{throw new Error('invalid JSON')};
+      return new Response(JSON.stringify(json),{status:200,headers:cors(new Headers({
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store'
+      }))});
+    }catch(e){errors.push(base+': '+String(e?.message||e))}
+  }
+  return new Response(JSON.stringify({error:'YouTube backend unavailable',details:errors}),{status:503,headers:cors(new Headers({
+    'Content-Type':'application/json; charset=utf-8',
+    'Cache-Control':'no-store'
+  }))});
+}
+async function youtubeResponse(pathname,q){
+  if(pathname==='/api/youtube/trending'){
+    const region=String(q.get('region')||'VN').toUpperCase().replace(/[^A-Z]/g,'').slice(0,2)||'VN';
+    return youtubeApiResponse('/trending?region='+encodeURIComponent(region));
+  }
+  if(pathname==='/api/youtube/search'){
+    const query=String(q.get('q')||'').trim();
+    if(!query)return new Response(JSON.stringify({error:'missing q'}),{status:400,headers:cors(new Headers({'Content-Type':'application/json'}))});
+    const filter=['videos','channels','playlists'].includes(q.get('filter'))?q.get('filter'):'videos';
+    return youtubeApiResponse('/search?q='+encodeURIComponent(query)+'&filter='+encodeURIComponent(filter));
+  }
+  const sm=/^\/api\/youtube\/streams\/([A-Za-z0-9_-]{11})$/.exec(pathname);
+  if(sm)return youtubeApiResponse('/streams/'+sm[1]);
+  const cm=/^\/api\/youtube\/channel\/([A-Za-z0-9_-]{24})$/.exec(pathname);
+  if(cm)return youtubeApiResponse('/channel/'+cm[1]);
+  return null;
+}
+
 async function sourceResponse(q){
   const target=String(q.get('u')||'').trim();
   if(!isHttp(target))return new Response(JSON.stringify({channels:[],error:'bad url'}),{status:400,headers:cors(new Headers({'Content-Type':'application/json'}))});
@@ -124,4 +172,4 @@ async function sourceResponse(q){
   }
 }
 async function probeResponse(q){const u=q.get('u');if(!isHttp(u))return new Response(JSON.stringify({type:'http',error:'bad url'}),{status:400,headers:{'Content-Type':'application/json'}});const h=new Headers({'User-Agent':q.get('ua')||'NM7-TV-Web/1.0.69'});if(q.get('r'))h.set('Referer',q.get('r'));try{const r=await fetch(u,{method:'HEAD',headers:h,redirect:'follow',cache:'no-store'}).catch(()=>null),finalUrl=r?.url||u,ct=(r?.headers.get('content-type')||'').toLowerCase();let type='http';if(ct.includes('dash+xml')||/\.mpd(?:$|[?#])/i.test(finalUrl))type='dash';else if(ct.includes('mpegurl')||/\.(m3u8|m3u)(?:$|[?#])/i.test(finalUrl))type='hls';else if(ct.includes('flv')||/\.flv(?:$|[?#])/i.test(finalUrl))type='flv';else if(ct.includes('mp2t')||/\.ts(?:$|[?#])/i.test(finalUrl))type='mpegts';else if(ct.includes('video/mp4')||/\.mp4(?:$|[?#])/i.test(finalUrl))type='mp4';return new Response(JSON.stringify({type,finalUrl,resolvedUrl:finalUrl,contentType:ct,serverType:r?.headers.get('server')||''}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch{return new Response(JSON.stringify({type:'http',finalUrl:u,resolvedUrl:u,error:'probe failed'}),{headers:{'Content-Type':'application/json'}})}}
-export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')==='android1069',env);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};
+export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p.startsWith('/api/youtube/')){const y=await youtubeResponse(p,q);if(y)return y;}if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')==='android1069',env);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};

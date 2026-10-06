@@ -162,7 +162,6 @@ int main(int argc, char *argv[])
         .control = nm7_control,
         .pause = nm7_pause,
         .resume = nm7_resume,
-        .app_control = nm7_control,
     };
 
     return ui_app_main(argc, argv, &callbacks, &app);

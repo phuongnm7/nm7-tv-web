@@ -791,22 +791,29 @@ function safariOfficialUrl(c){
  var id=String(c&&c.id||'').toLowerCase().replace(/[\s_-]+/g,'');
  var name=String(c&&c.name||'').toLowerCase();
  if(id==='onsports'&&name.indexOf('50fps')>=0)return 'https://vtvprime.vn/content/channel/02efed81-3e71-4328-89dc-667c33fa0e9f';
+ if(id==='sctv22hd'||name==='sctv22')return 'https://vtvgo.vn/channel/sctv22';
+ if(id==='sctv17hd'||name==='sctv17')return 'https://apps.apple.com/vn/app/sctv/id1564652065';
  return '';
 }
 function showSafariOfficialFallback(c,gen){
  var u=safariOfficialUrl(c);
  if(gen!==S.generation||!S.player)return;
  clearPlayers();
- setStatus(u?'Safari không hỗ trợ DASH ClearKey của kênh này.\\nDùng trình phát chính thức để phát ổn định.':'Safari không hỗ trợ DASH ClearKey của kênh này.');
+ var message='Safari không phát được DASH/ClearKey nội tuyến.';
+ if(u){
+  var provider=u.indexOf('vtvgo.vn')>=0?'VTVgo':u.indexOf('apps.apple.com')>=0?'ứng dụng SCTV':'VTVprime';
+  message+='\\nMở '+provider+' chính thức để xem; có thể cần đăng nhập hoặc gói thuê bao.';
+ }
+ setStatus(message);
  var b=$('officialBtn');
  if(b){
   b.className=u?'cb':'cb hidden';
+  b.textContent=u?(u.indexOf('vtvgo.vn')>=0?'Mở SCTV22 trên VTVgo':u.indexOf('apps.apple.com')>=0?'Mở ứng dụng SCTV':'Mở VTVprime chính thức'):'Mở trình phát chính thức';
   b.onclick=function(){try{window.open(u,'_blank','noopener,noreferrer')}catch(e){location.href=u}};
   setTimeout(function(){try{b.focus()}catch(e){}},30);
  }
  dbg('Safari ClearKey unsupported; official fallback='+(u||'none'));
 }
-
 function startDash(c,cand,url,gen){
  var drm=browserDrm(cand);
  if(isAppleTouchDevice()&&drm&&isDashDrmCandidate(cand)){

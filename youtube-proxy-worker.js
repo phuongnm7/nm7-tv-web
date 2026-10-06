@@ -130,16 +130,89 @@ function installResponse(){
   }catch(e){}
 }
 
+function isYTHost(h){
+  h=String(h||'').toLowerCase();
+  return h==='youtube.com'||h==='www.youtube.com'||h==='m.youtube.com'||h==='music.youtube.com';
+}
+
+function localize(u){
+  try{
+    var x=new URL(String(u||''),location.href);
+    if(isYTHost(x.hostname)){
+      return location.origin+x.pathname+x.search+x.hash;
+    }
+  }catch(e){}
+  return u;
+}
+
+function localizeNavigation(){
+  try{
+    document.querySelectorAll('a[href]').forEach(function(a){
+      var v=a.getAttribute('href'),n=localize(v);
+      if(n&&n!==v)a.setAttribute('href',n);
+    });
+  }catch(e){}
+}
+
+function installHistory(){
+  try{
+    ['pushState','replaceState'].forEach(function(k){
+      var n=history[k];
+      if(n.__nm7wrapped)return;
+      var w=function(state,title,url){
+        return n.call(history,state,title,url?localize(url):url);
+      };
+      w.__nm7wrapped=true;
+      w.__nm7native=n;
+      history[k]=w;
+    });
+  }catch(e){}
+  try{
+    var ow=window.open;
+    if(ow&&!ow.__nm7wrapped){
+      var wopen=function(url,name,specs){
+        return ow.call(window,url?localize(url):url,name,specs);
+      };
+      wopen.__nm7wrapped=true;
+      window.open=wopen;
+    }
+  }catch(e){}
+}
+
+function installXHR(){
+  try{
+    if(!window.XMLHttpRequest)return;
+    var op=XMLHttpRequest.prototype.open;
+    if(op.__nm7wrapped)return;
+    var w=function(method,url,a,b,c){
+      return op.call(this,method,localize(url),a,b,c);
+    };
+    w.__nm7wrapped=true;
+    w.__nm7native=op;
+    XMLHttpRequest.prototype.open=w;
+  }catch(e){}
+}
+
 function installFetch(){
   try{
     if(typeof window.fetch!=='function')return;
     if(window.fetch===wrappedFetch)return;
-    if(!nativeFetch)nativeFetch=window.fetch;
+    if(!nativeFetch||nativeFetch===wrappedFetch)nativeFetch=window.fetch;
+
     wrappedFetch=function(input,init){
-      var u='';
-      try{u=typeof input==='string'?input:(input&&input.url)||'';}catch(e){}
-      return nativeFetch.call(this,input,init).then(function(resp){
-        if(!looks(u))return resp;
+      var raw='';
+      try{raw=typeof input==='string'?input:(input&&input.url)||String(input||'');}catch(e){}
+      var localized=localize(raw);
+      var actual=input;
+      try{
+        if(localized&&localized!==raw){
+          if(typeof input==='string') actual=localized;
+          else if(input instanceof Request) actual=new Request(localized,input);
+        }
+      }catch(e){actual=input;}
+
+      return nativeFetch.call(this,actual,init).then(function(resp){
+        if(!looks(raw)&&!looks(localized))return resp;
         try{
           return resp.clone().text().then(function(body){
             var cleaned=cleanText(body);
@@ -202,6 +275,9 @@ function install(){
   installJSON();
   installResponse();
   installFetch();
+  installXHR();
+  installHistory();
+  localizeNavigation();
   patchGlobals();
   ads();
 }

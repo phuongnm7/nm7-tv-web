@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var state={backgroundRequested:false,hiddenAt:0,video:null,monitor:null};
+var state={backgroundRequested:false,hiddenAt:0,video:null,monitor:null,wasPlaying:false};
 
 function getVideo(){
   state.video=document.getElementById('video')||state.video;
@@ -130,11 +130,11 @@ function monitorPlayer(){
   if(!v)return;
   if(state.video!==v){
     state.video=v;
-    v.addEventListener('play',function(){setMetadata();setSession(true);installActions()});
-    v.addEventListener('playing',function(){setMetadata();setSession(true);installActions();setButtonLabel('◩ Chạy nền',false)});
-    v.addEventListener('pause',function(){setSession(false)});
+    v.addEventListener('play',function(){state.wasPlaying=true;setMetadata();setSession(true);installActions()});
+    v.addEventListener('playing',function(){state.wasPlaying=true;setMetadata();setSession(true);installActions();setButtonLabel('◩ Chạy nền',false)});
+    v.addEventListener('pause',function(){state.wasPlaying=false;setSession(false)});
     v.addEventListener('ended',function(){setSession(false);});
-    v.addEventListener('emptied',function(){clearActions();setButtonLabel('◩ Chạy nền',false)});
+    v.addEventListener('emptied',function(){state.wasPlaying=false;clearActions();setButtonLabel('◩ Chạy nền',false)});
   }
   setButtonLabel(canPiP(v)?'◩ Chạy nền':'◩ Chạy nền (PiP không hỗ trợ)',!canPiP(v));
   if('mediaSession' in navigator&&v&&!v.paused)installActions();

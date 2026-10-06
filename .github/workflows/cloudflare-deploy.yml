@@ -38,9 +38,15 @@ jobs:
           YTBASE="https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev"
           curl -fsSL --max-redirs 3 --max-time 45 "$YTBASE/" -o /tmp/nm7-youtube-proxy.html
           grep -Eiq "YouTube|Google" /tmp/nm7-youtube-proxy.html
-          curl -fsSIL --max-redirs 3 --max-time 30 "$YTBASE/robots.txt" >/tmp/nm7-youtube-proxy-headers.txt
-          test "$(grep -i '^HTTP/' /tmp/nm7-youtube-proxy-headers.txt | tail -n1 | awk '{print $2}')" != "404"
+          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-proxy.html
+          curl -sS --max-redirs 3 --max-time 30 -o /tmp/nm7-youtube-ad-204.txt -w "%{http_code}" "$YTBASE/pagead/" | grep -qx "204"
+          curl -fsSL --max-redirs 3 --max-time 30 "$YTBASE/watch?v=dQw4w9WgXcQ" -o /tmp/nm7-youtube-watch.html
+          grep -Eiq "YouTube|ytInitialPlayerResponse" /tmp/nm7-youtube-watch.html
+          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-watch.html
           echo "YOUTUBE_PROXY_WORKER_SMOKE_OK"
+          echo "YOUTUBE_AD_SHIELD_HTML_OK"
+          echo "YOUTUBE_AD_ENDPOINT_BLOCK_OK"
+          echo "YOUTUBE_WATCH_PROXY_OK"
           echo "YTBASE=$YTBASE"
 
       - name: Smoke test deployed Cloudflare Worker

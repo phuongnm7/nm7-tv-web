@@ -303,22 +303,15 @@ function selectMenu(){
   loadSource(S.source,true);return
  }
 }
-function youtubeProviderList(){
- return [
-  {id:'piped-backend',label:'NM7 YouTube Web',url:'/api/youtube'},
-  {id:'piped-backend-fallback',label:'NM7 YouTube Web · dự phòng',url:'/api/youtube'}
- ];
-}
 function openYouTube(raw){
  S.menuOpen=false;
  $('side').className='hidden';
  S.zone='home';
  if(window.NM7YouTube&&typeof window.NM7YouTube.open==='function'){
-  window.NM7YouTube.open();
-  if(raw&&typeof window.NM7YouTube.watch==='function')setTimeout(function(){window.NM7YouTube.watch(raw)},100);
+  window.NM7YouTube.open(raw||'');
   return;
  }
- toast('YouTube Web chưa sẵn sàng');
+ location.href=raw||'https://www.youtube.com/';
 }
 function showSubset(kind){
  var a=[],ids=S.fav;

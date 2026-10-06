@@ -1,0 +1,97 @@
+name: YouTube Proxy E2E
+
+on:
+  push:
+    branches:
+      - fix/youtube-original-coccoc-adblock-20261006
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/tmp/nm7-pw-package.log 2>&1
+          npm i -D playwright@1.55.1 >>/tmp/nm7-pw-package.log 2>&1
+          npx playwright install --with-deps chromium >>/tmp/nm7-pw-package.log 2>&1
+
+      - name: Test YouTube proxy as mobile Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/nm7-youtube-e2e.mjs <<'EOF'
+          import { chromium, devices } from 'playwright';
+
+          const proxy = 'https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev/';
+          const browser = await chromium.launch({headless:true});
+          const context = await browser.newContext({
+            ...devices['Pixel 7'],
+            locale: 'vi-VN',
+            timezoneId: 'Asia/Ho_Chi_Minh',
+            colorScheme: 'light',
+            permissions: []
+          });
+
+          const page = await context.newPage();
+          const consoleErrors = [];
+          const failed = [];
+          page.on('console', msg => {
+            if (msg.type() === 'error') consoleErrors.push(msg.text());
+          });
+          page.on('requestfailed', req => {
+            failed.push({
+              url:req.url(),
+              error:req.failure()?.errorText || 'unknown'
+            });
+          });
+
+          await page.goto(proxy, {waitUntil:'domcontentloaded', timeout:45000});
+          await page.waitForTimeout(12000);
+
+          const result = await page.evaluate(() => ({
+            url: location.href,
+            title: document.title,
+            bodyText: (document.body?.innerText || '').slice(0, 2000),
+            ytdApp: !!document.querySelector('ytd-app'),
+            ytMasthead: !!document.querySelector('ytd-masthead'),
+            videoPage: !!document.querySelector('ytd-page-manager'),
+            spinnerCount: document.querySelectorAll('.ytp-spinner, tp-yt-paper-spinner').length,
+            adShield: !!window.__NM7_YT_ADSHIELD__,
+            proxyRuntime: !!window.__NM7_YT_PROXY_RUNTIME__
+          }));
+
+          await page.screenshot({path:'/tmp/nm7-youtube-e2e.png', fullPage:false});
+
+          console.log('YOUTUBE_E2E_RESULT='+JSON.stringify({
+            ...result,
+            consoleErrors:consoleErrors.slice(0,30),
+            failed:failed.slice(0,30)
+          }));
+
+          if (!result.ytdApp && !result.ytMasthead && !result.videoPage) {
+            throw new Error('YouTube UI did not render in mobile Chromium');
+          }
+
+          if (!result.url.startsWith(proxy)) {
+            throw new Error('Browser escaped YouTube proxy origin: '+result.url);
+          }
+
+          await browser.close();
+          EOF
+
+          node /tmp/nm7-youtube-e2e.mjs
+
+      - name: Upload E2E screenshot
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: youtube-proxy-e2e
+          path: /tmp/nm7-youtube-e2e.png
+          if-no-files-found: ignore

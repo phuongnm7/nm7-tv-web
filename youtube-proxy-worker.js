@@ -359,12 +359,15 @@ async function fetchTarget(request, target) {
     if ([
       "host","connection","content-length",
       "cf-connecting-ip","cf-ray","cf-visitor",
-      "x-forwarded-for","x-forwarded-proto","x-real-ip"
+      "x-forwarded-for","x-forwarded-proto","x-real-ip",
+      "origin","referer",
+      "sec-fetch-site","sec-fetch-mode","sec-fetch-dest"
     ].includes(key)) continue;
     h.set(k, v);
   }
 
-  // Cloudflare sets Host from target.toString(); setting Host manually can fail in the Worker runtime.
+  // Present the request to YouTube as a first-party mobile request.
+  h.set("Origin", "https://" + target.host);
   h.set("Referer", "https://" + target.host + "/");
 
   const init = {
@@ -379,6 +382,37 @@ async function fetchTarget(request, target) {
   }
 
   return fetch(target.toString(), init);
+}
+
+function isMobileRequest(request) {
+  const ua = request.headers.get("user-agent") || "";
+  return /android|iphone|ipad|ipod|mobile/i.test(ua);
+}
+
+function mobileTarget(target) {
+  if (!isYoutubeHost(target.hostname)) return target;
+  const u = new URL(target.toString());
+  if (u.hostname === "www.youtube.com" || u.hostname === "youtube.com") {
+    u.hostname = "m.youtube.com";
+  }
+  return u;
+}
+
+async function fetchYouTubeTarget(request, target) {
+  let upstream = await fetchTarget(request, target);
+
+  // YouTube may rate-limit the desktop www endpoint from a Worker egress IP.
+  // Mobile pages are a supported first-party fallback and use the same UI/player
+  // path. Only retry on 429 to avoid masking genuine upstream errors.
+  if (upstream.status === 429 && isMobileRequest(request)) {
+    const mt = mobileTarget(target);
+    if (mt.hostname !== target.hostname) {
+      const retry = await fetchTarget(request, mt);
+      if (retry.ok || retry.status < 500) return retry;
+    }
+  }
+
+  return upstream;
 }
 
 async function handler(request) {
@@ -396,7 +430,11 @@ async function handler(request) {
     });
   }
 
-  const target = proxyTargetFromPath(incoming.pathname, incoming.search);
+  let target = proxyTargetFromPath(incoming.pathname, incoming.search);
+
+  if (isMobileRequest(request) && incoming.pathname === "/") {
+    target = mobileTarget(target);
+  }
 
   if (!isYoutubeHost(target.hostname)) {
     return new Response("NM7 YouTube proxy: unsupported host", {status:403});
@@ -412,7 +450,7 @@ async function handler(request) {
     });
   }
 
-  const upstream = await fetchTarget(request, target);
+  const upstream = await fetchYouTubeTarget(request, target);
   const ct = (upstream.headers.get("content-type") || "").toLowerCase();
   const headers = copyHeaders(upstream);
   const proxyOrigin = incoming.origin;

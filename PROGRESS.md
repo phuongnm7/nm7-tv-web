@@ -173,3 +173,27 @@ NM7 TV Web → https://www.youtube.com/ → Native Tizen EWK host → request in
 ### Trạng thái
 
 **Đã triển khai lớp Web cần thiết cho IPTV background playback.** Khả năng cuối cùng vẫn phụ thuộc browser/OS; YouTube gốc tuân theo giới hạn của YouTube.
+## YouTube AdShield mobile — 2026-10-06
+
+### Nguyên nhân được xác nhận
+
+Ảnh test cho thấy quảng cáo được render bởi chính YouTube gốc trong player. NM7 Web trước đó điều hướng thẳng sang `youtube.com`, nên sau khi chuyển origin NM7 không còn kiểm soát network request của YouTube.
+
+Bộ lọc YouTube hiện tại của uBlock xử lý cả `adPlacements`, `adSlots`, `playerAds`, `get_watch`, `youtubei/v1/player` và một số request `googlevideo.com/initplayback`; do đó bộ lọc URL nhỏ của NM7 trước đây không đủ. citeturn413338search0turn413338search2
+
+### Đã triển khai trên nhánh Android test
+
+- Nhánh: `fix/youtube-webview-adshield-20261006`.
+- Tạo từ baseline NM7 TV 1.0.69 `build/1.0.65-logo-fit-clean`.
+- Thêm `YouTubeHostActivity` dùng WebView chính thức.
+- Thêm `YouTubeRequestBlocker` cho request quảng cáo rõ ràng.
+- Thêm `youtube_adshield.js` bằng document-start injection; WebView 1.15.0 hỗ trợ API document-start và minSdk 23. citeturn413338search7
+- Android Chrome launcher trên NM7 Web thử `nm7youtube://open?url=...` để chuyển từ browser sang host khi host đã được cài.
+
+### CI
+
+Các run Android gần nhất trên nhánh này fail trong khoảng 2–4 giây, không có step/log. Vì vậy chưa có APK build được xác nhận từ CI và chưa có kiểm thử Android thật.
+
+### Kết luận
+
+Chrome/Safari thuần không thể biến thành lớp network adblock của YouTube chỉ bằng JavaScript của NM7. Giải pháp đang thử nghiệm là browser-layer native host, gần kiến trúc của trình duyệt có adblock. Đây vẫn là WIP cho tới khi test thiết bị thật.

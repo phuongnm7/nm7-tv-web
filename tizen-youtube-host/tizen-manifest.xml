@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest xmlns="http://tizen.org/ns/packages"
+          package="com.nm7.tv.youtubehost"
+          version="1.0.0"
+          api-version="3.0">
+  <profile name="tv"/>
+  <ui-application appid="com.nm7.tv.youtubehost"
+                  exec="nm7-youtube-host"
+                  type="capp"
+                  multiple="false"
+                  taskmanage="true"
+                  nodisplay="false">
+    <label>NM7 TV YouTube</label>
+  </ui-application>
+  <privileges>
+    <privilege>http://tizen.org/privilege/internet</privilege>
+    <privilege>http://tizen.org/privilege/tv.inputdevice</privilege>
+  </privileges>
+</manifest>

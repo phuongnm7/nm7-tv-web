@@ -152,7 +152,7 @@ jobs:
           for needle in ("btnYouTubeTab","youtube.js"):
               if needle not in html:
                   raise SystemExit("YouTube launcher marker missing: "+needle)
-          for needle in ("https://www.youtube.com/","function openOriginal","nm7youtube://open?url="):
+          for needle in ("function openOriginal","YOUTUBE_PROXY_ORIGIN","https://www.youtube.com/"):
               if needle not in js:
                   raise SystemExit("Official YouTube launcher marker missing: "+needle)
           if "/api/youtube/" in js:

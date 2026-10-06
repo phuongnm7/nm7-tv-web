@@ -1,0 +1,40 @@
+name: TV365 Firestore extraction
+on:
+  push:
+    branches:
+      - temp/tv365-extract-20261006
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Fetch Firestore M3U config
+        env:
+          FIREBASE_KEY: AIzaSyBVF1bds_fw9Ivdoh0l1P7ojcN-JkIbvjo
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 4 --retry-all-errors --connect-timeout 20 --max-time 60             "https://firestore.googleapis.com/v1/projects/tv365-b45e0/databases/(default)/documents/m3u_config/server?key=$FIREBASE_KEY"             -o firestore_m3u_config_server.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('firestore_m3u_config_server.json').read_text())
+          print('TOP', sorted(d))
+          def walk(x,path=''):
+              if isinstance(x,dict):
+                  for k,v in x.items():
+                      if k=='stringValue':
+                          s=str(v)
+                          if any(z in s.lower() for z in ('m3u','github','codeberg','http://','https://','license_key','kodiprop')):
+                              print('VALUE',path,repr(s[:4000]))
+                      walk(v,path+'/'+k)
+              elif isinstance(x,list):
+                  for i,v in enumerate(x): walk(v,path+f'[{i}]')
+          walk(d)
+          PY
+      - name: Save debug artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv365-firestore-config
+          path: firestore_m3u_config_server.json
+          if-no-files-found: error

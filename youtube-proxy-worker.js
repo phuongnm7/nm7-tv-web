@@ -6,6 +6,19 @@ const YOUTUBE_HOSTS = new Set([
   "music.youtube.com"
 ]);
 
+const STATIC_HOSTS = new Set([
+  "www.gstatic.com",
+  "gstatic.com",
+  "i.ytimg.com",
+  "s.ytimg.com",
+  "ytimg.com"
+]);
+
+function isAllowedHost(host) {
+  const h = String(host || "").toLowerCase();
+  return YOUTUBE_HOSTS.has(h) || STATIC_HOSTS.has(h);
+}
+
 const AD_HOSTS = [
   /(^|\.)doubleclick\.net$/i,
   /(^|\.)googleadservices\.com$/i,
@@ -57,7 +70,7 @@ function proxyUrlFor(raw, proxyOrigin) {
 
   try {
     const u = new URL(value, "https://" + DEFAULT_HOST + "/");
-    if (!isYoutubeHost(u.hostname)) return value;
+    if (!isAllowedHost(u.hostname)) return value;
     return proxyOrigin + "/https/" + u.hostname + u.pathname + u.search + u.hash;
   } catch {
     return value;
@@ -77,7 +90,12 @@ function rewriteRuntimeText(text, proxyOrigin) {
     "www.youtube.com",
     "youtube.com",
     "m.youtube.com",
-    "music.youtube.com"
+    "music.youtube.com",
+    "www.gstatic.com",
+    "gstatic.com",
+    "i.ytimg.com",
+    "s.ytimg.com",
+    "ytimg.com"
   ];
 
   for (const host of hosts) {
@@ -165,7 +183,8 @@ function localize(value){
     if(!value)return value;
     var u=new URL(String(value),location.href);
     var h=(u.hostname||'').toLowerCase();
-    if(h==='www.youtube.com'||h==='youtube.com'||h==='m.youtube.com'||h==='music.youtube.com'){
+    if(h==='www.youtube.com'||h==='youtube.com'||h==='m.youtube.com'||h==='music.youtube.com'||
+       h==='www.gstatic.com'||h==='gstatic.com'||h==='i.ytimg.com'||h==='s.ytimg.com'||h==='ytimg.com'){
       return ORIGIN+'/https/'+h+u.pathname+u.search+u.hash;
     }
   }catch(e){}

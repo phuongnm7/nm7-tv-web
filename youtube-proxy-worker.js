@@ -452,6 +452,19 @@ async function handler(request) {
     });
   }
 
+  let target = proxyTargetFromPath(incoming.pathname, incoming.search);
+
+  // Keep explicit ad endpoints blocked even on the default direct-navigation path.
+  if (adBlocked(target)) {
+    return new Response("", {
+      status:204,
+      headers:{
+        "cache-control":"no-store",
+        "access-control-allow-origin":"*"
+      }
+    });
+  }
+
   // Do not proxy the user-facing YouTube page by default. Cloudflare Worker egress
   // can be rate-limited by YouTube, which leaves the real page stuck on skeleton UI.
   // The same-origin proxy remains available only when ?proxy=1 is explicitly requested.
@@ -462,24 +475,12 @@ async function handler(request) {
     return Response.redirect(direct.toString(), 302);
   }
 
-  let target = proxyTargetFromPath(incoming.pathname, incoming.search);
-
   if (isMobileRequest(request) && incoming.pathname === "/") {
     target = mobileTarget(target);
   }
 
   if (!isYoutubeHost(target.hostname)) {
     return new Response("NM7 YouTube proxy: unsupported host", {status:403});
-  }
-
-  if (adBlocked(target)) {
-    return new Response("", {
-      status:204,
-      headers:{
-        "cache-control":"no-store",
-        "access-control-allow-origin":"*"
-      }
-    });
   }
 
   const upstream = await fetchYouTubeTarget(request, target);

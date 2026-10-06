@@ -77,6 +77,18 @@ jobs:
           echo "YOUTUBE_AD_SHIELD_HTML_OK"
           echo "YOUTUBE_AD_ENDPOINT_BLOCK_OK"
           echo "YOUTUBE_WATCH_PROXY_OK"
+          echo "=== Upstream YouTube diagnostics ==="
+          for u in             "https://www.youtube.com/watch?v=dQw4w9WgXcQ"             "https://m.youtube.com/watch?v=dQw4w9WgXcQ"             "https://www.youtube.com/embed/dQw4w9WgXcQ"             "https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ&format=json"; do
+            code="$(curl -sS -L --max-time 25 -o /tmp/yt-direct.tmp -w "%{http_code}" -A "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36" "$u" || true)"
+            bytes="$(wc -c </tmp/yt-direct.tmp 2>/dev/null || echo 0)"
+            echo "DIRECT $code $bytes $u"
+          done
+
+          echo "=== Proxied youtubei player POST probe ==="
+          curl -sS --max-time 25 -A "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36"             -H "Content-Type: application/json"             -X POST             --data '{"context":{"client":{"clientName":"WEB","clientVersion":"2.20260929.01.00","hl":"en","gl":"US"}},"videoId":"dQw4w9WgXcQ"}'             "$YTBASE/https/www.youtube.com/youtubei/v1/player?prettyPrint=false"             -o /tmp/yt-player-probe.json -w "PLAYER_PROXY_STATUS=%{http_code} PLAYER_BYTES=%{size_download}
+" || true
+          head -c 500 /tmp/yt-player-probe.json 2>/dev/null || true
+          echo
           echo "YTBASE=$YTBASE"
           set -e
 

@@ -1,13 +1,16 @@
 name: YouTube Proxy E2E
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Deploy NM7 TV Web to Cloudflare"]
+    types: [completed]
     branches:
       - fix/youtube-original-coccoc-adblock-20261006
   workflow_dispatch:
 
 jobs:
   e2e:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:

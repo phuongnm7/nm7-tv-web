@@ -2,12 +2,34 @@ name: Production API diagnostic
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches: ["main", "temp/tv365-extract-20261006"]
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - name: Extract TV365 primary playlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors --connect-timeout 20 --max-time 120             'https://raw.githubusercontent.com/VIET-NAM-VIP/TOI-YEU-VIET-NAM/main/VIETNAM'             -o /tmp/tv365_primary.m3u
+          python3 - <<'PY'
+from pathlib import Path
+p=Path('/tmp/tv365_primary.m3u')
+b=p.read_bytes()
+t=b.decode('utf-8-sig')
+assert t.startswith('#EXTM3U'), 'not an M3U playlist'
+print('bytes=',len(b))
+print('lines=',len(t.splitlines()))
+print('channels=',t.count('#EXTINF:'))
+PY
+          sha256sum /tmp/tv365_primary.m3u
+      - name: Upload TV365 primary playlist
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv365-primary-playlist
+          path: /tmp/tv365_primary.m3u
+          if-no-files-found: error
       - name: Check production page and playlist API
         shell: bash
         run: |

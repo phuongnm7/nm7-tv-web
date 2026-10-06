@@ -179,3 +179,14 @@ uBlock hiện phải xử lý cả player-response (`adPlacements`, `adSlots`, `
 ### Trạng thái
 
 Đây chưa phải bản đã xác nhận 100% trên điện thoại thật. APK native host đang chờ một GitHub Actions runner hoạt động bình thường để build; các run vừa qua dừng lỗi rất sớm và không có log step. Không đánh dấu thành công cho tới khi cài APK lên Android và kiểm tra quảng cáo thực tế.
+
+
+## 2026-10-06 — YouTube mở trực tiếp origin chính thức
+
+Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể trả về HTML/skeleton của YouTube nhưng các luồng dữ liệu phía sau bị YouTube rate-limit hoặc lỗi 401/403, dẫn tới trang đứng ở trạng thái loading. Vì vậy reverse-proxy không còn là đường mặc định của người dùng.
+
+- web-tv/youtube.js hiện mở trực tiếp https://www.youtube.com/ hoặc URL video chính thức.
+- Không đổi giao diện hay tài khoản của YouTube; người dùng nhận đúng trang YouTube chính thức của trình duyệt.
+- Worker nm7-youtube-proxy vẫn được giữ để chẩn đoán/thử nghiệm và chỉ proxy khi thêm ?proxy=1; không dùng làm đường mặc định.
+- Đây là thay đổi để ưu tiên tính ổn định: YouTube không bị kẹt skeleton do lớp proxy trung gian.
+- Chặn quảng cáo ở tầng trình duyệt vẫn cần native browser host (như EWK trên Tizen) hoặc trình duyệt có bộ lọc riêng; JavaScript của NM7 không thể biến một tab youtube.com thành adblocker network-level.

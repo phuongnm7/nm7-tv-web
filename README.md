@@ -12,6 +12,16 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
 - Các chức năng/player/DRM hiện tại được giữ nguyên; local M3U là phần bổ sung riêng.
 
+## YouTube không quảng cáo trên Web
+
+- Menu TV có mục **▶ YouTube không quảng cáo**.
+- Nút YouTube trên giao diện mobile dùng cùng cơ chế.
+- Web không nhúng SmartTube Android: SmartTube là ứng dụng native cho Android TV/TV box và không hỗ trợ Samsung Tizen hoặc iOS. Web vì vậy dùng frontend YouTube không quảng cáo chạy trực tiếp trong trình duyệt.
+- Máy chủ mặc định: **Invidious** (`https://invidious.tiekoetter.com/`), với **Piped** (`https://piped.video/`) và một Invidious instance khác làm dự phòng.
+- Provider mặc định có thể thay đổi bằng khóa `nm7:youtubeProvider` trong localStorage; cấu hình này giúp giữ lựa chọn máy chủ trong cùng trình duyệt.
+- Tích hợp có thể nhận URL video YouTube và chuyển sang trang xem tương ứng trên frontend đã chọn.
+- Đây là frontend bên thứ ba, không phải YouTube chính thức; tình trạng instance phụ thuộc nhà cung cấp và thay đổi của YouTube.
+
 ## Giao diện TV
 
 - Giữ hình nền và phong cách thẻ kênh theo Android TV 1.0.69.

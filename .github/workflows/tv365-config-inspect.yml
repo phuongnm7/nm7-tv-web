@@ -1,0 +1,26 @@
+name: Inspect TV365 config
+on:
+  push:
+    branches:
+      - temp/tv365-extract-20261006
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Query Firestore config
+        run: |
+          set -u
+          for d in m3u_config/server app_config/settings; do
+            f=$(echo "$d" | tr '/' '_').json
+            code=$(curl -sS -L -o "$f" -w "%{http_code}" --connect-timeout 20 --max-time 30 "https://firestore.googleapis.com/v1/projects/tv365-b45e0/databases/%28default%29/documents/$d")
+            echo "$d HTTP $code"
+            if [ -s "$f" ]; then head -c 4000 "$f"; echo; fi
+          done
+      - name: Upload config responses
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv365-config-inspect
+          path: "*.json"
+          if-no-files-found: error

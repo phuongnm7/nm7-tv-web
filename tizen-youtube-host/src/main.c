@@ -73,6 +73,31 @@ static void nm7_load_finished_cb(void *data, Evas_Object *obj, void *event_info)
     ewk_view_script_execute(obj, NM7_YOUTUBE_SKIP_JS, NULL, NULL);
 }
 
+static void nm7_key_down_cb(void *data, Evas *evas, Evas_Object *obj, void *event_info)
+{
+    (void)evas;
+    (void)obj;
+
+    nm7_app_t *app = data;
+    Evas_Event_Key_Down *event = event_info;
+    if (!app || !app->view || !event || !event->keyname) return;
+
+    /*
+     * Keep Arrow/Enter for YouTube itself. Only consume the TV Back key here.
+     * If YouTube is fullscreen, exit fullscreen first; otherwise walk history.
+     */
+    if (strcmp(event->keyname, "XF86Back") == 0 ||
+        strcmp(event->keyname, "Back") == 0 ||
+        strcmp(event->keyname, "Escape") == 0) {
+        if (ewk_view_fullscreen_exit(app->view)) return;
+        if (ewk_view_back_possible(app->view)) {
+            ewk_view_back(app->view);
+        } else {
+            ui_app_exit();
+        }
+    }
+}
+
 static Eina_Bool nm7_create(void *data)
 {
     nm7_app_t *app = data;
@@ -102,6 +127,7 @@ static Eina_Bool nm7_create(void *data)
         app);
 
     evas_object_show(app->view);
+    evas_object_event_callback_add(app->win, EVAS_CALLBACK_KEY_DOWN, nm7_key_down_cb, app);
     ewk_view_url_set(app->view, NM7_START_URL);
 
     return EINA_TRUE;

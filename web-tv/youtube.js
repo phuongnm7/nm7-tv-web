@@ -13,12 +13,6 @@ function officialUrl(value){
   return id?'https://www.youtube.com/watch?v='+encodeURIComponent(id):'https://www.youtube.com/';
 }
 
-var YOUTUBE_PROXY_ORIGIN='https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev';
-
-function isAndroidMobile(){
-  return /Android/i.test(navigator.userAgent||'') && !/TV|SMART-TV/i.test(navigator.userAgent||'');
-}
-
 function openOriginal(raw){
   var u=officialUrl(raw);
   try{sessionStorage.setItem('nm7:returnUrl',location.href)}catch(e){}

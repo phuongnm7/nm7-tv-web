@@ -197,3 +197,8 @@ Các run Android gần nhất trên nhánh này fail trong khoảng 2–4 giây,
 ### Kết luận
 
 Chrome/Safari thuần không thể biến thành lớp network adblock của YouTube chỉ bằng JavaScript của NM7. Giải pháp đang thử nghiệm là browser-layer native host, gần kiến trúc của trình duyệt có adblock. Đây vẫn là WIP cho tới khi test thiết bị thật.
+
+
+## Web-only YouTube diagnostic — 2026-10-06
+- Mobile proxy fallback and first-party request headers updated.
+- Browser-level production verification is being added to the deployment workflow.

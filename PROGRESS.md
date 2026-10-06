@@ -3,7 +3,7 @@
 ## Mốc hiện tại
 
 - Ngày: **06/10/2026**
-- Nhánh: `fix/safari-drm-final-20261005`
+- Nhánh: `fix/youtube-original-coccoc-adblock-20261006`
 - Tính năng mới nhất: **nhập nguồn IPTV bằng tệp M3U/M3U8 cục bộ**
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
@@ -117,56 +117,31 @@ Không thay đổi UI/player/DRM hiện tại nếu lỗi không liên quan tr�
 - This is an iOS viewing workaround through provider platforms, not inline playback in NM7 TV. Validate each provider destination/account entitlement on a real iPhone before claiming playback success.
 
 
-## YouTube không quảng cáo trên Web — 2026-10-06
+## YouTube gốc + AdBlock kiểu Cốc Cốc — 2026-10-06
 
-### Đã triển khai
+### Nghiên cứu
 
-- Đã đối chiếu cơ chế tích hợp SmartTube của NM7 TV Android 1.0.59: Android sử dụng SmartTube native được build chung vào APK, nên không thể mang nguyên module đó sang Web/Tizen/iOS.
-- Web đã tích hợp mục **▶ YouTube không quảng cáo** vào side menu TV.
-- Nút **YouTube** trên giao diện mobile gọi cùng pipeline.
-- Frontend mặc định: **Invidious** `https://invidious.tiekoetter.com/`.
-- Dự phòng: **Piped** `https://piped.video/` và Invidious `https://yt.chocolatemoo53.com/`.
-- Tích hợp lưu provider đã chọn tại `localStorage.nm7:youtubeProvider`.
-- Có xử lý URL video YouTube để mở trực tiếp trang xem trên frontend khi caller truyền URL.
-- Không thay đổi player IPTV, DRM, playlist Android TV 1.0.69 hoặc local M3U.
+- Đối chiếu trang YouTube chính thức của Cốc Cốc: Cốc Cốc công khai việc tích hợp Adblock Plus và cập nhật liên tục để xử lý cơ chế chống chặn quảng cáo của YouTube.
+- Kết luận kỹ thuật: JavaScript Web của NM7 không thể trở thành lớp network blocker cho youtube.com sau khi điều hướng sang origin khác. Same-Origin Policy ngăn truy cập DOM cross-origin; iframe không giải quyết được request interception.
+- Tizen 3.0 có EWK request interception, phù hợp với kiến trúc browser-layer filter.
 
-### Xác minh
+### Đã sửa
 
-- `web-tv/app.js` và `web-tv/app-safari-policy.js` được cập nhật đồng nhất.
-- Thay đổi JS chỉ bổ sung menu/launcher YouTube; pipeline IPTV không bị thay đổi.
-- Cloudflare workflow đã được bổ sung trigger cho nhánh `fix/ios-official-drm-fallback-20261006`.
-- Production smoke test bổ sung marker **YouTube không quảng cáo** và `btnYouTubeTab`.
+- Xóa YouTube Web Shell/Piped/Invidious khỏi luồng người dùng.
+- web-tv/youtube.js hiện chỉ điều hướng đến YouTube gốc và hỗ trợ deep-link video.
+- web-tv/app.js và web-tv/app-safari-policy.js gọi cùng launcher YouTube gốc.
+- Worker xóa các endpoint proxy Piped /api/youtube/*.
+- Cloudflare smoke test đổi từ kiểm tra Piped stream sang kiểm tra official YouTube launcher.
+- Thêm tizen-youtube-host/: native EWK WebView, URL request interception, bộ lọc ad URL bảo thủ, response 204 cho URL quảng cáo rõ ràng, JS fallback bấm Skip/xử lý overlay và manifest TV API 3.0.
 
-### Giới hạn thực tế
+### Trạng thái kiểm thử
 
-SmartTube không có bản Web/Tizen/iOS; nó là ứng dụng Android TV/TV box. Web không thể đóng gói SmartTube native trong cùng runtime. Frontend Invidious/Piped không phải dịch vụ chính thức của YouTube và instance công khai có thể thay đổi/gián đoạn.
+- JavaScript launcher đã được kiểm tra cấu trúc và không còn gọi Piped API.
+- Worker không còn route /api/youtube/*.
+- Chưa có kết quả build/install native host trên Samsung UA49M5500 Tizen 3.0 vì môi trường hiện tại không có Samsung Tizen SDK/thiết bị ký và TV thật để chạy E2E.
+- Do đó chưa tuyên bố thành công tuyệt đối đối với YouTube ad-free trên TV.
 
-### Trạng thái
+### Kiến trúc mục tiêu
 
-**HOÀN THÀNH PHẦN TÍCH HỢP WEB + CI/DEPLOY.** Cần test thực tế trên Samsung TV Tizen và iPhone/iPad để xác nhận điều hướng remote, tìm kiếm và phát video tại thời điểm người dùng kiểm tra.
+NM7 TV Web → https://www.youtube.com/ → Native Tizen EWK host → request interception + page-level fallback
 
-## YouTube Web Shell — 2026-10-06
-
-### Thay đổi theo yêu cầu mới
-
-- Đã loại bỏ phương án dùng Invidious làm giao diện người dùng vì giao diện không phù hợp trải nghiệm mong muốn.
-- Đã xây dựng YouTube Web Shell riêng trong `web-tv/youtube.js`, mô phỏng bố cục sử dụng quen thuộc của YouTube nhưng không phụ thuộc giao diện Invidious/Piped.
-- Có thanh tìm kiếm, trang chủ/thịnh hành, nhóm chủ đề, danh sách thumbnail, trang xem, mô tả, video liên quan, nút chia sẻ và toàn màn hình.
-- Side menu TV có mục YouTube không quảng cáo; nút YouTube trên mobile dùng cùng shell.
-
-### Backend
-
-- Cloudflare Worker có các route `/api/youtube/trending`, `/api/youtube/search` và `/api/youtube/streams/<videoId>`.
-- Worker tự thử 3 Piped API backend: `pipedapi.kavin.rocks`, `pipedapi.leptons.xyz`, `pipedapi.nosebs.ru`.
-- Frontend không hiển thị địa chỉ hoặc giao diện Piped; chỉ nhận JSON cần thiết để dựng UI và stream.
-- HLS/progressive stream được đưa qua `/api/stream` để dùng chung CORS/header/rewrite hiện có.
-
-### Tương thích
-
-- Thiết kế cho Desktop Chrome/Edge/Safari, iPhone/iPad Safari và Samsung TV browser/Tizen.
-- Điều hướng D-pad trên Samsung được xử lý trong shell YouTube riêng.
-- Không thay đổi player IPTV, DRM, playlist 1.0.69 hoặc local M3U.
-
-### Trạng thái
-
-**CODE HOÀN THIỆN.** Cần xác nhận thực tế trên Samsung UA49M5500/Tizen 3.0 và iPhone/iPad vì môi trường hiện tại không có quyền chạy trực tiếp trình duyệt của TV/thiết bị người dùng.

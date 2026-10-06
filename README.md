@@ -6,7 +6,7 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 
 - Ngày cập nhật: **06/10/2026**
 - Nhánh: `fix/youtube-original-coccoc-adblock-20261006`
-- Tính năng mới nhất: **YouTube gốc + native AdBlock host cho Tizen**
+- Tính năng mới nhất: **YouTube gốc + native AdBlock host cho Tizen + chạy nền mobile**
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Nơi triển khai: **Cloudflare Workers**
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
@@ -35,6 +35,27 @@ Native host dùng các API EWK request interception và script injection tương
 - Đã bỏ dependency Piped/Invidious khỏi Worker và frontend.
 - Đã thêm native host source scaffold.
 - Chưa thể tuyên bố chặn quảng cáo thành công trên UA49M5500 cho tới khi source native được build/sign và cài thử trên TV thật. Tizen SDK/firmware của thiết bị không có trong môi trường build hiện tại.
+## Chạy nền trên mobile
+
+### IPTV
+
+- Player HTML5 hiện giữ media element khi trang chuyển sang nền thay vì tự đóng player.
+- Thêm nút **◩ Chạy nền** trong bộ điều khiển mobile.
+- Trên Safari iPhone/iPad, nút này dùng Picture-in-Picture theo API WebKit khi capability thực sự có; Apple mô tả PiP là cơ chế để video tiếp tục hiển thị khi người dùng chuyển sang ứng dụng khác.
+- Trên Android Chrome và các browser hỗ trợ Media Session, NM7 đăng ký metadata và điều khiển Play/Pause, tua ±10/30 giây và next/previous nơi browser cung cấp lock-screen/media controls.
+- Khi quay lại ứng dụng/trang, trạng thái media session được đồng bộ lại.
+
+### YouTube gốc
+
+- NM7 vẫn mở **YouTube chính thức** để giữ nguyên giao diện/chức năng gốc.
+- NM7 không thể ép YouTube gốc phát nền từ JavaScript của website sau khi chuyển sang origin youtube.com.
+- Google hiện quy định background playback trên mobile web là quyền của YouTube Premium; vì vậy phần này không được ghi nhận là đã bypass giới hạn YouTube. citeturn130962search0
+- PiP/background của YouTube sẽ theo khả năng và chính sách của YouTube/browser. Đối với mobile browser, NM7 chỉ có thể giữ launcher/host ở đúng tầng mà nền tảng cho phép.
+
+### Giới hạn
+
+- PiP cần user gesture; browser có thể từ chối trong một số container. Đặc biệt, iOS/iPadOS Home Screen PWA có giới hạn PiP riêng đã được WebKit ghi nhận, trong khi Safari thông thường hỗ trợ PiP. citeturn839350search1turn839350search2
+- Không có API web chuẩn nào cho phép NM7 ép một tab YouTube khác origin tiếp tục phát nền trái với chính sách của YouTube.
 ## Giao diện TV
 
 - Giữ hình nền và phong cách thẻ kênh theo Android TV 1.0.69.

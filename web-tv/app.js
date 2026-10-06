@@ -322,7 +322,7 @@ function showAddSource(){
  var i=$('srcInput'),fb=$('srcFileBtn'),fi=$('srcFile'),fn=$('srcFileName');i.focus();
  function pickFile(){try{fi.click()}catch(e){toast('Không thể mở trình chọn tệp trên trình duyệt này')}}
  fb.onclick=pickFile;
- fi.addEventListener('change',function(){var f=this.files&&this.files[0];if(!f)return;fn.textContent=String(f.name||'Tệp M3U');loadLocalM3UFile(f,function(){closeDialog()});this.value='' });
+ fi.addEventListener('change',function(){var f=this.files&&this.files[0];if(!f)return;fn.textContent=String(f.name||'Tệp M3U');loadLocalM3UFile(f,function(){closeDialog();if(S.menuOpen)closeMenu()});this.value='' });
  $('srcOk').onclick=function(){var u=i.value.trim();if(!isHttp(u)){i.focus();toast('URL nguồn không hợp lệ');return}closeDialog();loadCustom(u)};
  $('srcCancel').onclick=closeDialog
 }

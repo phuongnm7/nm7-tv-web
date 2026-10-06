@@ -270,7 +270,7 @@ function logoSource(c){
 }
 
 function renderMenu(){
- var labels=['⌂  Trang chính','⌕  Tìm kiếm kênh','TV  Tất cả các kênh','▣  Truyền hình','⚽  Thể thao','★  Yêu thích','◷  Gần đây','+  Thêm nguồn','☷  Chỉnh sửa nguồn','↻  Tải lại nguồn'];
+ var labels=['⌂  Trang chính','▶  YouTube không quảng cáo','⌕  Tìm kiếm kênh','TV  Tất cả các kênh','▣  Truyền hình','⚽  Thể thao','★  Yêu thích','◷  Gần đây','+  Thêm nguồn','☷  Chỉnh sửa nguồn','↻  Tải lại nguồn'];
  var menu=$('sideList'),html='';
  for(var i=0;i<labels.length;i++)html+='<button class="menuBtn" type="button" tabindex="'+(i===S.menu?'0':'-1')+'" data-menu="'+i+'">'+labels[i]+'</button>';
  menu.innerHTML=html;
@@ -288,19 +288,43 @@ function closeMenu(){
 function selectMenu(){
  var p=S.menu;
  if(p===0){closeMenu();return}
- if(p===1){showSearch();return}
- if(p===2){S.query='';rebuildGroups();closeMenu();return}
- if(p===3){closeMenu();loadSource('tv');return}
- if(p===4){closeMenu();loadSource('sport');return}
- if(p===5){showSubset('fav');return}
- if(p===6){showSubset('recent');return}
- if(p===7){showAddSource();return}
- if(p===8){showSources();return}
- if(p===9){
+ if(p===1){openYouTube();return}
+ if(p===2){showSearch();return}
+ if(p===3){S.query='';rebuildGroups();closeMenu();return}
+ if(p===4){closeMenu();loadSource('tv');return}
+ if(p===5){closeMenu();loadSource('sport');return}
+ if(p===6){showSubset('fav');return}
+ if(p===7){showSubset('recent');return}
+ if(p===8){showAddSource();return}
+ if(p===9){showSources();return}
+ if(p===10){
   closeMenu();
   if(S.source==='local-m3u'&&S.localM3uText){applyLocalM3U(S.localM3uText,S.localM3uName,'Đã tải lại tệp M3U · '+S.list.length+' kênh');return}
   loadSource(S.source,true);return
  }
+}
+function youtubeProviderList(){
+ return [
+  {id:'invidious-tiekoetter',label:'Invidious · máy chủ chính',url:'https://invidious.tiekoetter.com/'},
+  {id:'piped',label:'Piped · SponsorBlock',url:'https://piped.video/'},
+  {id:'invidious-chocolate',label:'Invidious · dự phòng',url:'https://yt.chocolatemoo53.com/'}
+ ];
+}
+function openYouTube(raw){
+ var list=youtubeProviderList(),chosen=null;
+ try{
+  var saved=localStorage.getItem('nm7:youtubeProvider')||'';
+  for(var i=0;i<list.length;i++)if(list[i].id===saved){chosen=list[i];break}
+ }catch(e){}
+ if(!chosen)chosen=list[0];
+ var u=chosen.url;
+ var text=String(raw||'').trim();
+ if(text){
+  var m=text.match(/(?:v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/i);
+  if(m)u=chosen.url.replace(/\/$/,'')+'/watch?v='+encodeURIComponent(m[1]);
+ }
+ toast('Đang mở '+chosen.label+'…');
+ try{location.href=u}catch(e){window.open(u,'_blank','noopener,noreferrer')}
 }
 function showSubset(kind){
  var a=[],ids=S.fav;
@@ -1443,7 +1467,7 @@ function startup(){
  window.addEventListener('resize',mobileModeChange);
  window.addEventListener('orientationchange',mobileModeChange);
  $('mobileMenuBtn').addEventListener('click',function(){openMenu()});
- $('btnYouTubeTab').addEventListener('click',function(){toast('YouTube tích hợp sẽ được nối tiếp từ giao diện 1.0.69');});
+ $('btnYouTubeTab').addEventListener('click',function(){openYouTube();});
  $('appShortcut').addEventListener('click',function(){toast('Chọn ứng dụng');});
  window.addEventListener('focus',restoreRemoteFocus,true);
  window.addEventListener('pageshow',restoreRemoteFocus,true);

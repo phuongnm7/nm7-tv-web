@@ -13,6 +13,8 @@ function officialUrl(value){
   return id?'https://www.youtube.com/watch?v='+encodeURIComponent(id):'https://www.youtube.com/';
 }
 
+var YOUTUBE_PROXY_ORIGIN='https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev';
+
 function isAndroidMobile(){
   return /Android/i.test(navigator.userAgent||'') && !/TV|SMART-TV/i.test(navigator.userAgent||'');
 }
@@ -22,31 +24,11 @@ function openOriginal(raw){
   try{sessionStorage.setItem('nm7:returnUrl',location.href)}catch(e){}
 
   /*
-   * A normal Chrome/Safari page cannot intercept youtube.com network requests.
-   * On Android, hand off from the user's tap to the NM7 native WebView host.
-   * The host owns request interception + document-start filtering. If it is
-   * not installed, fall back to the official YouTube page.
+   * Web-only mode: stay on a YouTube reverse-proxy origin controlled by NM7.
+   * This keeps the original YouTube document/UI while putting YouTube-origin
+   * requests behind the Worker, where player responses can be filtered.
    */
-  if(isAndroidMobile()){
-    var left=false, timer=0;
-    var stop=function(){
-      left=true;
-      if(timer)clearTimeout(timer);
-    };
-    try{window.addEventListener('pagehide',stop,{once:true});}catch(e){}
-    try{
-      document.addEventListener('visibilitychange',function(){if(document.hidden)stop()},{once:true});
-    }catch(e){}
-    try{
-      location.href='nm7youtube://open?url='+encodeURIComponent(u);
-      timer=setTimeout(function(){
-        if(!left)location.href=u;
-      },1200);
-      return;
-    }catch(e){}
-  }
-
-  location.href=u;
+  location.href=YOUTUBE_PROXY_ORIGIN + new URL(u).pathname + new URL(u).search;
 }
 
 window.NM7YouTube={

@@ -16,7 +16,7 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 
 Mốc này không dùng Invidious, Piped hoặc YouTube Web Shell nữa.
 
-- Menu YouTube không quảng cáo và nút YouTube trên mobile mở trang YouTube chính thức: https://www.youtube.com/.
+- Nút/menu YouTube trên mobile và web mở trực tiếp trang YouTube chính thức: https://www.youtube.com/. Bản web thường không tự cung cấp network-level AdBlock cho origin youtube.com.
 - Web launcher chỉ làm nhiệm vụ điều hướng; không giả lập giao diện YouTube và không thay thế tài khoản/đăng nhập YouTube.
 - Chặn quảng cáo kiểu trình duyệt không thể thực hiện đầy đủ bằng JavaScript của trang NM7 khi YouTube là origin khác. Vì vậy bộ chặn được chuyển lên native host WebView cho Samsung Tizen.
 - Thư mục tizen-youtube-host/ chứa scaffold native EWK: intercept request trước khi gửi mạng, trả 204 cho các URL quảng cáo rõ ràng, và inject page-level fallback để bấm Skip/tua quảng cáo khi quảng cáo vẫn lọt qua.

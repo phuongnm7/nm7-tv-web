@@ -1,21 +1,25 @@
 name: YouTube Proxy E2E
 
 on:
-  workflow_run:
-    workflows: ["Deploy NM7 TV Web to Cloudflare"]
-    types: [completed]
+  push:
     branches:
       - fix/youtube-original-coccoc-adblock-20261006
   workflow_dispatch:
 
 jobs:
   e2e:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Deploy dedicated YouTube proxy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.youtube.toml
 
       - name: Install Playwright
         shell: bash
@@ -65,9 +69,12 @@ jobs:
             ytdApp: !!document.querySelector('ytd-app'),
             ytMasthead: !!document.querySelector('ytd-masthead'),
             videoPage: !!document.querySelector('ytd-page-manager'),
+            video: !!document.querySelector('video'),
+            links: document.querySelectorAll('a[href]').length,
+            scripts: document.scripts.length,
             spinnerCount: document.querySelectorAll('.ytp-spinner, tp-yt-paper-spinner').length,
-            adShield: !!window.__NM7_YT_ADSHIELD__,
-            proxyRuntime: !!window.__NM7_YT_PROXY_RUNTIME__
+            adShield: !!window.__NM7_YT_AD_DOM__,
+            proxyRuntime: !!window.__NM7_YT_RUNTIME__
           }));
 
           await page.screenshot({path:'/tmp/nm7-youtube-e2e.png', fullPage:false});

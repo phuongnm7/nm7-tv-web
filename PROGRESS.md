@@ -2,15 +2,18 @@
 
 ## Mốc hiện tại
 
-- Ngày: **04/10/2026**
-- Nhánh: `feat/tvdrm-player-integration-20261004`
-- Mốc ổn định để kiểm thử: `4fff84e7cfe495311c3623179b87b9e8a97c0acc`
+- Ngày: **06/10/2026**
+- Nhánh: `fix/safari-drm-final-20261005`
+- Mốc triển khai hiện tại: `a36b3c0e798fdfc08d3584524ac00f1dc28f07a2`
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
 - Nền tảng triển khai: **Cloudflare Workers**
 - Không chuyển dự án sang Vercel.
 
 ## Trạng thái
+
+Bản triển khai ngày 06/10/2026 giữ nguyên toàn bộ giao diện, player và logic hiện có; chỉ bổ sung khả năng nạp playlist M3U/M3U8 từ tệp cục bộ trong mục **Thêm nguồn IPTV**.
+
 
 Bản hiện tại đã xử lý ổn hai lỗi được phát hiện trong quá trình test điện thoại:
 
@@ -90,6 +93,10 @@ Mốc `4fff84e7cfe495311c3623179b87b9e8a97c0acc`:
 
 ## Giai đoạn test hiện tại
 
+- Commit `a36b3c0e798fdfc08d3584524ac00f1dc28f07a2` đã deploy Cloudflare thành công.
+- GitHub Actions run #250 attempt 2: **SUCCESS**; Checkout, Deploy to Cloudflare Workers và Smoke Test đều **SUCCESS**.
+
+
 Giữ nguyên mốc `4fff84e7cfe495311c3623179b87b9e8a97c0acc` để test thực tế trên:
 
 - Android Chrome.
@@ -107,6 +114,15 @@ Chỉ tiếp tục sửa khi phát hiện lỗi có thể tái hiện rõ. Bản
 - Xử lý edge case focus/scroll.
 - Bổ sung tương thích stream còn lỗi trên Samsung TV.
 - Dọn các workflow chẩn đoán tạm thời.
+
+## Nhập nguồn IPTV bằng tệp cục bộ — 06/10/2026
+
+- Trong **Thêm nguồn IPTV** có thêm nút **Chọn tệp M3U**.
+- Hỗ trợ `.m3u` và `.m3u8`, đọc trực tiếp bằng File API của trình duyệt.
+- Playlist dùng parser M3U hiện có nên giữ metadata kênh và thông tin header/DRM khi có.
+- Tệp tối đa 20 MB; tên tệp được hiển thị làm nguồn hiện tại trong phiên.
+- Remote TV trong hộp thoại nguồn vẫn dùng LEFT/UP, RIGHT/DOWN và OK.
+- Sau khi nạp tệp thành công, hộp thoại nguồn tự đóng.
 
 ## Quy tắc bàn giao
 

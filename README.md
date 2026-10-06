@@ -4,9 +4,9 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 
 ## Mốc kiểm thử hiện tại
 
-- Ngày cập nhật: **04/10/2026**
-- Nhánh: `feat/tvdrm-player-integration-20261004`
-- Mốc ổn định hiện tại: `4fff84e7cfe495311c3623179b87b9e8a97c0acc`
+- Ngày cập nhật: **06/10/2026**
+- Nhánh: `fix/safari-drm-final-20261005`
+- Mốc triển khai hiện tại: `a36b3c0e798fdfc08d3584524ac00f1dc28f07a2`
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Nơi triển khai: **Cloudflare Workers**
 - Bản hiện tại đang trong giai đoạn kiểm thử thực tế dài hơn. Không thay đổi các phần UI không liên quan cho đến khi phát hiện lỗi có thể tái hiện.
@@ -45,6 +45,13 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
   `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u`
 
 ### Thêm nguồn IPTV
+- Có thể chọn trực tiếp tệp `.m3u` hoặc `.m3u8` bằng nút **Chọn tệp M3U**.
+- Tệp được đọc cục bộ trong trình duyệt, không upload lên máy chủ.
+- Parser M3U hiện có được tái sử dụng để giữ metadata kênh và thông tin header/DRM.
+- Giới hạn 20 MB; tên tệp hiển thị làm nguồn hiện tại trong phiên.
+- Remote TV vẫn giữ LEFT/UP, RIGHT/DOWN và OK.
+- Chọn tệp thành công sẽ đóng hộp thoại và nạp danh sách qua pipeline hiện tại.
+
 - Trước đây trình duyệt gọi trực tiếp URL playlist nên nhiều nguồn bị lỗi CORS với thông báo `Failed to fetch`.
 - Hiện tại trình duyệt gọi API cùng miền `/api/source`.
 - Worker lấy playlist ở phía máy chủ, phân tích M3U rồi trả JSON có CORS an toàn cho giao diện.
@@ -69,6 +76,9 @@ Samsung công bố các phím ArrowLeft, ArrowUp, ArrowRight, ArrowDown, Enter v
 Vì vậy bản Web dùng Arrow/Enter/Back làm lớp điều khiển remote TV portable; các phím media tùy chọn chỉ được dùng khi trình duyệt thực sự cung cấp sự kiện tương ứng.
 
 ## Kiểm thử
+
+- Commit `a36b3c0e798fdfc08d3584524ac00f1dc28f07a2` đã triển khai production Cloudflare.
+- GitHub Actions Cloudflare run #250 attempt 2: **SUCCESS**; deploy và smoke test đều **SUCCESS**.
 
 Mốc `4fff84e7cfe495311c3623179b87b9e8a97c0acc` đã vượt qua các kiểm tra tự động hiện có:
 

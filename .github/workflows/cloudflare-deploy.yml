@@ -108,6 +108,34 @@ jobs:
           print('SAFARI_DRM_POLICY_SMOKE_OK')
           PY
 
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/youtube/search?q=music&filter=videos" -o /tmp/nm7-youtube-search.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-youtube-search.json',encoding='utf-8'))
+          items=d.get('items') or []
+          streams=[x for x in items if (x.get('type') or '').lower()=='stream' and x.get('url')]
+          if not streams:
+              raise SystemExit('YouTube search returned no playable stream items')
+          u=streams[0]['url']
+          import re
+          m=re.search(r'(?:[?&]v=|youtu\\.be/|/shorts/|/embed/)([A-Za-z0-9_-]{11})',u)
+          if not m:
+              raise SystemExit('Cannot extract YouTube video ID from result URL: '+u)
+          open('/tmp/nm7-youtube-video-id','w').write(m.group(1))
+          print('YOUTUBE_SEARCH_SMOKE_OK items=',len(items),'video_id=',m.group(1))
+          PY
+          VIDEO_ID="$(cat /tmp/nm7-youtube-video-id)"
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/youtube/streams/$VIDEO_ID" -o /tmp/nm7-youtube-stream.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-youtube-stream.json',encoding='utf-8'))
+          if not d.get('title'):
+              raise SystemExit('YouTube stream endpoint returned no title')
+          if not d.get('hls') and not any(x.get('url') and not x.get('videoOnly') for x in (d.get('videoStreams') or [])):
+              raise SystemExit('YouTube stream endpoint returned no playable HLS/progressive stream')
+          print('YOUTUBE_STREAM_SMOKE_OK title=',d.get('title'))
+          PY
+
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport.json
           python3 - <<'PY'
           import json

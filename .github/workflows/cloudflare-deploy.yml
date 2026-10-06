@@ -110,14 +110,17 @@ jobs:
           PY
 
           HOME_YT="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/")"
-          python3 - "$HOME_YT" <<'PY'
+          YTJS="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/youtube.js?v=20261006")"
+          python3 - "$HOME_YT" "$YTJS" <<'PY'
           import sys
-          html=sys.argv[1]
-          for needle in ("YouTube không quảng cáo","https://www.youtube.com/","function openOriginal"):
-              if needle not in html:
+          html,js=sys.argv[1],sys.argv[2]
+          if "YouTube không quảng cáo" not in html:
+              raise SystemExit("YouTube menu marker missing")
+          for needle in ("https://www.youtube.com/","function openOriginal"):
+              if needle not in js:
                   raise SystemExit("Official YouTube launcher marker missing: "+needle)
-          if "/api/youtube/" in html:
-              raise SystemExit("Obsolete Piped YouTube API marker leaked into HTML")
+          if "/api/youtube/" in js:
+              raise SystemExit("Obsolete Piped YouTube API marker leaked into launcher")
           print("YOUTUBE_ORIGINAL_LAUNCHER_SMOKE_OK")
           PY
 

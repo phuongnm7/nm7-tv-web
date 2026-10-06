@@ -270,7 +270,7 @@ function logoSource(c){
 }
 
 function renderMenu(){
- var labels=['⌂  Trang chính','▶  YouTube không quảng cáo','⌕  Tìm kiếm kênh','TV  Tất cả các kênh','▣  Truyền hình','⚽  Thể thao','★  Yêu thích','◷  Gần đây','+  Thêm nguồn','☷  Chỉnh sửa nguồn','↻  Tải lại nguồn'];
+ var labels=['⌂  Trang chính','▶  YouTube gốc · AdBlock','⌕  Tìm kiếm kênh','TV  Tất cả các kênh','▣  Truyền hình','⚽  Thể thao','★  Yêu thích','◷  Gần đây','+  Thêm nguồn','☷  Chỉnh sửa nguồn','↻  Tải lại nguồn'];
  var menu=$('sideList'),html='';
  for(var i=0;i<labels.length;i++)html+='<button class="menuBtn" type="button" tabindex="'+(i===S.menu?'0':'-1')+'" data-menu="'+i+'">'+labels[i]+'</button>';
  menu.innerHTML=html;

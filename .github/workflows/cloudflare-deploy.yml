@@ -110,7 +110,7 @@ jobs:
           python3 - "$HOME" <<'PY'
           import sys
           html=sys.argv[1]
-          for needle in ("YouTube không quảng cáo","btnYouTubeTab"):
+          for needle in ("btnYouTubeTab","youtube.js"):
               if needle not in html:
                   raise SystemExit("YouTube UI marker missing: "+needle)
           print("YOUTUBE_UI_SMOKE_OK")

@@ -23,12 +23,11 @@ function openOriginal(raw){
   var u=officialUrl(raw);
   try{sessionStorage.setItem('nm7:returnUrl',location.href)}catch(e){}
 
-  /*
-   * Web-only mode: stay on a YouTube reverse-proxy origin controlled by NM7.
-   * This keeps the original YouTube document/UI while putting YouTube-origin
-   * requests behind the Worker, where player responses can be filtered.
-   */
-  location.href=YOUTUBE_PROXY_ORIGIN + new URL(u).pathname + new URL(u).search;
+  // The normal browser path must use the first-party YouTube origin. A Cloudflare
+  // Worker reverse proxy can be rate-limited by YouTube and leave the app shell
+  // stuck on skeleton placeholders. The Worker is retained only as an explicit
+  // diagnostic/proxy endpoint and is not the default navigation path.
+  location.href=u;
 }
 
 window.NM7YouTube={

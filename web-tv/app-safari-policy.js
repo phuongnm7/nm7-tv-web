@@ -45,7 +45,9 @@ var S={
  backTimer:null,
  historyGuard:false,
  exitAllow:false,
- mobileMode:false
+ mobileMode:false,
+ localM3uText:'',
+ localM3uName:''
 };
 var $=function(id){return document.getElementById(id)};
 var toastTimer=null;
@@ -294,7 +296,11 @@ function selectMenu(){
  if(p===6){showSubset('recent');return}
  if(p===7){showAddSource();return}
  if(p===8){showSources();return}
- if(p===9){closeMenu();loadSource(S.source,true);return}
+ if(p===9){
+  closeMenu();
+  if(S.source==='local-m3u'&&S.localM3uText){applyLocalM3U(S.localM3uText,S.localM3uName,'Đã tải lại tệp M3U · '+S.list.length+' kênh');return}
+  loadSource(S.source,true);return
+ }
 }
 function showSubset(kind){
  var a=[],ids=S.fav;
@@ -312,11 +318,45 @@ function showSearch(){
 }
 function closeDialog(){var type=S.dialog;S.dialog=null;$('dlg').className='hidden';if(type==='search'){rebuildGroups();renderHome()}if(type==='exit')resetBackArm();if(S.player)playerFocus();else if(S.menuOpen)renderMenu();else focusHome(true)}
 function showAddSource(){
- S.dialog='add';$('dlg').className='';$('box').innerHTML='<h2>Thêm nguồn IPTV</h2><input id="srcInput" class="input" placeholder="https://.../playlist.m3u"><p class="guide">Nguồn phải là HTTPS/HTTP. Web Browser vẫn giữ nguyên metadata của playlist cho header và DRM.</p><div class="dialogActions"><button class="db" id="srcOk">Mở nguồn</button><button class="db" id="srcCancel">Hủy</button></div>';
- var i=$('srcInput');i.focus();$('srcOk').onclick=function(){var u=i.value.trim();if(!isHttp(u)){i.focus();toast('URL nguồn không hợp lệ');return}closeDialog();loadCustom(u)};$('srcCancel').onclick=closeDialog
+ S.dialog='add';$('dlg').className='';$('box').innerHTML='<h2>Thêm nguồn IPTV</h2><input id="srcInput" class="input" placeholder="https://.../playlist.m3u"><p class="guide">Nguồn phải là HTTPS/HTTP. Web Browser vẫn giữ nguyên metadata của playlist cho header và DRM.</p><div class="dialogActions" style="justify-content:flex-start;align-items:center"><button class="db" id="srcFileBtn" type="button">📁 Chọn tệp M3U</button><input id="srcFile" type="file" accept=".m3u,.m3u8,audio/x-mpegurl,application/vnd.apple.mpegurl,text/plain" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none"><span id="srcFileName" class="guide" style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Chưa chọn tệp</span></div><div class="dialogActions"><button class="db" id="srcOk" type="button">Mở nguồn</button><button class="db" id="srcCancel" type="button">Hủy</button></div>';
+ var i=$('srcInput'),fb=$('srcFileBtn'),fi=$('srcFile'),fn=$('srcFileName');i.focus();
+ function pickFile(){try{fi.click()}catch(e){toast('Không thể mở trình chọn tệp trên trình duyệt này')}}
+ fb.onclick=pickFile;
+ fi.addEventListener('change',function(){var f=this.files&&this.files[0];if(!f)return;fn.textContent=String(f.name||'Tệp M3U');loadLocalM3UFile(f,function(){closeDialog()});this.value='' });
+ $('srcOk').onclick=function(){var u=i.value.trim();if(!isHttp(u)){i.focus();toast('URL nguồn không hợp lệ');return}closeDialog();loadCustom(u)};
+ $('srcCancel').onclick=closeDialog
+}
+function readLocalFileText(file){
+ return new Promise(function(resolve,reject){
+  if(!file){reject(new Error('Chưa chọn tệp'));return}
+  if(typeof file.text==='function'){
+   file.text().then(function(t){resolve(String(t||''))},function(){reject(new Error('Không đọc được tệp M3U'))});return
+  }
+  if(typeof FileReader==='undefined'){reject(new Error('Trình duyệt không hỗ trợ đọc tệp cục bộ'));return}
+  var fr=new FileReader();
+  fr.onload=function(){resolve(String(fr.result||''))};
+  fr.onerror=function(){reject(new Error('Không đọc được tệp M3U'))};
+  try{fr.readAsText(file,'UTF-8')}catch(e){reject(new Error('Không đọc được tệp M3U'))}
+ })
+}
+function applyLocalM3U(text,name,message){
+ var p=parseM3U(text,'');
+ if(!p.channels.length)throw new Error('Tệp M3U không có kênh hợp lệ hoặc chỉ chứa URL tương đối');
+ S.source='local-m3u';S.localM3uText=String(text||'');S.localM3uName=String(name||'playlist.m3u');S.list=p.channels.map(norm);S.query='';S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();if(message)toast(message);else toast('Đã mở '+S.localM3uName+' · '+S.list.length+' kênh')
+}
+function loadLocalM3UFile(file,onSuccess){
+ var name=String(file&&file.name||'');
+ if(name&&!/\.m3u8?$/i.test(name)){toast('Vui lòng chọn tệp .m3u hoặc .m3u8');return}
+ if(file&&Number(file.size||0)>20*1024*1024){toast('Tệp M3U quá lớn (tối đa 20 MB)');return}
+ toast('Đang đọc tệp M3U…');
+ readLocalFileText(file).then(function(text){
+  applyLocalM3U(text,name);
+  if(typeof onSuccess==='function')onSuccess();
+ }).catch(function(e){toast('Không đọc được M3U: '+String(e&&e.message||e))})
 }
 function showSources(){
- S.dialog='sources';$('dlg').className='';$('box').innerHTML='<h2>Nguồn hiện tại</h2><p class="guide">Truyền hình: '+esc(PLAYLISTS.tv)+'<br>Thể thao: '+esc(PLAYLISTS.sport)+'</p><div class="dialogActions"><button class="db" id="sourceReload">Tải lại</button><button class="db" id="sourceClose">Đóng</button></div>';
+ var local=S.source==='local-m3u'&&S.localM3uName?'<br>Tệp M3U: '+esc(S.localM3uName):'';
+ S.dialog='sources';$('dlg').className='';$('box').innerHTML='<h2>Nguồn hiện tại</h2><p class="guide">Truyền hình: '+esc(PLAYLISTS.tv)+'<br>Thể thao: '+esc(PLAYLISTS.sport)+local+'</p><div class="dialogActions"><button class="db" id="sourceReload">Tải lại</button><button class="db" id="sourceClose">Đóng</button></div>';
  $('sourceReload').onclick=function(){closeDialog();loadSource(S.source,true)};$('sourceClose').onclick=closeDialog
 }
 function filterFavorite(c){return S.fav.indexOf(c.id)>=0}

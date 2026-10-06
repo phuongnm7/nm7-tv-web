@@ -27,7 +27,7 @@ Repo web hiện tại không có Tizen SDK trong GitHub Actions, nên phần nat
 
 Sau khi build/sign native host:
 
-1. Cài WGT/TPK lên TV theo chế độ Developer hoặc tài khoản ký hợp lệ.
+1. Build và ký gói native TPK rồi cài lên TV theo chế độ Developer hoặc tài khoản ký hợp lệ.
 2. Chạy ứng dụng.
 3. Host mở `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`.
 4. Chọn **YouTube**. Web sẽ điều hướng trong cùng WebView tới `https://www.youtube.com/`.

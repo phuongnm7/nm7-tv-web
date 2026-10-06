@@ -22,6 +22,16 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 - Tích hợp có thể nhận URL video YouTube và chuyển sang trang xem tương ứng trên frontend đã chọn.
 - Đây là frontend bên thứ ba, không phải YouTube chính thức; tình trạng instance phụ thuộc nhà cung cấp và thay đổi của YouTube.
 
+## YouTube tích hợp không quảng cáo
+
+- Không còn dùng Invidious làm giao diện người dùng.
+- NM7 TV Web có một YouTube Web Shell riêng với bố cục kiểu YouTube: thanh tìm kiếm, trang chủ/thịnh hành, chip chủ đề, lưới thumbnail, trang xem, video liên quan và toàn màn hình.
+- Nút YouTube không quảng cáo trong menu TV và nút YouTube trên mobile mở shell này.
+- Cloudflare Worker cung cấp các endpoint `/api/youtube/search`, `/api/youtube/trending`, `/api/youtube/streams/<videoId>` và tự động thử nhiều Piped API backend khi một backend lỗi.
+- Video được lấy từ stream backend không chứa quảng cáo YouTube; player của NM7 phát HLS/progressive stream qua `/api/stream`.
+- Giao diện shell không phụ thuộc giao diện của Piped/Invidious nên có thể giữ phong cách NM7 và tiếp tục tùy chỉnh theo màn hình Samsung TV.
+- Chức năng đăng nhập/tài khoản YouTube chính thức không được giả lập. Đây là một client web độc lập dùng backend thay thế.
+
 ## Giao diện TV
 
 - Giữ hình nền và phong cách thẻ kênh theo Android TV 1.0.69.

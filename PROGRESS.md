@@ -4,7 +4,7 @@
 
 - Ngày: **06/10/2026**
 - Nhánh: `fix/youtube-original-coccoc-adblock-20261006`
-- Tính năng mới nhất: **nhập nguồn IPTV bằng tệp M3U/M3U8 cục bộ**
+- Tính năng mới nhất: **YouTube mở trực tiếp origin chính thức, không còn kẹt skeleton do reverse-proxy**
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
 - Nền tảng triển khai: **Cloudflare Workers**

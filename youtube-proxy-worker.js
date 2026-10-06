@@ -308,6 +308,13 @@ function sanitizeCookie(v) {
     .replace(/;\s*secure/ig, "; Secure");
 }
 
+function rewriteSetCookie(value) {
+  return String(value || "")
+    .replace(/;\\s*Domain=[^;]+/ig, "")
+    .replace(/;\\s*SameSite=None/ig, "; SameSite=None")
+    .replace(/;\\s*Partitioned/ig, "");
+}
+
 function copyUpstreamHeaders(upstream) {
   const h = new Headers();
   for (const [k, v] of upstream.headers.entries()) {
@@ -322,17 +329,24 @@ function copyUpstreamHeaders(upstream) {
     h.set(k, v);
   }
 
-  const getCookies = upstream.headers.getSetCookie;
-  if (typeof getCookies === "function") {
-    try {
-      for (const c of getCookies.call(upstream.headers)) {
-        h.append("Set-Cookie", sanitizeCookie(c));
+  try {
+    if (typeof upstream.headers.getSetCookie === "function") {
+      for (const c of upstream.headers.getSetCookie()) {
+        h.append("Set-Cookie", rewriteSetCookie(c));
       }
-    } catch {}
-  } else {
-    const c = upstream.headers.get("set-cookie");
-    if (c) h.append("Set-Cookie", sanitizeCookie(c));
-  }
+    } else {
+      const c = upstream.headers.get("set-cookie");
+      if (c) {
+        for (const part of String(c).split(/,(?=[^;,]+=)/)) {
+          h.append("Set-Cookie", rewriteSetCookie(part));
+        }
+      }
+    }
+  } catch {}
+
+  h.set("Access-Control-Allow-Origin", "*");
+  h.set("Access-Control-Allow-Credentials", "true");
+  h.set("Access-Control-Expose-Headers", "*");
   return h;
 }
 
@@ -350,6 +364,107 @@ function rewriteTargetUrl(value, proxyOrigin) {
   }
 }
 
+function rewriteYouTubeRuntimeText(text, proxyOrigin) {
+  let body = String(text || "");
+  const escOrigin = proxyOrigin.replace(/\\/g, "\\\\");
+  const originForJs = escOrigin.replace(/\\/g, "\\\\");
+  const abs = [
+    ["https://www.youtube.com", proxyOrigin],
+    ["http://www.youtube.com", proxyOrigin],
+    ["https://m.youtube.com", proxyOrigin],
+    ["http://m.youtube.com", proxyOrigin]
+  ];
+  for (const [from, to] of abs) {
+    body = body.split(from).join(to);
+  }
+  body = body
+    .replace(/https:\\\/\\\/www\\.youtube\\.com/g, originForJs.replace(/:\\/\\//, ":\\\\/\\\\/"))
+    .replace(/https:\\\/\\\/m\\.youtube\\.com/g, originForJs.replace(/:\\/\\//, ":\\\\/\\\\/"))
+    .replace(/\\/\\/www\\.youtube\\.com/g, proxyOrigin)
+    .replace(/\\/\\/m\\.youtube\\.com/g, proxyOrigin);
+
+  // Runtime APIs used by the YouTube SPA often carry an absolute origin
+  // inside JSON/JS rather than as an HTML attribute.
+  body = body
+    .replace(/(["'])\/\/www\\.youtube\\.com/g, "$1" + proxyOrigin)
+    .replace(/(["'])\/\/m\\.youtube\\.com/g, "$1" + proxyOrigin);
+
+  return body;
+}
+
+const PROXY_RUNTIME = String.raw\`
+(function(){
+'use strict';
+if(window.__NM7_YT_PROXY_RUNTIME__)return;
+window.__NM7_YT_PROXY_RUNTIME__=true;
+var ORIGIN=location.origin;
+function local(v){
+  try{
+    if(!v)return v;
+    var u=new URL(String(v),location.href);
+    var h=(u.hostname||'').toLowerCase();
+    if(h==='www.youtube.com'||h==='youtube.com'||h==='m.youtube.com'||h==='music.youtube.com')
+      return ORIGIN+u.pathname+u.search+u.hash;
+  }catch(e){}
+  return v;
+}
+try{
+  var of=window.fetch;
+  if(of&&!of.__nm7){
+    var wf=function(input,init){
+      try{
+        if(typeof input==='string')input=local(input);
+        else if(input&&input.url){
+          var nu=local(input.url);
+          if(nu!==input.url)input=new Request(nu,input);
+        }
+      }catch(e){}
+      return of.call(this,input,init);
+    };
+    wf.__nm7=true; wf.__nm7native=of; window.fetch=wf;
+  }
+}catch(e){}
+try{
+  var xo=XMLHttpRequest.prototype.open;
+  if(xo&&!xo.__nm7){
+    var wx=function(method,url,a,b,c){return xo.call(this,method,local(url),a,b,c)};
+    wx.__nm7=true; wx.__nm7native=xo; XMLHttpRequest.prototype.open=wx;
+  }
+}catch(e){}
+try{
+  ['pushState','replaceState'].forEach(function(k){
+    var n=history[k];
+    if(n&&!n.__nm7){
+      var w=function(st,title,url){return n.call(history,st,title,url?local(url):url)};
+      w.__nm7=true; history[k]=w;
+    }
+  });
+}catch(e){}
+try{
+  var ow=window.open;
+  if(ow&&!ow.__nm7){
+    var wo=function(url,name,specs){return ow.call(window,url?local(url):url,name,specs)};
+    wo.__nm7=true; window.open=wo;
+  }
+}catch(e){}
+try{
+  document.addEventListener('click',function(ev){
+    var a=ev.target&&ev.target.closest?ev.target.closest('a[href]'):null;
+    if(!a)return;
+    var href=a.getAttribute('href'),nu=local(href);
+    if(nu&&nu!==href)a.setAttribute('href',nu);
+  },true);
+}catch(e){}
+setInterval(function(){
+  try{
+    document.querySelectorAll('a[href]').forEach(function(a){
+      var h=a.getAttribute('href'),n=local(h);
+      if(n&&n!==h)a.setAttribute('href',n);
+    });
+  }catch(e){}
+},750);
+})();\`;
+
 function maybeRewriteHtml(upstream, proxyOrigin) {
   const headers = copyUpstreamHeaders(upstream);
   headers.set("content-type", "text/html; charset=utf-8");
@@ -358,7 +473,7 @@ function maybeRewriteHtml(upstream, proxyOrigin) {
   return new HTMLRewriter()
     .on("head", {
       element(el) {
-        el.prepend("<script>" + AD_SHIELD + "</script>", { html: true });
+        el.prepend("<script>" + PROXY_RUNTIME + "</script><script>" + AD_SHIELD + "</script>", { html: true });
       }
     })
     .on("*", {
@@ -470,6 +585,27 @@ async function handleYouTubeRequest(request) {
 
   const h = copyUpstreamHeaders(upstream);
   h.set("cache-control", h.get("cache-control") || "no-store");
+
+  if (ct.includes("javascript") || ct.includes("text/css") ||
+      ct.includes("text/plain")) {
+    const textBody = await upstream.text();
+    const rewritten = rewriteYouTubeRuntimeText(textBody, proxyOrigin);
+    if (rewritten !== textBody) {
+      h.delete("content-length");
+      h.delete("content-encoding");
+      return new Response(rewritten, {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: h
+      });
+    }
+    return new Response(textBody, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: h
+    });
+  }
+
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,

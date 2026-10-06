@@ -310,6 +310,9 @@ function youtubeProviderList(){
  ];
 }
 function openYouTube(raw){
+ S.menuOpen=false;
+ $('side').className='hidden';
+ S.zone='home';
  if(window.NM7YouTube&&typeof window.NM7YouTube.open==='function'){
   window.NM7YouTube.open();
   if(raw&&typeof window.NM7YouTube.watch==='function')setTimeout(function(){window.NM7YouTube.watch(raw)},100);

@@ -74,7 +74,8 @@ jobs:
             scripts: document.scripts.length,
             spinnerCount: document.querySelectorAll('.ytp-spinner, tp-yt-paper-spinner').length,
             adShield: !!window.__NM7_YT_AD_DOM__,
-            proxyRuntime: !!window.__NM7_YT_RUNTIME__
+            proxyRuntime: !!window.__NM7_YT_RUNTIME__,
+            mobileUi: /Trang chủ|Tìm trên YouTube|Shorts|Bạn/.test((document.body?.innerText || ''))
           }));
 
           await page.screenshot({path:'/tmp/nm7-youtube-e2e.png', fullPage:false});

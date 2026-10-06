@@ -24,6 +24,25 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
 
+      - name: Deploy dedicated YouTube reverse proxy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.youtube.toml
+
+      - name: Smoke test dedicated YouTube proxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          YTBASE="https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev"
+          curl -fsSL --max-redirs 3 --max-time 45 "$YTBASE/" -o /tmp/nm7-youtube-proxy.html
+          grep -Eiq "YouTube|Google" /tmp/nm7-youtube-proxy.html
+          curl -fsSIL --max-redirs 3 --max-time 30 "$YTBASE/robots.txt" >/tmp/nm7-youtube-proxy-headers.txt
+          test "$(grep -i '^HTTP/' /tmp/nm7-youtube-proxy-headers.txt | tail -n1 | awk '{print $2}')" != "404"
+          echo "YOUTUBE_PROXY_WORKER_SMOKE_OK"
+          echo "YTBASE=$YTBASE"
+
       - name: Smoke test deployed Cloudflare Worker
         shell: bash
         run: |

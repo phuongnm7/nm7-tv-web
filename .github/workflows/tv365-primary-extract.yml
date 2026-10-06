@@ -1,0 +1,27 @@
+name: Extract TV365 primary playlist
+on:
+  push:
+    branches:
+      - temp/tv365-extract-20261006
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Download primary playlist
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors --connect-timeout 20 --max-time 120             'https://raw.githubusercontent.com/VIET-NAM-VIP/TOI-YEU-VIET-NAM/main/VIETNAM'             -o tv365_primary.m3u
+          first=$(head -n 1 tv365_primary.m3u | tr -d '\r\357\273\277')
+          test "$first" = '#EXTM3U url-tvg="https://vnepg.site/epg.xml"'
+          echo "bytes=$(wc -c < tv365_primary.m3u)"
+          echo "lines=$(wc -l < tv365_primary.m3u)"
+          echo "channels=$(grep -c '^#EXTINF:' tv365_primary.m3u)"
+          sha256sum tv365_primary.m3u
+      - name: Upload playlist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv365-primary-playlist
+          path: tv365_primary.m3u
+          if-no-files-found: error

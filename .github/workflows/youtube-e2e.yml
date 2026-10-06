@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > /tmp/nm7-youtube-e2e.mjs <<'EOF'
+          cat > ./nm7-youtube-e2e.mjs <<'EOF'
           import { chromium, devices } from 'playwright';
 
           const proxy = 'https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev/';

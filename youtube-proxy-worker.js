@@ -152,7 +152,7 @@ function copyHeaders(upstream) {
   return h;
 }
 
-const RUNTIME = String.raw\`
+const RUNTIME = String.raw`
 (function(){
 'use strict';
 if(window.__NM7_YT_RUNTIME__)return;
@@ -250,7 +250,7 @@ try{
 }catch(e){}
 })();\`;
 
-const ADS = String.raw\`
+const ADS = String.raw`
 (function(){
 'use strict';
 if(window.__NM7_YT_AD_DOM__)return;

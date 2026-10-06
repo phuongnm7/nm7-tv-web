@@ -115,3 +115,32 @@ Không thay đổi UI/player/DRM hiện tại nếu lỗi không liên quan tr�
 - Added first-party handoff buttons for On Sports → VTVprime, SCTV22 → VTVgo, and SCTV17 → the official SCTV iOS app listing. Provider login/subscription may be required.
 - On Sports+ has no verified official per-channel destination yet and therefore remains explicitly without a handoff button.
 - This is an iOS viewing workaround through provider platforms, not inline playback in NM7 TV. Validate each provider destination/account entitlement on a real iPhone before claiming playback success.
+
+
+## YouTube không quảng cáo trên Web — 2026-10-06
+
+### Đã triển khai
+
+- Đã đối chiếu cơ chế tích hợp SmartTube của NM7 TV Android 1.0.59: Android sử dụng SmartTube native được build chung vào APK, nên không thể mang nguyên module đó sang Web/Tizen/iOS.
+- Web đã tích hợp mục **▶ YouTube không quảng cáo** vào side menu TV.
+- Nút **YouTube** trên giao diện mobile gọi cùng pipeline.
+- Frontend mặc định: **Invidious** `https://invidious.tiekoetter.com/`.
+- Dự phòng: **Piped** `https://piped.video/` và Invidious `https://yt.chocolatemoo53.com/`.
+- Tích hợp lưu provider đã chọn tại `localStorage.nm7:youtubeProvider`.
+- Có xử lý URL video YouTube để mở trực tiếp trang xem trên frontend khi caller truyền URL.
+- Không thay đổi player IPTV, DRM, playlist Android TV 1.0.69 hoặc local M3U.
+
+### Xác minh
+
+- `web-tv/app.js` và `web-tv/app-safari-policy.js` được cập nhật đồng nhất.
+- Thay đổi JS chỉ bổ sung menu/launcher YouTube; pipeline IPTV không bị thay đổi.
+- Cloudflare workflow đã được bổ sung trigger cho nhánh `fix/ios-official-drm-fallback-20261006`.
+- Production smoke test bổ sung marker **YouTube không quảng cáo** và `btnYouTubeTab`.
+
+### Giới hạn thực tế
+
+SmartTube không có bản Web/Tizen/iOS; nó là ứng dụng Android TV/TV box. Web không thể đóng gói SmartTube native trong cùng runtime. Frontend Invidious/Piped không phải dịch vụ chính thức của YouTube và instance công khai có thể thay đổi/gián đoạn.
+
+### Trạng thái
+
+**HOÀN THÀNH PHẦN TÍCH HỢP WEB + CI/DEPLOY.** Cần test thực tế trên Samsung TV Tizen và iPhone/iPad để xác nhận điều hướng remote, tìm kiếm và phát video tại thời điểm người dùng kiểm tra.

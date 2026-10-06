@@ -111,6 +111,16 @@ jobs:
 
           HOME_YT="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/")"
           YTJS="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/youtube.js?v=20261006")"
+          BGJS="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/mobile-background.js?v=20261006-bg1")"
+          python3 - "$BGJS" <<'PY'
+          import sys
+          js=sys.argv[1]
+          for needle in ("navigator.mediaSession","requestPictureInPicture","webkitSetPresentationMode","visibilitychange","NM7Background"):
+              if needle not in js:
+                  raise SystemExit("Background playback marker missing: "+needle)
+          print("MOBILE_BACKGROUND_PLAYBACK_SMOKE_OK")
+          PY
+
           python3 - "$HOME_YT" "$YTJS" <<'PY'
           import sys
           html,js=sys.argv[1],sys.argv[2]

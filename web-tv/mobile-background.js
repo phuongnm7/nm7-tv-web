@@ -133,8 +133,14 @@ function monitorPlayer(){
     v.addEventListener('play',function(){state.wasPlaying=true;setMetadata();setSession(true);installActions()});
     v.addEventListener('playing',function(){state.wasPlaying=true;setMetadata();setSession(true);installActions();setButtonLabel('◩ Chạy nền',false)});
     v.addEventListener('pause',function(){state.wasPlaying=false;setSession(false)});
-    v.addEventListener('ended',function(){setSession(false);});
-    v.addEventListener('emptied',function(){state.wasPlaying=false;clearActions();setButtonLabel('◩ Chạy nền',false)});
+    v.addEventListener('ended',function(){state.wasPlaying=false;setSession(false);});
+    v.addEventListener('enterpictureinpicture',function(){state.backgroundRequested=true;setButtonLabel('◩ Đang chạy nền',false);});
+    v.addEventListener('leavepictureinpicture',function(){state.backgroundRequested=false;setButtonLabel('◩ Chạy nền',false);});
+    v.addEventListener('webkitpresentationmodechanged',function(){
+      try{state.backgroundRequested=v.webkitPresentationMode==='picture-in-picture'}catch(e){}
+      setButtonLabel(state.backgroundRequested?'◩ Đang chạy nền':'◩ Chạy nền',false);
+    });
+    v.addEventListener('emptied',function(){state.wasPlaying=false;state.backgroundRequested=false;clearActions();setButtonLabel('◩ Chạy nền',false)});
   }
   setButtonLabel(canPiP(v)?'◩ Chạy nền':'◩ Chạy nền (PiP không hỗ trợ)',!canPiP(v));
   if('mediaSession' in navigator&&v&&!v.paused)installActions();

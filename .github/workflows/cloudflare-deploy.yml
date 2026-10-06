@@ -36,18 +36,42 @@ jobs:
         run: |
           set -euo pipefail
           YTBASE="https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev"
-          curl -fsSL --max-redirs 3 --max-time 45 "$YTBASE/" -o /tmp/nm7-youtube-proxy.html
-          grep -Eiq "YouTube|Google" /tmp/nm7-youtube-proxy.html
-          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-proxy.html
-          curl -sS --max-redirs 3 --max-time 30 -o /tmp/nm7-youtube-ad-204.txt -w "%{http_code}" "$YTBASE/pagead/" | grep -qx "204"
-          curl -fsSL --max-redirs 3 --max-time 30 "$YTBASE/watch?v=dQw4w9WgXcQ" -o /tmp/nm7-youtube-watch.html
-          grep -Eiq "YouTube|ytInitialPlayerResponse" /tmp/nm7-youtube-watch.html
-          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-watch.html
+          set +e
+          curl -sS --max-redirs 3 --max-time 45 "$YTBASE/" -o /tmp/nm7-youtube-proxy.html -w "ROOT_STATUS=%{http_code} ROOT_BYTES=%{size_download}\\n"
+          root_rc=$?
+          echo "ROOT_RC=$root_rc"
+          echo "ROOT_HEAD:"
+          head -c 500 /tmp/nm7-youtube-proxy.html 2>/dev/null || true
+          echo
+          grep -Eiq "YouTube|Google" /tmp/nm7-youtube-proxy.html; echo "ROOT_YT_MARKER_RC=$?"
+          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-proxy.html; echo "ROOT_SHIELD_MARKER_RC=$?"
+
+          curl -sS --max-redirs 3 --max-time 30 "$YTBASE/pagead/" -o /tmp/nm7-youtube-ad-204.txt -w "AD_STATUS=%{http_code} AD_BYTES=%{size_download}\\n"
+          ad_rc=$?
+          echo "AD_RC=$ad_rc"
+
+          curl -sS --max-redirs 3 --max-time 30 "$YTBASE/watch?v=dQw4w9WgXcQ" -o /tmp/nm7-youtube-watch.html -w "WATCH_STATUS=%{http_code} WATCH_BYTES=%{size_download}\\n"
+          watch_rc=$?
+          echo "WATCH_RC=$watch_rc"
+          echo "WATCH_HEAD:"
+          head -c 500 /tmp/nm7-youtube-watch.html 2>/dev/null || true
+          echo
+          grep -Eiq "YouTube|ytInitialPlayerResponse" /tmp/nm7-youtube-watch.html; echo "WATCH_YT_MARKER_RC=$?"
+          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-watch.html; echo "WATCH_SHIELD_MARKER_RC=$?"
+
+          if [ "$root_rc" -ne 0 ] || [ "$ad_rc" -ne 0 ] || [ "$watch_rc" -ne 0 ]; then
+            echo "YOUTUBE_PROXY_REQUESTS_FAILED"
+            exit 1
+          fi
+          grep -Eiq "YouTube|Google" /tmp/nm7-youtube-proxy.html || exit 1
+          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-proxy.html || exit 1
+          grep -q "__NM7_YT_ADSHIELD__" /tmp/nm7-youtube-watch.html || exit 1
           echo "YOUTUBE_PROXY_WORKER_SMOKE_OK"
           echo "YOUTUBE_AD_SHIELD_HTML_OK"
           echo "YOUTUBE_AD_ENDPOINT_BLOCK_OK"
           echo "YOUTUBE_WATCH_PROXY_OK"
           echo "YTBASE=$YTBASE"
+          set -e
 
       - name: Smoke test deployed Cloudflare Worker
         shell: bash

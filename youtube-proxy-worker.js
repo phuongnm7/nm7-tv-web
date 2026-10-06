@@ -248,7 +248,7 @@ try{
     childList:true,subtree:true
   });
 }catch(e){}
-})();\`;
+})();`;
 
 const ADS = String.raw`
 (function(){
@@ -309,7 +309,7 @@ try{
 }catch(e){}
 setInterval(work,350);
 work();
-})();\`;
+})();`;
 
 function rewriteHtml(upstream, proxyOrigin) {
   const headers = copyHeaders(upstream);

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/safari-drm-final-20261005
+      - fix/ios-official-drm-fallback-20261006
   workflow_dispatch:
 
 jobs:
@@ -78,6 +79,15 @@ jobs:
           if 'shaka-player@5.2.12' not in html:
               raise SystemExit('Shaka 5.2.12 marker not found in deployed HTML')
           print('SHAKA_5_2_12_SMOKE_OK')
+          PY
+          HOME="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/")"
+          python3 - "$HOME" <<'PY'
+          import sys
+          html=sys.argv[1]
+          for needle in ("YouTube không quảng cáo","btnYouTubeTab"):
+              if needle not in html:
+                  raise SystemExit("YouTube UI marker missing: "+needle)
+          print("YOUTUBE_UI_SMOKE_OK")
           PY
           APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app-safari-policy.js?v=20261005-safari-policy1")"
           python3 - "$APP" <<'PY'

@@ -99,7 +99,7 @@ jobs:
               raise SystemExit(f'wrong first groups: {groups[:8]}')
           def names(g): return [c.get('name','') for c in channels if (c.get('group') or 'Khác')==g]
           checks={
-              'VTV':['VTV1','VTV2','VTV3','VTV4','VTV5','VTV5 Tây Nam Bộ','VTV5 Tây Nguyên','VTV6'],
+              'VTV':['VTV1 HD','VTV2 HD','VTV3 HD','VTV4 HD','VTV5 HD','VTV5 Tây Nam Bộ','VTV5 Tây Nguyên','VTV6 HD'],
               'VTVcab':['On BiBi','ON Cine','ON E- Channel','On Golf','ON Info TV','On Kids','On Life','On Movies - You TV'],
               'Thể Thao':['HTV Thể Thao','On Sports 50fps','SCTV15 HD','SCTV17 HD','SCTV22','VTV6 HD'],
               'SCTV':['SCTV Phim Tổng Hợp','SCTV1','SCTV2 - TODAY TV','SCTV3'],

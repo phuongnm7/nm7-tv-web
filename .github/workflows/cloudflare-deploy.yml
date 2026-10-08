@@ -21,6 +21,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Check TV JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check web-tv/app-safari-policy.js
+          node --check web-tv/app.js
+          node --check web-tv/youtube.js
+          echo "NM7_TV_JS_SYNTAX_OK"
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4
         with:

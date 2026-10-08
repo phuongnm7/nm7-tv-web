@@ -342,7 +342,7 @@ function setFocusCard(rr,cc,focusNow){
  var el=document.querySelector('.card[data-row="'+rr+'"][data-col="'+cc+'"]');
  if(!el){renderHome();el=document.querySelector('.card[data-row="'+rr+'"][data-col="'+cc+'"]')}
  if(el){
-  var all=document.querySelectorAll('.card');for(var i=0;i<all.length;i++){all[i].tabIndex=-1;all[i].setAttribute('aria-selected','false')}
+  var all=document.querySelectorAll('.card');for(var i=0;i<all.length;i++){all[i].tabIndex=isTvLikeDevice()?0:-1;all[i].setAttribute('aria-selected','false')}
   el.tabIndex=0;el.setAttribute('aria-selected','true');
   if(focusNow)try{el.focus({preventScroll:true})}catch(e){try{el.focus()}catch(e2){}}
   try{ensureCardVisible(el)}catch(e3){}
@@ -1734,6 +1734,7 @@ function startup(){
  window.addEventListener('focus',restoreRemoteFocus,true);
  window.addEventListener('pageshow',restoreRemoteFocus,true);
  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')restoreRemoteFocus()},true);
+ bindTvPointerNavigation();
  var cached=readCache();if(cached){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome()}
  loadSource('tv',false);
 }

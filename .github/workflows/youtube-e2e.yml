@@ -1,4 +1,4 @@
-name: YouTube Proxy E2E
+name: YouTube Original E2E
 
 on:
   push:
@@ -6,20 +6,17 @@ on:
       - fix/youtube-original-coccoc-adblock-20261006
   workflow_dispatch:
 
+concurrency:
+  group: nm7-youtube-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Deploy dedicated YouTube proxy
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --config wrangler.youtube.toml
 
       - name: Install Playwright
         shell: bash
@@ -29,14 +26,14 @@ jobs:
           npm i -D playwright@1.55.1 >>/tmp/nm7-pw-package.log 2>&1
           npx playwright install --with-deps chromium >>/tmp/nm7-pw-package.log 2>&1
 
-      - name: Test YouTube proxy as mobile Chrome
+      - name: Test NM7 launcher to official YouTube
         shell: bash
         run: |
           set -euo pipefail
           cat > ./nm7-youtube-e2e.mjs <<'EOF'
           import { chromium, devices } from 'playwright';
 
-          const proxy = 'https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev/';
+          const base = 'https://nm7-tv-web.phuongnm7-iptv.workers.dev/';
           const browser = await chromium.launch({headless:true});
           const context = await browser.newContext({
             ...devices['Pixel 7'],
@@ -53,40 +50,35 @@ jobs:
             if (msg.type() === 'error') consoleErrors.push(msg.text());
           });
           page.on('requestfailed', req => {
-            failed.push({
-              url:req.url(),
-              error:req.failure()?.errorText || 'unknown'
-            });
+            failed.push({url:req.url(), error:req.failure()?.errorText || 'unknown'});
           });
 
-          await page.goto(proxy, {waitUntil:'domcontentloaded', timeout:45000});
-          await page.waitForTimeout(5000);
+          await page.goto(base, {waitUntil:'domcontentloaded', timeout:45000});
+          await page.locator('#btnYouTubeTab').waitFor({state:'visible', timeout:15000});
+          await page.locator('#btnYouTubeTab').click();
+          await page.waitForURL(/https:\/\/(www\.|m\.)?youtube\.com\//i, {timeout:30000});
+          await page.waitForTimeout(4000);
 
           const result = await page.evaluate(() => ({
             url: location.href,
+            hostname: location.hostname,
             title: document.title,
-            bodyText: (document.body?.innerText || '').slice(0, 2000),
-            onOfficialOrigin: /^(https?:\/\/)?(www\.|m\.)?youtube\.com\//i.test(location.href),
-            ytdApp: !!document.querySelector('ytd-app'),
-            ytMasthead: !!document.querySelector('ytd-masthead'),
-            videoPage: !!document.querySelector('ytd-page-manager'),
+            bodyText: (document.body?.innerText || '').slice(0, 1800),
+            onOfficialOrigin: /^(www\.|m\.)?youtube\.com$/i.test(location.hostname),
             video: !!document.querySelector('video'),
-            links: document.querySelectorAll('a[href]').length,
             scripts: document.scripts.length
           }));
 
           await page.screenshot({path:'/tmp/nm7-youtube-e2e.png', fullPage:false});
-
-          console.log('YOUTUBE_E2E_RESULT='+JSON.stringify({
+          console.log('YOUTUBE_ORIGINAL_E2E_RESULT='+JSON.stringify({
             ...result,
             consoleErrors:consoleErrors.slice(0,30),
             failed:failed.slice(0,30)
           }));
 
           if (!result.onOfficialOrigin) {
-            throw new Error('YouTube launcher did not reach official YouTube origin: '+result.url);
+            throw new Error('NM7 YouTube launcher did not reach official YouTube origin: '+result.url);
           }
-
           if (!result.title.toLowerCase().includes('youtube')) {
             throw new Error('Official YouTube page did not load: '+result.title);
           }
@@ -100,6 +92,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v5
         with:
-          name: youtube-proxy-e2e
+          name: youtube-original-e2e
           path: /tmp/nm7-youtube-e2e.png
           if-no-files-found: ignore

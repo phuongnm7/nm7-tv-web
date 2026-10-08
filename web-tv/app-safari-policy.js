@@ -245,6 +245,85 @@ function scrollHomeRowsByPage(direction){
  sc.scrollTop=Math.max(0,Math.min(maxTop,sc.scrollTop+(direction<0?-step:step)));
 }
 
+function homeSpatialCards(){
+ var nodes=document.querySelectorAll('#homeRows .card');
+ var a=[];
+ for(var i=0;i<nodes.length;i++){
+  var r=nodes[i].getBoundingClientRect();
+  if(!r.width||!r.height)continue;
+  a.push({el:nodes[i],left:r.left,right:r.right,top:r.top,bottom:r.bottom,cx:(r.left+r.right)/2,cy:(r.top+r.bottom)/2});
+ }
+ a.sort(function(x,y){return x.top-y.top||x.left-y.left});
+ return a;
+}
+function homeVisualRows(cards){
+ var rows=[];
+ var tolerance=10;
+ for(var i=0;i<cards.length;i++){
+  var item=cards[i],row=null;
+  for(var j=0;j<rows.length;j++){
+   if(Math.abs(rows[j].cy-item.cy)<=tolerance){row=rows[j];break}
+  }
+  if(!row){row={cy:item.cy,items:[]};rows.push(row)}
+  row.items.push(item);
+  row.cy=row.items.reduce(function(sum,x){return sum+x.cy},0)/row.items.length;
+ }
+ rows.sort(function(a,b){return a.cy-b.cy});
+ for(var k=0;k<rows.length;k++)rows[k].items.sort(function(a,b){return a.left-b.left});
+ return rows;
+}
+function moveHomeSpatial(direction){
+ var cards=homeSpatialCards();
+ if(!cards.length)return false;
+ var active=document.activeElement;
+ var current=null;
+ for(var i=0;i<cards.length;i++)if(cards[i].el===active){current=cards[i];break}
+ if(!current){
+  for(var z=0;z<cards.length;z++){
+   if(Number(cards[z].el.dataset.row||-1)===S.row&&Number(cards[z].el.dataset.col||-1)===S.col){current=cards[z];break}
+  }
+ }
+ if(!current)current=cards[0];
+
+ var rows=homeVisualRows(cards),ri=-1,ii=-1;
+ for(var r=0;r<rows.length;r++){
+  for(var q=0;q<rows[r].items.length;q++){
+   if(rows[r].items[q]===current){ri=r;ii=q;break}
+  }
+  if(ri>=0)break;
+ }
+ if(ri<0)return false;
+
+ var target=null;
+ if(direction==='left'){
+  target=rows[ri].items[ii-1]||rows[ri].items[rows[ri].items.length-1];
+ }else if(direction==='right'){
+  target=rows[ri].items[ii+1]||rows[ri].items[0];
+ }else if(direction==='up'){
+  if(ri>0){
+   var prev=rows[ri-1].items, best=prev[0],bestD=Infinity;
+   for(var p=0;p<prev.length;p++){var d=Math.abs(prev[p].cx-current.cx);if(d<bestD){bestD=d;best=prev[p]}}
+   target=best;
+  }else{
+   scrollHomeRowsByPage(-1);
+   return true;
+  }
+ }else if(direction==='down'){
+  if(ri<rows.length-1){
+   var next=rows[ri+1].items,bestN=next[0],bestND=Infinity;
+   for(var n=0;n<next.length;n++){var dn=Math.abs(next[n].cx-current.cx);if(dn<bestND){bestND=dn;bestN=next[n]}}
+   target=bestN;
+  }else{
+   scrollHomeRowsByPage(1);
+   return true;
+  }
+ }
+ if(!target)return false;
+ var rr=Number(target.el.dataset.row||0),cc=Number(target.el.dataset.col||0);
+ setFocusCard(rr,cc,true);
+ return true;
+}
+
 function setFocusCard(rr,cc,focusNow){
  var a=channelsInGroup(S.groups[rr]||'');if(!a.length)return false;
  cc=Math.max(0,Math.min(a.length-1,cc));S.zone='home';S.row=rr;S.col=cc;
@@ -1413,20 +1492,10 @@ function onKey(e){
   if(k===428){switchRelative(-1);return}
   return
  }
- if(k===37){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var a=channelsInGroup(S.groups[S.row]||'');if(S.col===0)openMenu();else setFocusCard(S.row,S.col-1,true)}return}
- if(k===39){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var a2=channelsInGroup(S.groups[S.row]||'');if(a2.length)setFocusCard(S.row,Math.min(a2.length-1,S.col+1),true)}return}
- if(k===38){e.preventDefault();e.stopPropagation();if(S.zone==='home'){
-  if(S.row===0){scrollHomeRowsByPage(-1);return}
-  var rr=Math.max(0,S.row-1),aa=channelsInGroup(S.groups[rr]||'');
-  if(aa.length)setFocusCard(rr,Math.min(S.col,Math.max(0,aa.length-1)),true);
-  else scrollHomeRowsByPage(-1);
- }return}
- if(k===40){e.preventDefault();e.stopPropagation();if(S.zone==='home'){
-  if(S.row>=S.groups.length-1){scrollHomeRowsByPage(1);return}
-  var nr=Math.min(S.groups.length-1,S.row+1),bb=channelsInGroup(S.groups[nr]||'');
-  if(bb.length)setFocusCard(nr,Math.min(S.col,Math.max(0,bb.length-1)),true);
-  else scrollHomeRowsByPage(1);
- }return}
+ if(k===37){e.preventDefault();e.stopPropagation();if(S.zone==='home'){moveHomeSpatial('left');}return}
+ if(k===39){e.preventDefault();e.stopPropagation();if(S.zone==='home'){moveHomeSpatial('right');}return}
+ if(k===38){e.preventDefault();e.stopPropagation();if(S.zone==='home'){moveHomeSpatial('up');}return}
+ if(k===40){e.preventDefault();e.stopPropagation();if(S.zone==='home'){moveHomeSpatial('down');}return}
  if(k===13){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var c=channelsInGroup(S.groups[S.row]||'')[S.col];if(c)openPlayer(c)}return}
  if(k===8||k===403){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var c2=channelsInGroup(S.groups[S.row]||'')[S.col];if(c2){var ix=S.fav.indexOf(c2.id);if(ix<0){S.fav.push(c2.id);toast('Đã thêm yêu thích')}else{S.fav.splice(ix,1);toast('Đã bỏ yêu thích')}saveUser();renderHome()}}return}
 }

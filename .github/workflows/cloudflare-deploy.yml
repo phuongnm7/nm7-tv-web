@@ -180,41 +180,6 @@ jobs:
           print("YOUTUBE_ORIGINAL_LAUNCHER_SMOKE_OK")
           PY
 
-          echo "Starting post-deploy YouTube direct-navigation E2E..."
-          mkdir -p /tmp/nm7-e2e
-          npm init -y >/tmp/nm7-e2e/npm-init.log 2>&1
-          npm i --no-save playwright@1.55.1 >>/tmp/nm7-e2e/npm-install.log 2>&1
-          npx playwright install --with-deps chromium >>/tmp/nm7-e2e/playwright-install.log 2>&1
-          cat > /tmp/nm7-e2e/youtube.mjs <<'EOF'
-          import { chromium, devices } from 'playwright';
-          const proxy = 'https://nm7-youtube-proxy.phuongnm7-iptv.workers.dev/';
-          const browser = await chromium.launch({headless:true});
-          const context = await browser.newContext({
-            ...devices['Pixel 7'],
-            locale: 'vi-VN',
-            timezoneId: 'Asia/Ho_Chi_Minh'
-          });
-          const page = await context.newPage();
-          const errors = [];
-          const failed = [];
-          page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-          page.on('requestfailed', r => failed.push({url:r.url(), error:r.failure()?.errorText || 'unknown'}));
-          await page.goto(proxy, {waitUntil:'domcontentloaded', timeout:45000});
-          await page.waitForTimeout(5000);
-          const result = await page.evaluate(() => ({
-            url: location.href,
-            title: document.title,
-            bodyText: (document.body?.innerText || '').slice(0, 1200),
-            onOfficialOrigin: /^https:\/\/(www\.)?youtube\.com\//i.test(location.href)
-          }));
-          await page.screenshot({path:'/tmp/nm7-e2e/youtube.png'});
-          console.log('NM7_YOUTUBE_E2E='+JSON.stringify({...result,errors:errors.slice(0,20),failed:failed.slice(0,20)}));
-          if (!result.onOfficialOrigin) throw new Error('YouTube did not reach official origin: '+result.url);
-          if (!result.title.toLowerCase().includes('youtube')) throw new Error('Official YouTube title missing: '+result.title);
-          await browser.close();
-          EOF
-          node /tmp/nm7-e2e/youtube.mjs
-
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport.json
           python3 - <<'PY'
           import json

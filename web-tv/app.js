@@ -342,7 +342,7 @@ function setFocusCard(rr,cc,focusNow){
  var el=document.querySelector('.card[data-row="'+rr+'"][data-col="'+cc+'"]');
  if(!el){renderHome();el=document.querySelector('.card[data-row="'+rr+'"][data-col="'+cc+'"]')}
  if(el){
-  var all=document.querySelectorAll('.card');for(var i=0;i<all.length;i++){all[i].tabIndex=-1;all[i].setAttribute('aria-selected','false')}
+  var all=document.querySelectorAll('.card');for(var i=0;i<all.length;i++){all[i].tabIndex=isTvLikeDevice()?0:-1;all[i].setAttribute('aria-selected','false')}
   el.tabIndex=0;el.setAttribute('aria-selected','true');
   if(focusNow)try{el.focus({preventScroll:true})}catch(e){try{el.focus()}catch(e2){}}
   try{ensureCardVisible(el)}catch(e3){}
@@ -1439,6 +1439,138 @@ function bindTouchNavigation(){
  },{passive:true});
 }
 
+function tvPointerLockElement(){
+ return document.pointerLockElement||document.webkitPointerLockElement||null;
+}
+function tvPointerLockSupported(){
+ return !!(document.body&&(document.body.requestPointerLock||document.body.webkitRequestPointerLock));
+}
+var TVPOINTER={locked:false,lastX:null,lastY:null,lastNavAt:0,lastLockAttempt:0,accX:0,accY:0};
+function requestTvPointerLock(){
+ if(!isTvLikeDevice()||!tvPointerLockSupported())return false;
+ if(tvPointerLockElement()===document.body){TVPOINTER.locked=true;return true}
+ var now=Date.now();
+ if(now-TVPOINTER.lastLockAttempt<700)return false;
+ TVPOINTER.lastLockAttempt=now;
+ var fn=document.body.requestPointerLock||document.body.webkitRequestPointerLock;
+ try{
+  var ret;
+  try{ret=fn.call(document.body,{unadjustedMovement:true})}
+  catch(_){ret=fn.call(document.body)}
+  if(ret&&typeof ret.catch==='function')ret.catch(function(){});
+  return true
+ }catch(e){return false}
+}
+function tvPointerDir(dx,dy){
+ var ax=Math.abs(dx),ay=Math.abs(dy);
+ if(Math.max(ax,ay)<2)return '';
+ return ax>=ay?(dx<0?'left':'right'):(dy<0?'up':'down');
+}
+function tvPointerMoveMenu(dir){
+ var bs=document.querySelectorAll('.menuBtn');
+ if(!bs.length)return;
+ if(dir==='up'||dir==='down'){
+  S.menu=Math.max(0,Math.min(bs.length-1,S.menu+(dir==='up'?-1:1)));
+  renderMenu();
+ }else if(dir==='left'){
+  closeMenu();
+ }
+}
+function tvPointerMovePlayer(dir){
+ if(!S.player)return;
+ if(S.quick){
+  var qb=document.querySelectorAll('.quickCard');
+  if(dir==='left')S.quickIndex=Math.max(0,S.quickIndex-1);
+  else if(dir==='right')S.quickIndex=Math.min(qb.length-1,S.quickIndex+1);
+  else if(dir==='up')S.quickIndex=Math.max(0,S.quickIndex-1);
+  else if(dir==='down')S.quickIndex=Math.min(qb.length-1,S.quickIndex+1);
+  focusQuick();return
+ }
+ if(S.ctrl){
+  if(dir==='left'){seek(-10);return}
+  if(dir==='right'){restoreAudio();seek(30);return}
+  if(dir==='up'){restoreAudio();switchRelative(1);return}
+  if(dir==='down'){restoreAudio();switchRelative(-1);return}
+  return
+ }
+ if(dir==='left'){restoreAudio();showQuick();return}
+ if(dir==='right'){restoreAudio();seek(30);return}
+ if(dir==='up'){restoreAudio();switchRelative(1);return}
+ if(dir==='down'){restoreAudio();switchRelative(-1);return}
+}
+function onTvPointerMove(e){
+ if(!isTvLikeDevice())return;
+ var dx=Number(e.movementX||e.webkitMovementX||0),dy=Number(e.movementY||e.webkitMovementY||0);
+ if(!dx&&!dy&&TVPOINTER.lastX!=null&&isFinite(e.screenX)&&isFinite(e.screenY)){
+  dx=Number(e.screenX)-TVPOINTER.lastX;dy=Number(e.screenY)-TVPOINTER.lastY;
+ }
+ if(isFinite(e.screenX))TVPOINTER.lastX=Number(e.screenX);
+ if(isFinite(e.screenY))TVPOINTER.lastY=Number(e.screenY);
+ if(!dx&&!dy)return;
+
+ // On browsers that permit it, acquire pointer lock on the first real
+ // remote/cursor movement. If gesture gating rejects it, the unlocked
+ // mouse bridge still works until the first OK click retries the lock.
+ if(!tvPointerLockElement())requestTvPointerLock();
+
+ TVPOINTER.accX+=dx;
+ TVPOINTER.accY+=dy;
+ var now=Date.now();
+ if(now-TVPOINTER.lastNavAt<110)return;
+ var dir=tvPointerDir(TVPOINTER.accX,TVPOINTER.accY);
+ if(!dir)return;
+ var threshold=TVPOINTER.locked?2:7;
+ if(Math.max(Math.abs(TVPOINTER.accX),Math.abs(TVPOINTER.accY))<threshold)return;
+ TVPOINTER.accX=0;TVPOINTER.accY=0;TVPOINTER.lastNavAt=now;
+
+ if(S.dialog)return;
+ if(S.menuOpen){tvPointerMoveMenu(dir);return}
+ if(S.player){tvPointerMovePlayer(dir);return}
+ if(S.zone==='home')moveHomeSpatial(dir);
+}
+function onTvPointerDown(){
+ if(!isTvLikeDevice())return;
+ requestTvPointerLock();
+}
+function onTvLockedClick(e){
+ if(!isTvLikeDevice()||!tvPointerLockElement())return;
+ e.preventDefault();e.stopPropagation();
+ if(S.dialog)return;
+ if(S.menuOpen){
+  selectMenu();return;
+ }
+ if(S.player){
+  if(S.quick){
+   var qb=document.querySelectorAll('.quickCard');
+   if(qb[S.quickIndex]){var ci=S.quickIndex;hideQuick();openPlayer(S.list[ci])}
+   return;
+  }
+  if(S.ctrl){restoreAudio();togglePlay();return}
+  showControls();return;
+ }
+ if(S.zone==='home'){
+  var a=channelsInGroup(S.groups[S.row]||''),c=a[S.col];
+  if(c)openPlayer(c);
+ }
+}
+function bindTvPointerNavigation(){
+ if(!isTvLikeDevice())return;
+ document.addEventListener('pointermove',onTvPointerMove,true);
+ document.addEventListener('mousemove',onTvPointerMove,true);
+ document.addEventListener('pointerdown',onTvPointerDown,true);
+ document.addEventListener('mousedown',onTvPointerDown,true);
+ document.addEventListener('click',onTvLockedClick,true);
+ var lockChange=function(){
+  var locked=tvPointerLockElement()===document.body;
+  TVPOINTER.locked=locked;
+  if(document.body)document.body.classList.toggle('tv-pointer-locked',locked);
+  dbg('TV pointer lock '+(locked?'ON':'OFF'));
+ };
+ document.addEventListener('pointerlockchange',lockChange,true);
+ document.addEventListener('webkitpointerlockchange',lockChange,true);
+ document.addEventListener('pointerlockerror',function(){TVPOINTER.locked=false},true);
+ document.addEventListener('webkitpointerlockerror',function(){TVPOINTER.locked=false},true);
+}
 function onKey(e){
  if(!e)return;
  // Samsung TV Browser can deliver remote events to Window rather than the focused button.
@@ -1602,6 +1734,7 @@ function startup(){
  window.addEventListener('focus',restoreRemoteFocus,true);
  window.addEventListener('pageshow',restoreRemoteFocus,true);
  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')restoreRemoteFocus()},true);
+ bindTvPointerNavigation();
  var cached=readCache();if(cached){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome()}
  loadSource('tv',false);
 }

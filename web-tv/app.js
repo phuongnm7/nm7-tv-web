@@ -1320,11 +1320,14 @@ function switchRelative(delta){
 }
 
 
+function isNativeTvMode(){try{return new URLSearchParams(location.search).get('native_tv')==='1'}catch(e){return false}}
 function isTouchMode(){
+ if(isNativeTvMode())return false;
  return !!((window.matchMedia&&window.matchMedia('(pointer: coarse)').matches) ||
   ('ontouchstart' in window) || (navigator.maxTouchPoints&&navigator.maxTouchPoints>0));
 }
 function isTvLikeDevice(){
+ if(isNativeTvMode())return true;
  var ua=String(navigator.userAgent||'');
  if(/Android TV|Google TV|GoogleTV|SmartTV|Tizen|webOS|Web0S|BRAVIA|AFT/i.test(ua))return true;
  var android=/Android/i.test(ua),mobile=/Mobile|Mobi/i.test(ua);
@@ -1333,6 +1336,7 @@ function isTvLikeDevice(){
  return android&&!mobile&&wide;
 }
 function detectMobileDevice(){
+ if(isNativeTvMode())return false;
  var ua=String(navigator.userAgent||'');
  var mobileUA=/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua);
  var touch=('ontouchstart' in window)||((navigator.maxTouchPoints||0)>0);

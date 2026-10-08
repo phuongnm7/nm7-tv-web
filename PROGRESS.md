@@ -223,3 +223,13 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Không thay đổi player IPTV, DRM, UI Android 1.0.69 hoặc pipeline playlist.
 - Native Tizen YouTube host vẫn ở trạng thái source scaffold; chưa có bằng chứng build/sign/E2E trên Samsung UA49M5500 Tizen 3.0 trong môi trường hiện tại.
 - Lần kiểm tra tiếp theo phải chạy lại YouTube E2E sau commit sửa test; chỉ đánh dấu thành công khi workflow pass và, riêng adblock Tizen, vẫn cần build/cài/test thiết bị thật.
+
+
+## 2026-10-08 — Responsive mobile layout + YouTube home shortcut
+
+- Giữ nguyên toàn bộ baseline Android TV 1.0.69, player, DRM, playlist, remote navigation và local M3U.
+- Ẩn nút **Chọn ứng dụng** (button cạnh logo YouTube) khỏi thanh đầu trang chủ trên mọi chế độ; nút YouTube gốc vẫn giữ nguyên.
+- Thiết bị touch/mobile ở portrait dùng lưới **3 cột**; ở landscape dùng **4 cột**. Khoảng cách và chiều cao thẻ được giảm để tận dụng diện tích màn hình, nhưng không thay đổi thứ tự kênh.
+- Native Tizen YouTube host bổ sung nút nổi **⌂ NM7** trong trang YouTube gốc và phím **Home/XF86Home/XF86HomePage** để quay thẳng về trang chủ NM7.
+- Browser web thuần không thể chèn nút vào youtube.com sau khi đã chuyển origin do same-origin isolation; vì vậy shortcut một chạm trong YouTube được thực hiện ở native host. Trên mobile browser thuần, nút Home/điều hướng tab vẫn thuộc quyền kiểm soát của browser.
+- Chưa đánh dấu native adblock thành công: vẫn cần build/sign và E2E trên Samsung UA49M5500 Tizen 3.0.

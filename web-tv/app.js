@@ -159,7 +159,8 @@ function renderHome(){
   var shown=a.length;
   for(var i=0;i<shown;i++){
    var c=a[i],selected=(S.zone==='home'&&!S.menuOpen&&r===S.row&&i===S.col),logo=logoSource(c),star=S.fav.indexOf(c.id)>=0;
-   html+='<button class="card" type="button" tabindex="'+(selected?'0':'-1')+'" data-row="'+r+'" data-col="'+i+'" aria-label="'+esc(c.name)+'" aria-selected="'+(selected?'true':'false')+'">';
+   var tvSpatial=isTvLikeDevice();
+   html+='<button class="card" type="button" tabindex="'+(tvSpatial?'0':(selected?'0':'-1'))+'" data-row="'+r+'" data-col="'+i+'" aria-label="'+esc(c.name)+'" aria-selected="'+(selected?'true':'false')+'">';
    html+='<div class="thumb">';
    if(logo)html+='<img loading="lazy" class="channelLogo '+(logoOverride(c)?'noClip':'')+'" data-row="'+r+'" data-src="'+esc(logo)+'" alt="">';
    else html+='<span>TV</span>';
@@ -1312,6 +1313,14 @@ function isTouchMode(){
  return !!((window.matchMedia&&window.matchMedia('(pointer: coarse)').matches) ||
   ('ontouchstart' in window) || (navigator.maxTouchPoints&&navigator.maxTouchPoints>0));
 }
+function isTvLikeDevice(){
+ var ua=String(navigator.userAgent||'');
+ if(/Android TV|Google TV|GoogleTV|SmartTV|Tizen|webOS|Web0S|BRAVIA|AFT/i.test(ua))return true;
+ var android=/Android/i.test(ua),mobile=/Mobile|Mobi/i.test(ua);
+ var wide=false;
+ try{wide=Math.max(Number(screen.width||0),Number(screen.height||0))>=1200}catch(e){}
+ return android&&!mobile&&wide;
+}
 function detectMobileDevice(){
  var ua=String(navigator.userAgent||'');
  var mobileUA=/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua);
@@ -1328,6 +1337,8 @@ function applyDeviceMode(){
  if(document.body){
   if(m)document.body.classList.add('mobile-mode');
   else document.body.classList.remove('mobile-mode');
+  if(isTvLikeDevice())document.body.classList.add('tv-spatial');
+  else document.body.classList.remove('tv-spatial');
  }
  var b=$('mobileMenuBtn');
  if(b)b.tabIndex=m?0:-1;

@@ -233,3 +233,16 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Native Tizen YouTube host bổ sung nút nổi **⌂ NM7** trong trang YouTube gốc và phím **Home/XF86Home/XF86HomePage** để quay thẳng về trang chủ NM7.
 - Browser web thuần không thể chèn nút vào youtube.com sau khi đã chuyển origin do same-origin isolation; vì vậy shortcut một chạm trong YouTube được thực hiện ở native host. Trên mobile browser thuần, nút Home/điều hướng tab vẫn thuộc quyền kiểm soát của browser.
 - Chưa đánh dấu native adblock thành công: vẫn cần build/sign và E2E trên Samsung UA49M5500 Tizen 3.0.
+
+
+## 2026-10-08 — Fix D-pad scrolling trên TV/Google TV
+
+- Xác định nguyên nhân: trang chính dùng `#homeRows` làm scroll container nhưng logic điều khiển TV chỉ đổi focus giữa các nhóm và phụ thuộc vào `scrollIntoView()`; đồng thời mọi `keydown` lặp (`e.repeat`) bị bỏ qua. Trên một số TV/Google TV browser, cách này khiến ↑↓ không cuộn trang thực tế.
+- Đã bổ sung cuộn chủ động bằng `scrollTop` cho `#homeRows`, tự đưa hàng đang focus vào vùng nhìn thấy.
+- Khi đang ở hàng đầu/cuối, ↑/↓ có fallback cuộn theo từng đoạn trang, nên D-pad vẫn có tác dụng ngay cả khi không còn nhóm kênh kế tiếp.
+- Không bỏ qua `keydown` lặp đối với ↑↓, cho phép giữ phím để cuộn liên tục.
+- Bổ sung nhận diện Android/Google TV key codes: D-pad `19/20/21/22`, OK `23/66`, Back `4`, cùng các dạng `Arrow*`/`DPAD_*`.
+- Ép `#homeRows` thành scroll container riêng bằng `overflow-y: scroll` và giữ nguyên giao diện/kích thước TV hiện tại.
+- Đồng bộ `web-tv/app.js` với `web-tv/app-safari-policy.js`.
+- Thêm bước `node --check` cho JS TV trước Cloudflare deployment.
+- Không thay đổi playlist, player, DRM, giao diện Android 1.0.69, YouTube hoặc các tính năng khác.

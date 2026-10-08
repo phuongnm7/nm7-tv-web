@@ -224,6 +224,27 @@ function ensureCardVisible(el){
    sc.scrollLeft=Math.max(0,right-sc.clientWidth+14);
  }
 }
+function homeRowsScroll(){return $('homeRows')}
+function scrollHomeRowsToSection(section){
+ var sc=homeRowsScroll();
+ if(!sc||!section)return;
+ var top=section.offsetTop;
+ var bottom=top+section.offsetHeight;
+ var viewTop=sc.scrollTop;
+ var viewBottom=viewTop+sc.clientHeight;
+ var maxTop=Math.max(0,sc.scrollHeight-sc.clientHeight);
+ if(top<viewTop+6)sc.scrollTop=Math.max(0,top-8);
+ else if(bottom>viewBottom-6)sc.scrollTop=Math.min(maxTop,bottom-sc.clientHeight+8);
+}
+function scrollHomeRowsByPage(direction){
+ var sc=homeRowsScroll();
+ if(!sc)return;
+ var maxTop=Math.max(0,sc.scrollHeight-sc.clientHeight);
+ if(maxTop<=0)return;
+ var step=Math.max(70,Math.round(sc.clientHeight*0.72));
+ sc.scrollTop=Math.max(0,Math.min(maxTop,sc.scrollTop+(direction<0?-step:step)));
+}
+
 function setFocusCard(rr,cc,focusNow){
  var a=channelsInGroup(S.groups[rr]||'');if(!a.length)return false;
  cc=Math.max(0,Math.min(a.length-1,cc));S.zone='home';S.row=rr;S.col=cc;
@@ -235,8 +256,11 @@ function setFocusCard(rr,cc,focusNow){
   if(focusNow)try{el.focus({preventScroll:true})}catch(e){try{el.focus()}catch(e2){}}
   try{ensureCardVisible(el)}catch(e3){}
   var section=el.closest('.row');
-  if(section)try{section.scrollIntoView({block:'nearest',inline:'nearest',behavior:'auto'})}catch(e4){}
-  if(window.requestAnimationFrame)requestAnimationFrame(function(){ensureCardVisible(el)});
+  if(section)try{scrollHomeRowsToSection(section)}catch(e4){}
+  if(window.requestAnimationFrame)requestAnimationFrame(function(){
+   ensureCardVisible(el);
+   var s=el.closest('.row');if(s)scrollHomeRowsToSection(s);
+  });
   activateLogos();
  }
  return true
@@ -1338,7 +1362,7 @@ function onKey(e){
   if(k===13 && S.dialog==='search'){e.preventDefault();e.stopPropagation();closeDialog();return}
   return
  }
- if(e.repeat)return;
+ if(e.repeat && (k===13||k===10009||k===27))return;
  if(k===10009||k===27){
   e.preventDefault();e.stopPropagation();
   if(S.player){
@@ -1391,20 +1415,37 @@ function onKey(e){
  }
  if(k===37){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var a=channelsInGroup(S.groups[S.row]||'');if(S.col===0)openMenu();else setFocusCard(S.row,S.col-1,true)}return}
  if(k===39){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var a2=channelsInGroup(S.groups[S.row]||'');if(a2.length)setFocusCard(S.row,Math.min(a2.length-1,S.col+1),true)}return}
- if(k===38){e.preventDefault();e.stopPropagation();if(S.zone==='home'){if(S.row===0){return}else{var rr=Math.max(0,S.row-1),aa=channelsInGroup(S.groups[rr]||'');setFocusCard(rr,Math.min(S.col,Math.max(0,aa.length-1)),true)}}return}
- if(k===40){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var nr=Math.min(S.groups.length-1,S.row+1),bb=channelsInGroup(S.groups[nr]||'');if(bb.length)setFocusCard(nr,Math.min(S.col,Math.max(0,bb.length-1)),true)}return}
+ if(k===38){e.preventDefault();e.stopPropagation();if(S.zone==='home'){
+  if(S.row===0){scrollHomeRowsByPage(-1);return}
+  var rr=Math.max(0,S.row-1),aa=channelsInGroup(S.groups[rr]||'');
+  if(aa.length)setFocusCard(rr,Math.min(S.col,Math.max(0,aa.length-1)),true);
+  else scrollHomeRowsByPage(-1);
+ }return}
+ if(k===40){e.preventDefault();e.stopPropagation();if(S.zone==='home'){
+  if(S.row>=S.groups.length-1){scrollHomeRowsByPage(1);return}
+  var nr=Math.min(S.groups.length-1,S.row+1),bb=channelsInGroup(S.groups[nr]||'');
+  if(bb.length)setFocusCard(nr,Math.min(S.col,Math.max(0,bb.length-1)),true);
+  else scrollHomeRowsByPage(1);
+ }return}
  if(k===13){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var c=channelsInGroup(S.groups[S.row]||'')[S.col];if(c)openPlayer(c)}return}
  if(k===8||k===403){e.preventDefault();e.stopPropagation();if(S.zone==='home'){var c2=channelsInGroup(S.groups[S.row]||'')[S.col];if(c2){var ix=S.fav.indexOf(c2.id);if(ix<0){S.fav.push(c2.id);toast('Đã thêm yêu thích')}else{S.fav.splice(ix,1);toast('Đã bỏ yêu thích')}saveUser();renderHome()}}return}
 }
 function remoteCode(e){
  var k=Number(e.keyCode||e.which||0),key=String(e.key||'').toLowerCase(),code=String(e.code||'').toLowerCase();
- if(key==='arrowleft'||key==='left'||code==='arrowleft')return 37;
- if(key==='arrowup'||key==='up'||code==='arrowup')return 38;
- if(key==='arrowright'||key==='right'||code==='arrowright')return 39;
- if(key==='arrowdown'||key==='down'||code==='arrowdown')return 40;
- if(key==='enter'||key==='select'||key==='ok'||key==='return')return 13;
+ if(key==='arrowleft'||key==='left'||code==='arrowleft'||key==='dpad_left')return 37;
+ if(key==='arrowup'||key==='up'||code==='arrowup'||key==='dpad_up')return 38;
+ if(key==='arrowright'||key==='right'||code==='arrowright'||key==='dpad_right')return 39;
+ if(key==='arrowdown'||key==='down'||code==='arrowdown'||key==='dpad_down')return 40;
+ if(key==='enter'||key==='select'||key==='ok'||key==='return'||key==='dpad_center')return 13;
  if(key==='escape'||key==='esc')return 27;
  if(key==='back'||key==='backspace'||key==='browserback'||key==='browserbackspace')return 10009;
+ // Android/Google TV WebView and some TV browsers may expose Android KeyEvent constants.
+ if(k===21)return 37;
+ if(k===19)return 38;
+ if(k===22)return 39;
+ if(k===20)return 40;
+ if(k===23||k===66)return 13;
+ if(k===4)return 10009;
  // Samsung/Tizen models expose RETURN/BACK as 461 or 10009 depending on browser generation.
  if(k===461||k===10009)return 10009;
  if(k===8)return 10009;
@@ -1443,7 +1484,12 @@ function restoreRemoteFocus(){
  if(S.dialog||S.menuOpen)return;
  setTimeout(function(){
   if(S.player)playerFocus();
-  else focusHome(false);
+  else{
+   focusHome(false);
+   var sc=homeRowsScroll();
+   var row=document.querySelector('.row[data-row="'+S.row+'"]');
+   if(sc&&row)scrollHomeRowsToSection(row);
+  }
  },20);
 }
 function startup(){

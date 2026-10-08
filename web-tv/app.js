@@ -1449,21 +1449,45 @@ function tvPointerLockElement(){
 function tvPointerLockSupported(){
  return !!(document.body&&(document.body.requestPointerLock||document.body.webkitRequestPointerLock));
 }
-var TVPOINTER={locked:false,lastX:null,lastY:null,lastNavAt:0,lastLockAttempt:0,accX:0,accY:0};
-function requestTvPointerLock(){
- if(!isTvLikeDevice()||!tvPointerLockSupported())return false;
- if(tvPointerLockElement()===document.body){TVPOINTER.locked=true;return true}
+var TVPOINTER={lastX:null,lastY:null,lastNavAt:0,accX:0,accY:0,lastDir:'',edge:null,edgeSince:0,edgeTicks:0,edgeTimer:null};
+var TVGAME={last:{},raf:0};
+
+function tvPointerNearEdge(x,y){
+ var w=window.innerWidth||document.documentElement.clientWidth||0;
+ var h=window.innerHeight||document.documentElement.clientHeight||0;
+ var m=Math.max(18,Math.min(42,Math.round(Math.min(w,h)*0.035)));
+ if(x<=m)return 'left';
+ if(x>=w-m)return 'right';
+ if(y<=m)return 'up';
+ if(y>=h-m)return 'down';
+ return '';
+}
+function tvNavigate(dir){
+ if(!dir)return false;
+ if(S.dialog)return false;
+ if(S.menuOpen){tvPointerMoveMenu(dir);return true}
+ if(S.player){tvPointerMovePlayer(dir);return true}
+ if(S.zone==='home')return !!moveHomeSpatial(dir);
+ return false;
+}
+function tvStartEdgeBridge(dir){
+ if(!dir)return;
  var now=Date.now();
- if(now-TVPOINTER.lastLockAttempt<700)return false;
- TVPOINTER.lastLockAttempt=now;
- var fn=document.body.requestPointerLock||document.body.webkitRequestPointerLock;
- try{
-  var ret;
-  try{ret=fn.call(document.body,{unadjustedMovement:true})}
-  catch(_){ret=fn.call(document.body)}
-  if(ret&&typeof ret.catch==='function')ret.catch(function(){});
-  return true
- }catch(e){return false}
+ if(TVPOINTER.edge===dir && now-TVPOINTER.edgeSince<1400)return;
+ TVPOINTER.edge=dir;
+ TVPOINTER.edgeSince=now;
+ TVPOINTER.edgeTicks=0;
+ if(TVPOINTER.edgeTimer)clearInterval(TVPOINTER.edgeTimer);
+ TVPOINTER.edgeTimer=setInterval(function(){
+  var age=Date.now()-TVPOINTER.edgeSince;
+  if(TVPOINTER.edge!==dir||age>1450||TVPOINTER.edgeTicks>=5){
+   clearInterval(TVPOINTER.edgeTimer);TVPOINTER.edgeTimer=null;TVPOINTER.edge=null;return;
+  }
+  if(Date.now()-TVPOINTER.lastNavAt<150)return;
+  TVPOINTER.edgeTicks++;
+  TVPOINTER.lastNavAt=Date.now();
+  tvNavigate(dir);
+ },190);
 }
 function tvPointerDir(dx,dy){
  var ax=Math.abs(dx),ay=Math.abs(dy);
@@ -1504,76 +1528,77 @@ function tvPointerMovePlayer(dir){
 }
 function onTvPointerMove(e){
  if(!isTvLikeDevice())return;
+ if(e&&e.__nm7PointerHandled)return;
+ try{if(e)Object.defineProperty(e,'__nm7PointerHandled',{value:true,configurable:true})}catch(_){}
+
  var dx=Number(e.movementX||e.webkitMovementX||0),dy=Number(e.movementY||e.webkitMovementY||0);
- if(!dx&&!dy&&TVPOINTER.lastX!=null&&isFinite(e.screenX)&&isFinite(e.screenY)){
-  dx=Number(e.screenX)-TVPOINTER.lastX;dy=Number(e.screenY)-TVPOINTER.lastY;
+ var x=isFinite(e.clientX)?Number(e.clientX):NaN,y=isFinite(e.clientY)?Number(e.clientY):NaN;
+ if(!dx&&!dy&&TVPOINTER.lastX!=null&&isFinite(x)&&isFinite(y)){
+  dx=x-TVPOINTER.lastX;dy=y-TVPOINTER.lastY;
  }
- if(isFinite(e.screenX))TVPOINTER.lastX=Number(e.screenX);
- if(isFinite(e.screenY))TVPOINTER.lastY=Number(e.screenY);
- if(!dx&&!dy)return;
+ if(isFinite(x))TVPOINTER.lastX=x;
+ if(isFinite(y))TVPOINTER.lastY=y;
 
- // On browsers that permit it, acquire pointer lock on the first real
- // remote/cursor movement. If gesture gating rejects it, the unlocked
- // mouse bridge still works until the first OK click retries the lock.
- if(!tvPointerLockElement())requestTvPointerLock();
-
- TVPOINTER.accX+=dx;
- TVPOINTER.accY+=dy;
- var now=Date.now();
- if(now-TVPOINTER.lastNavAt<110)return;
- var dir=tvPointerDir(TVPOINTER.accX,TVPOINTER.accY);
+ var dir=tvPointerDir(dx,dy);
+ var edge=tvPointerNearEdge(x,y);
+ if(!dir && edge && TVPOINTER.lastDir){
+  dir=TVPOINTER.lastDir;
+ }
  if(!dir)return;
- var threshold=TVPOINTER.locked?2:7;
- if(Math.max(Math.abs(TVPOINTER.accX),Math.abs(TVPOINTER.accY))<threshold)return;
- TVPOINTER.accX=0;TVPOINTER.accY=0;TVPOINTER.lastNavAt=now;
+ TVPOINTER.lastDir=dir;
+ if(edge===dir)TVPOINTER.edge=dir;
 
- if(S.dialog)return;
- if(S.menuOpen){tvPointerMoveMenu(dir);return}
- if(S.player){tvPointerMovePlayer(dir);return}
- if(S.zone==='home')moveHomeSpatial(dir);
-}
-function onTvPointerDown(){
- if(!isTvLikeDevice())return;
- requestTvPointerLock();
-}
-function onTvLockedClick(e){
- if(!isTvLikeDevice()||!tvPointerLockElement())return;
- e.preventDefault();e.stopPropagation();
- if(S.dialog)return;
- if(S.menuOpen){
-  selectMenu();return;
+ TVPOINTER.accX+=dx;TVPOINTER.accY+=dy;
+ var now=Date.now();
+ if(now-TVPOINTER.lastNavAt<105)return;
+ var threshold=6;
+ if(!dx&&!dy || Math.max(Math.abs(TVPOINTER.accX),Math.abs(TVPOINTER.accY))>=threshold){
+  TVPOINTER.accX=0;TVPOINTER.accY=0;TVPOINTER.lastNavAt=now;
+  tvNavigate(dir);
  }
- if(S.player){
-  if(S.quick){
-   var qb=document.querySelectorAll('.quickCard');
-   if(qb[S.quickIndex]){var ci=S.quickIndex;hideQuick();openPlayer(S.list[ci])}
-   return;
-  }
-  if(S.ctrl){restoreAudio();togglePlay();return}
-  showControls();return;
- }
- if(S.zone==='home'){
-  var a=channelsInGroup(S.groups[S.row]||''),c=a[S.col];
-  if(c)openPlayer(c);
- }
+ if(edge===dir)tvStartEdgeBridge(dir);
 }
 function bindTvPointerNavigation(){
  if(!isTvLikeDevice())return;
  document.addEventListener('pointermove',onTvPointerMove,true);
  document.addEventListener('mousemove',onTvPointerMove,true);
- document.addEventListener('pointerdown',onTvPointerDown,true);
- document.addEventListener('mousedown',onTvPointerDown,true);
- document.addEventListener('click',onTvLockedClick,true);
- var lockChange=function(){
-  var locked=tvPointerLockElement()===document.body;
-  TVPOINTER.locked=locked;
-  if(document.body)document.body.classList.toggle('tv-pointer-locked',locked);
-  dbg('TV pointer lock '+(locked?'ON':'OFF'));
- };
- document.addEventListener('pointerlockchange',lockChange,true);
- document.addEventListener('webkitpointerlockchange',lockChange,true);
- document.addEventListener('pointerlockerror',function(){TVPOINTER.locked=false},true);
- document.addEventListener('webkitpointerlockerror',function(){TVPOINTER.locked=false},true);
+ document.addEventListener('click',function(e){
+  if(!isTvLikeDevice()||S.dialog)return;
+  var card=e.target&&e.target.closest?e.target.closest('#homeRows .card'):null;
+  if(card){
+   S.row=Number(card.dataset.row||0);S.col=Number(card.dataset.col||0);S.zone='home';S.menuOpen=false;
+  }
+ },true);
+ if(typeof window.Gamepad!=='undefined'||navigator.getGamepads){
+  window.addEventListener('gamepadconnected',function(){tvPollGamepad()},true);
+  window.addEventListener('gamepaddisconnected',function(){},true);
+  tvPollGamepad();
+ }
+}
+function tvPollGamepad(){
+ if(!navigator.getGamepads)return;
+ var pads=navigator.getGamepads(),active=false;
+ for(var i=0;i<pads.length;i++){
+  var p=pads[i];if(!p)continue;
+  active=true;
+  var b=p.buttons||[];
+  var map={12:'up',13:'down',14:'left',15:'right'};
+  for(var k in map){
+   var idx=Number(k),pressed=!!(b[idx]&&b[idx].pressed);
+   var key=p.index+':b'+idx;
+   if(pressed&&!TVGAME.last[key]){
+    TVGAME.last[key]=true;tvNavigate(map[k]);
+   }else if(!pressed)TVGAME.last[key]=false;
+  }
+  var ax=p.axes||[];
+  if(ax.length>=2){
+   var adir=Math.abs(ax[0])>Math.abs(ax[1])?(ax[0]<-.55?'left':ax[0]>.55?'right':''):(ax[1]<-.55?'up':ax[1]>.55?'down':'');
+   var akey=p.index+':axis';
+   if(adir&&TVGAME.last[akey]!==adir){TVGAME.last[akey]=adir;tvNavigate(adir)}
+   if(!adir)TVGAME.last[akey]='';
+  }
+ }
+ TVGAME.raf=requestAnimationFrame(tvPollGamepad);
 }
 function onKey(e){
  if(!e)return;

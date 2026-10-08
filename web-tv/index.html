@@ -178,6 +178,43 @@ body.mobile-mode #debug{font-synthesis:none}
   #status{font-size:15px}
 }
 
+
+
+/* NM7 mobile density/layout refinement — baseline 1.0.69 preserved. */
+#appShortcut{display:none!important}
+@media screen and (pointer:coarse){
+  body.mobile-mode #homeTabs{display:flex}
+  body.mobile-mode #appShortcut{display:none!important}
+  body.mobile-mode #homeTitle{left:144px;right:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.mobile-mode #homeRows{padding-left:0;padding-right:0}
+  body.mobile-mode .row{margin:0 0 5px}
+  body.mobile-mode .row h2{height:31px;padding:5px 5px 1px;font-size:15px;line-height:20px}
+  body.mobile-mode .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 6px;height:auto;width:100%;padding:2px 3px 6px;overflow:visible}
+  body.mobile-mode .card{width:100%;height:76px;min-width:0;padding:2px;border-radius:11px}
+  body.mobile-mode .card:focus{transform:none;border-radius:11px;box-shadow:0 0 0 2px #37d6a6 inset}
+  body.mobile-mode .thumb{height:44px;flex-basis:44px}
+  body.mobile-mode .thumb::before{width:50px;height:50px;top:22px;margin:-25px 0 0 -25px;border-width:3px}
+  body.mobile-mode .thumb::after{width:45px;height:45px;top:22px;margin:-22px 0 0 -22px;border-width:2px}
+  body.mobile-mode .thumb img{width:40px;height:40px;max-width:40px;max-height:40px}
+  body.mobile-mode .name{height:20px;line-height:18px;font-size:11px;padding:0 1px}
+  body.mobile-mode .star{top:1px;right:4px;font-size:13px}
+}
+@media screen and (orientation:landscape) and (pointer:coarse){
+  body.mobile-mode #homeTabs{flex-basis:50px;height:50px;padding-top:0}
+  body.mobile-mode #homeTitle{left:148px;right:10px;font-size:15px}
+  body.mobile-mode #homeRows{padding-top:0}
+  body.mobile-mode .row{margin-bottom:3px}
+  body.mobile-mode .row h2{height:28px;padding:4px 5px 0;font-size:15px;line-height:20px}
+  body.mobile-mode .cards{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px 7px;padding:1px 5px 5px}
+  body.mobile-mode .card{height:67px;padding:1px;border-radius:9px}
+  body.mobile-mode .card:focus{border-radius:9px}
+  body.mobile-mode .thumb{height:39px;flex-basis:39px}
+  body.mobile-mode .thumb::before{width:44px;height:44px;top:19px;margin:-22px 0 0 -22px}
+  body.mobile-mode .thumb::after{width:40px;height:40px;top:19px;margin:-20px 0 0 -20px}
+  body.mobile-mode .thumb img{width:36px;height:36px;max-width:36px;max-height:36px}
+  body.mobile-mode .name{height:17px;line-height:16px;font-size:10px}
+}
+
 </style>
 <script src="./dash.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>

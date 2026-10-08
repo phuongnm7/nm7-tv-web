@@ -297,9 +297,20 @@ function moveHomeSpatial(direction){
 
  var target=null;
  if(direction==='left'){
-  target=rows[ri].items[ii-1]||rows[ri].items[rows[ri].items.length-1];
+  if(ii===0){
+   openMenu();
+   return true;
+  }
+  target=rows[ri].items[ii-1];
  }else if(direction==='right'){
-  target=rows[ri].items[ii+1]||rows[ri].items[0];
+  if(ii<rows[ri].items.length-1){
+   target=rows[ri].items[ii+1];
+  }else if(ri<rows.length-1){
+   target=rows[ri+1].items[0];
+  }else{
+   scrollHomeRowsByPage(1);
+   return true;
+  }
  }else if(direction==='up'){
   if(ri>0){
    var prev=rows[ri-1].items, best=prev[0],bestD=Infinity;

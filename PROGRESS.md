@@ -246,3 +246,16 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Đồng bộ `web-tv/app.js` với `web-tv/app-safari-policy.js`.
 - Thêm bước `node --check` cho JS TV trước Cloudflare deployment.
 - Không thay đổi playlist, player, DRM, giao diện Android 1.0.69, YouTube hoặc các tính năng khác.
+
+
+## 2026-10-08 — Phân tích video Google TV và sửa spatial navigation
+
+- Đã xem trực tiếp video 223453.mp4. Lỗi thể hiện ở tầng focus/navigation: điều khiển dừng ở mép ô đang nhìn thấy, không đi được xuống hàng/nhóm bên dưới và không đi tiếp sang ô kế tiếp đúng theo bố cục 3/4 cột.
+- Nguyên nhân gốc: CSS responsive đã chuyển các nhóm kênh thành CSS Grid 3/4 cột, nhưng thuật toán D-pad cũ vẫn coi mỗi group là một hàng logic và `S.col` là chỉ số tuyến tính. Vì vậy vị trí vật lý của các ô không còn tương ứng với `row/col` logic.
+- Đã thay điều hướng trang chủ bằng **spatial navigation theo vị trí thật của DOM**: ↑/↓ tìm ô gần nhất theo trục dọc; ←/→ tìm ô kế tiếp theo hàng hiển thị; không còn phụ thuộc số cột cố định.
+- Khi hết visual row ở đầu/cuối viewport, hệ thống vẫn cuộn `#homeRows` theo trang; khi còn visual row kế tiếp, focus chuyển trực tiếp tới ô đó và tự đưa vào vùng nhìn thấy.
+- Đã bổ sung native spatial-focus fallback cho Android/Google TV: các card được để `tabindex=0`, cho phép TV browser tự di chuyển focus giữa các button khi D-pad không phát `keydown` theo chuẩn web.
+- Bổ sung nhận diện Android/Google TV và trạng thái focus rõ ràng để nhìn thấy ô đang được chọn trên TV.
+- `web-tv/app.js` và `web-tv/app-safari-policy.js` đã được đồng bộ.
+- Kiểm tra CI: bước `node --check` cho `app.js`, `app-safari-policy.js`, `youtube.js` đã PASS trên commit trước đó. Deployment Cloudflare hiện đang **không thể hoàn tất do Cloudflare API token trong GitHub Actions trả Authentication error 10000 / Too many authentication failures 10502**; đây là lỗi credential của CI, không phải lỗi JavaScript vừa sửa.
+- Không thay đổi playlist, DRM, player, UI Android 1.0.69 hay logic phát kênh.

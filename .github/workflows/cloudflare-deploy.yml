@@ -94,7 +94,7 @@ jobs:
               g=c.get('group') or 'Khác'
               if g not in seen:
                   seen.add(g); groups.append(g)
-          expected=['VTV','VTVcab','Thể Thao','SCTV']
+          expected=['VTV','VTVcab','Thể Thao','Quốc tế']
           if groups[:4] != expected:
               raise SystemExit(f'wrong first groups: {groups[:8]}')
           def names(g): return [c.get('name','') for c in channels if (c.get('group') or 'Khác')==g]

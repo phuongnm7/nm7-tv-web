@@ -213,3 +213,13 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Worker nm7-youtube-proxy vẫn được giữ để chẩn đoán/thử nghiệm và chỉ proxy khi thêm ?proxy=1; không dùng làm đường mặc định.
 - Đây là thay đổi để ưu tiên tính ổn định: YouTube không bị kẹt skeleton do lớp proxy trung gian.
 - Chặn quảng cáo ở tầng trình duyệt vẫn cần native browser host (như EWK trên Tizen) hoặc trình duyệt có bộ lọc riêng; JavaScript của NM7 không thể biến một tab youtube.com thành adblocker network-level.
+
+
+## 2026-10-08 — Tiếp tục từ mốc YouTube gốc
+
+- Đã rà soát lại branch `fix/youtube-original-coccoc-adblock-20261006`.
+- Xác nhận lỗi của YouTube E2E run #21 không phải do launcher: bài test cũ yêu cầu URL phải là `www.youtube.com`, trong khi YouTube mobile hợp lệ chuyển sang `https://m.youtube.com/`.
+- Đã sửa workflow `.github/workflows/youtube-e2e.yml` để chấp nhận cả `www.youtube.com` và `m.youtube.com` khi xác nhận official YouTube origin.
+- Không thay đổi player IPTV, DRM, UI Android 1.0.69 hoặc pipeline playlist.
+- Native Tizen YouTube host vẫn ở trạng thái source scaffold; chưa có bằng chứng build/sign/E2E trên Samsung UA49M5500 Tizen 3.0 trong môi trường hiện tại.
+- Lần kiểm tra tiếp theo phải chạy lại YouTube E2E sau commit sửa test; chỉ đánh dấu thành công khi workflow pass và, riêng adblock Tizen, vẫn cần build/cài/test thiết bị thật.

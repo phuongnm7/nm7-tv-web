@@ -11,6 +11,7 @@
 #include "nm7_adblock.h"
 
 #define NM7_START_URL "https://nm7-tv-web.phuongnm7-iptv.workers.dev/"
+#define NM7_HOME_URL NM7_START_URL
 
 typedef struct {
     Evas_Object *win;
@@ -47,6 +48,13 @@ static void nm7_intercept_request_cb(
 static const char *NM7_YOUTUBE_SKIP_JS =
 "(function(){"
 "'use strict';"
+"function nm7Home(){try{location.href='https://nm7-tv-web.phuongnm7-iptv.workers.dev/'}catch(e){}}"
+"function nm7EnsureHome(){if(!/^(www\\.)?(m\\.)?youtube\\.com$/i.test(location.hostname))return;"
+"if(document.getElementById('__nm7_home_btn__'))return;"
+"var b=document.createElement('button');b.id='__nm7_home_btn__';b.type='button';b.textContent='⌂ NM7';"
+"b.setAttribute('aria-label','Về trang chủ NM7 TV');"
+"b.style.cssText='position:fixed;z-index:2147483647;top:18px;right:24px;min-width:110px;height:52px;padding:0 16px;border:2px solid rgba(55,214,166,.95);border-radius:12px;background:rgba(8,16,25,.88);color:#fff;font:700 20px Arial,sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.35);';"
+"b.onclick=nm7Home;document.documentElement.appendChild(b);}"
 "if(window.__NM7_YT_SHIELD__)return;"
 "window.__NM7_YT_SHIELD__=true;"
 "function p(){"
@@ -57,7 +65,8 @@ static const char *NM7_YOUTUBE_SKIP_JS =
 "document.querySelectorAll('.ytp-ad-overlay-container,.ytp-ad-overlay-slot').forEach(function(x){try{x.remove()}catch(e){}});"
 "}"
 "try{new MutationObserver(p).observe(document.documentElement,{subtree:true,childList:true})}catch(e){}"
-"setInterval(p,250);p();"
+"setInterval(p,250);p();nm7EnsureHome();"
+"try{new MutationObserver(nm7EnsureHome).observe(document.documentElement,{subtree:true,childList:true})}catch(e){}"
 "})();";
 
 static void nm7_load_finished_cb(void *data, Evas_Object *obj, void *event_info)
@@ -86,6 +95,13 @@ static void nm7_key_down_cb(void *data, Evas *evas, Evas_Object *obj, void *even
      * Keep Arrow/Enter for YouTube itself. Only consume the TV Back key here.
      * If YouTube is fullscreen, exit fullscreen first; otherwise walk history.
      */
+    if (strcmp(event->keyname, "Home") == 0 ||
+        strcmp(event->keyname, "XF86Home") == 0 ||
+        strcmp(event->keyname, "XF86HomePage") == 0) {
+        ewk_view_url_set(app->view, NM7_HOME_URL);
+        return;
+    }
+
     if (strcmp(event->keyname, "XF86Back") == 0 ||
         strcmp(event->keyname, "Back") == 0 ||
         strcmp(event->keyname, "Escape") == 0) {

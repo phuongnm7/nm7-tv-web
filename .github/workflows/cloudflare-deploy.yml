@@ -52,8 +52,8 @@ jobs:
 
           echo "=== Default YouTube navigation ==="
           curl -sS --max-time 30 -D /tmp/yt-headers.txt -o /dev/null "$YTBASE/"
-          code="$(awk 'toupper($1) ~ /^HTTP\\// {c=$2} END {print c}' /tmp/yt-headers.txt)"
-          location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]*:[[:space:]]*/,"",$0); print $0}' /tmp/yt-headers.txt | tail -1 | tr -d '\\r')"
+          code="$(awk 'toupper($1) ~ /^HTTP\// {c=$2} END {print c}' /tmp/yt-headers.txt)"
+          location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]*:[[:space:]]*/,"",$0); print $0}' /tmp/yt-headers.txt | tail -1 | tr -d '\r')"
           echo "YOUTUBE_REDIRECT_STATUS=$code"
           echo "YOUTUBE_REDIRECT_LOCATION=$location"
           test "$code" = "302"

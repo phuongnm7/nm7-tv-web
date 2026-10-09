@@ -81,6 +81,8 @@ jobs:
           echo "$BG_META" | grep -q "3840x2160"
           test "$(sha256sum /tmp/nm7-bg.webp | cut -d' ' -f1)" = "d8af6ac8ba532db465dcb8c44e00b71865e6c9a712c8cc21cd0a2118400bd00d"
           grep -q "NM7 TV 1.0.69" /tmp/nm7-home.html
+          grep -Fq "body.mobile-mode #mobileMenuBtn{display:flex;align-items:center;justify-content:center;flex:0 0 46px}" /tmp/nm7-home.html
+          echo "IPAD_LANDSCAPE_HAMBURGER_SMOKE_OK"
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=android1069" -o /tmp/nm7-tv.json
           python3 - <<'PY'
           import json, re

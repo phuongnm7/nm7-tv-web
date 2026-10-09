@@ -12,12 +12,12 @@ const TARGET_GROUPS = [
 export const config = { maxDuration: 30 };
 
 function normalizeGroup(value) {
-  return String(value || "").normalize("NFC").trim().replace(/\\s+/g, " ").toLocaleLowerCase("vi");
+  return String(value || "").normalize("NFC").trim().replace(/\s+/g, " ").toLocaleLowerCase("vi");
 }
 
 function validatePlaylist(text, label) {
-  const value = String(text || "").replace(/^\\uFEFF/, "").replace(/\\r\\n?/g, "\\n");
-  if (!/^\\s*#EXTM3U\\b/i.test(value) || !/^\\s*#EXTINF:/im.test(value)) {
+  const value = String(text || "").replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  if (!/^\s*#EXTM3U\b/i.test(value) || !/^\s*#EXTINF:/im.test(value)) {
     throw new Error(label + " không trả về M3U hợp lệ");
   }
   return value;
@@ -58,13 +58,13 @@ function extractEntries(m3u) {
   function finish() {
     if (current && current.some(line => {
       const value = line.trim();
-      return value && !value.startsWith("#") && /^(https?|rtsp|rtmp|udp):\\/\\//i.test(value.split("|")[0]);
+      return value && !value.startsWith("#") && /^(https?|rtsp|rtmp|udp):\/\//i.test(value.split("|")[0]);
     })) entries.push(current);
   }
 
-  for (const line of m3u.split(/\\r?\\n/)) {
-    if (/^\\s*#EXTM3U\\b/i.test(line)) continue;
-    if (/^\\s*#EXTINF:/i.test(line)) {
+  for (const line of m3u.split(/\r?\n/)) {
+    if (/^\s*#EXTM3U\b/i.test(line)) continue;
+    if (/^\s*#EXTINF:/i.test(line)) {
       finish();
       current = [line];
     } else if (current) {
@@ -76,25 +76,25 @@ function extractEntries(m3u) {
 }
 
 function entryGroup(entry) {
-  const extinf = entry.find(line => /^\\s*#EXTINF:/i.test(line)) || "";
-  const match = /\\bgroup-title\\s*=\\s*["']([^"']*)["']/i.exec(extinf);
+  const extinf = entry.find(line => /^\s*#EXTINF:/i.test(line)) || "";
+  const match = /\bgroup-title\s*=\s*["']([^"']*)["']/i.exec(extinf);
   if (match) return match[1].trim();
-  const extgrp = entry.find(line => /^\\s*#EXTGRP:/i.test(line)) || "";
-  return extgrp.replace(/^\\s*#EXTGRP:/i, "").trim();
+  const extgrp = entry.find(line => /^\s*#EXTGRP:/i.test(line)) || "";
+  return extgrp.replace(/^\s*#EXTGRP:/i, "").trim();
 }
 
 function composePlaylist(mainM3u, sportsM3u) {
-  const mainLines = mainM3u.split(/\\r?\\n/);
-  const header = mainLines.find(line => /^\\s*#EXTM3U\\b/i.test(line)) || "#EXTM3U";
-  const mainBody = mainLines.filter(line => !/^\\s*#EXTM3U\\b/i.test(line)).join("\\n").trim();
+  const mainLines = mainM3u.split(/\r?\n/);
+  const header = mainLines.find(line => /^\s*#EXTM3U\b/i.test(line)) || "#EXTM3U";
+  const mainBody = mainLines.filter(line => !/^\s*#EXTM3U\b/i.test(line)).join("\n").trim();
   if (!mainBody) throw new Error("File M3U chính không có nội dung kênh");
 
   const targets = new Set(TARGET_GROUPS.map(normalizeGroup));
   const extras = extractEntries(sportsM3u).filter(entry => targets.has(normalizeGroup(entryGroup(entry))));
   if (!extras.length) throw new Error("Không tìm thấy kênh thuộc 5 nhóm được yêu cầu trong sports-auto.m3u");
 
-  const merged = header + "\\n" + mainBody + "\\n" +
-    extras.map(entry => entry.join("\\n").trim()).join("\\n") + "\\n";
+  const merged = header + "\n" + mainBody + "\n" +
+    extras.map(entry => entry.join("\n").trim()).join("\n") + "\n";
 
   return {
     m3u: merged,

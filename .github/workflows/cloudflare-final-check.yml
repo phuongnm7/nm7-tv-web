@@ -187,7 +187,7 @@ jobs:
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
       - name: Read-only verification of the existing production Worker
-        if: github.event_name == 'push' && github.ref == 'refs/heads/cloudflare-migration'
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/cloudflare-migration'
         continue-on-error: true
         env:
           LIVE_URL: https://nm7-tv-web.phuongnm7-iptv.workers.dev

@@ -118,4 +118,57 @@ jobs:
                   print('PROBE',json.dumps({'channel':name,'candidate':i,'type':d.get('type'),'contentType':d.get('contentType'),'finalHost':final,'error':d.get('error')},ensure_ascii=False))
               except Exception as e:
                   print('PROBE_ERROR',json.dumps({'channel':name,'candidate':i,'errorType':type(e).__name__,'message':str(e)[:120]},ensure_ascii=False))
+          # GET-test HLS candidates directly and through the same-origin worker.
+          getTargets=[]
+          seenUrls=set()
+          for c in sports:
+              for i,x in enumerate(c.get('candidates') or []):
+                  u=str(x.get('url') or '')
+                  if not u.startswith(('http://','https://')): continue
+                  if not (x.get('hls') or str(x.get('type') or '').lower()=='hls' or re.search(r'\\.m3u8?(?:$|[?#])',u,re.I)): continue
+                  if u in seenUrls: continue
+                  seenUrls.add(u);getTargets.append((str(c.get('name')),i,x))
+          for c in sports:
+              key=norm(c.get('name'))
+              for x in hlsIndex.get(key,[])+crossHls.get(key,[]):
+                  url=x.get('_url')
+          # include all current sports HLS candidates plus HLS alternatives found in primary playlist/source
+          for c in channels+sportSource:
+              name=str(c.get('name') or '')
+              nm=norm(name)
+              if not any(k in nm for k in ('htvthethao','onsports','vtv6','sctv15','sctv17','sctv22','onfootball','onsportsnews','ongolf')): continue
+              for i,x in enumerate(c.get('candidates') or []):
+                  u=str(x.get('url') or '')
+                  if not u.startswith(('http://','https://')): continue
+                  if not (x.get('hls') or str(x.get('type') or '').lower()=='hls' or re.search(r'\\.m3u8?(?:$|[?#])',u,re.I)): continue
+                  if u in seenUrls: continue
+                  seenUrls.add(u);getTargets.append((name,i,x))
+          def safe_get(url,headers):
+              try:
+                  req=urllib.request.Request(url,headers=headers,method='GET')
+                  with urllib.request.urlopen(req,timeout=12) as r:
+                      body=r.read(2048)
+                      ct=r.headers.get('Content-Type','')
+                      return {'status':r.status,'contentType':ct,'bytesRead':len(body),'isM3U':body.lstrip().startswith(b'#EXTM3U'),'isHTML':b'<html' in body[:512].lower()}
+              except urllib.error.HTTPError as e:
+                  return {'status':e.code,'error':'HTTPError'}
+              except Exception as e:
+                  return {'errorType':type(e).__name__,'error':str(e)[:100]}
+          for name,i,x in getTargets[:32]:
+              u=str(x.get('url') or '')
+              h={'User-Agent':str(x.get('ua') or 'Mozilla/5.0','')[:500]}
+              ref=str(x.get('ref') or '')
+              if ref:h['Referer']=ref
+              for k,v in (x.get('headers') or {}).items():
+                  if isinstance(v,str) and k.lower() not in ('host','connection','content-length','cookie','user-agent','referer'):
+                      h[k]=v
+              direct=safe_get(u,h)
+              q={'u':u}
+              if x.get('ua'):q['ua']=str(x['ua'])
+              if ref:q['r']=ref
+              if x.get('headers'):q['h']=json.dumps(x['headers'],separators=(',',':'))
+              proxyUrl=BASE+'/api/stream?'+urllib.parse.urlencode(q)
+              proxy=safe_get(proxyUrl,{'User-Agent':'Mozilla/5.0'})
+              p=urlparse(u)
+              print('HLS_GET_TEST',json.dumps({'channel':name,'candidate':i,'host':p.hostname or '', 'path':p.path[-70:],'forceProxy':bool(x.get('forceProxy')),'direct':direct,'workerProxy':proxy},ensure_ascii=False))
           PY

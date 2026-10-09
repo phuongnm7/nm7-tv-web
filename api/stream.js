@@ -77,8 +77,11 @@ export default async function handler(req,res){
     const r=await fetch(target,{redirect:"follow",cache:"no-store",headers});
     const ct=(r.headers.get("content-type")||"").toLowerCase();
     const finalUrl=r.url||target;
-    const looksHls=ct.includes("mpegurl")||/\.(m3u8|m3u)(?:$|\?)/i.test(finalUrl);
-    const looksDash=ct.includes("dash+xml")||/\.mpd(?:$|\?)/i.test(finalUrl);
+    const looksHls=ct.includes("mpegurl")||/\\.(m3u8|m3u)(?:$|\\?)/i.test(finalUrl);
+    const looksDash=ct.includes("dash+xml")||/\\.mpd(?:$|\\?)/i.test(finalUrl);
+    // VietMiTV often serves HLS manifests from /c.php?k=... without a .m3u8
+    // suffix and with a generic content-type. Detect and rewrite the manifest.
+    const isVietMiWrapper=/\\/c\\.php(?:$|\\?)/i.test(finalUrl);
 
     if(looksHls){
       const body=await r.text();
@@ -90,6 +93,21 @@ export default async function handler(req,res){
       const body=await r.text();
       res.setHeader("Content-Type","application/dash+xml; charset=utf-8");
       return res.status(r.status).send(rewriteDash(body,finalUrl));
+    }
+
+    if(isVietMiWrapper){
+      const body=await r.text();
+      const trimmed=body.replace(/^\\uFEFF/,"").trim();
+      if(/^#EXTM3U\\b/i.test(trimmed)){
+        res.setHeader("Content-Type","application/vnd.apple.mpegurl; charset=utf-8");
+        return res.status(r.status).send(rewriteHls(body,finalUrl,q));
+      }
+      if(/^<\\?xml[\\s\\S]*?<MPD\\b|^<MPD\\b/i.test(trimmed)){
+        res.setHeader("Content-Type","application/dash+xml; charset=utf-8");
+        return res.status(r.status).send(rewriteDash(body,finalUrl));
+      }
+      res.setHeader("Content-Type",ct||"text/plain; charset=utf-8");
+      return res.status(r.status).send(body);
     }
 
     const outCt=ct||(/\.mp4(?:$|\?)/i.test(finalUrl)?"video/mp4":"application/octet-stream");

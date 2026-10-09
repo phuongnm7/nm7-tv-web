@@ -34,12 +34,20 @@ jobs:
           const fs = require('node:fs');
           const zlib = require('node:zlib');
           const source = fs.readFileSync('api/vietmitv-source.js', 'utf8');
-          const match = source.match(/const SOURCE_GZIP_BASE64\s*=\s*"([^"]+)"/);
-          if (!match) throw new Error('Missing compressed M3U payload');
-          const gzip = Buffer.from(match[1], 'base64');
+          const crypto = require('node:crypto');
+          const partsBlock = source.match(/const SOURCE_GZIP_PARTS = \[([\s\S]*?)\];/);
+          const hashesBlock = source.match(/const SOURCE_GZIP_PART_SHA256 = \[([\s\S]*?)\];/);
+          if (!partsBlock || !hashesBlock) throw new Error('Missing segmented compressed M3U payload');
+          const parts = [...partsBlock[1].matchAll(/"([A-Za-z0-9+/=]+)"/g)].map(m => m[1]);
+          const expectedParts = [...hashesBlock[1].matchAll(/"([0-9a-f]{64})"/g)].map(m => m[1]);
+          if (parts.length !== expectedParts.length) throw new Error('Compressed payload segment count mismatch');
+          parts.forEach((part, i) => {
+            const digest = crypto.createHash('sha256').update(part, 'ascii').digest('hex');
+            if (digest !== expectedParts[i]) throw new Error('Compressed payload segment checksum mismatch at index ' + i);
+          });
+          const gzip = Buffer.from(parts.join(''), 'base64');
           if (gzip.length < 18 || gzip[0] !== 0x1f || gzip[1] !== 0x8b || gzip[2] !== 0x08) throw new Error('Invalid gzip header');
           const playlist = zlib.inflateRawSync(gzip.subarray(10, gzip.length - 8)).toString('utf8').replace(/^\uFEFF/, '');
-          const crypto = require('node:crypto');
           const sha = crypto.createHash('sha256').update(playlist, 'utf8').digest('hex');
           console.log('Bundled source sha256:', sha);
           if (sha !== '2cd1f0b3a7347d8f2e8913909ce2a6141d7d1ede0657dcc49cf5c4434d9c6966') throw new Error('Bundled M3U content checksum mismatch');

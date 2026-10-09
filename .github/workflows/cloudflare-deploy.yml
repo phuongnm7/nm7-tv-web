@@ -6,6 +6,7 @@ on:
       - fix/safari-drm-final-20261005
       - fix/ios-official-drm-fallback-20261006
       - fix/youtube-original-coccoc-adblock-20261006
+      - restore/milestone-426
   workflow_dispatch:
 
 concurrency:

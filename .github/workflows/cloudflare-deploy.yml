@@ -146,7 +146,10 @@ jobs:
               "Safari fallback UI":"officialBtn",
               "Apple direct DASH request filter":"(!appleDrm||S.proxyAttempt)",
               "DRM hard recovery":"hardRestartDrm",
-              "real stall watchdog":"function armDrmStallWatch(reason)"
+              "real stall watchdog":"function armDrmStallWatch(reason)",
+              "VTV backup group resolver":"function isVtvBackupGroup(group)",
+              "Cross-group VTV HLS fallback":"var counterpart=(isBackup&&xGroup==='VTV')",
+              "Safari prefers non-DRM HLS":"for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;"
           }
           for label,needle in checks.items():
               if needle not in app:

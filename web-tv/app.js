@@ -437,22 +437,7 @@ function setStatus(s,show){$('status').textContent=s||'';$('status').style.displ
 function hideStatus(){$('status').style.display='none'}
 function getCandidate(){return S.current&&S.current.candidates?normalizeCandidate(S.current.candidates[S.candidateIndex]):null}
 
-function enforceSingleVtv1Source(c){
- if(!c)return c;
- var id=String(c.id||'').toLowerCase().replace(/[^a-z0-9]/g,''),name=String(c.name||'').trim().toLowerCase();
- var isVtv1=['vtv1','vtv1hd','vtv1vn'].indexOf(id)>=0||name==='vtv1'||name.indexOf('vtv1 ')===0;
- if(!isVtv1)return c;
- var url='https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd';
- var previous=(Array.isArray(c.candidates)?c.candidates:[]).find(function(x){return x&&x.url===url});
- var candidate=previous?Object.assign({},previous):{url:url,ref:'',ua:'',headers:{},drm:null};
- candidate.url=url;candidate.type='dash';candidate.dash=true;candidate.hls=false;
- if(!candidate.headers)candidate.headers={};
- c.url=url;c.candidates=[candidate];
- return c
-}
-
 function openPlayer(c){
- c=enforceSingleVtv1Source(c);
  if(!c||!c.candidates||!c.candidates.length){toast('Kênh chưa có URL phát');return}
  S.current=c;S.candidateIndex=0;S.proxyAttempt=false;S.player=true;S.ctrl=false;S.quick=false;S.generation++;
  S.zone='player';$('player').className='';$('ctrl').className='hidden';$('quick').className='hidden';

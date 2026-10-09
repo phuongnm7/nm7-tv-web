@@ -82,6 +82,10 @@ jobs:
           test "$(sha256sum /tmp/nm7-bg.webp | cut -d' ' -f1)" = "d8af6ac8ba532db465dcb8c44e00b71865e6c9a712c8cc21cd0a2118400bd00d"
           grep -q "NM7 TV 1.0.69" /tmp/nm7-home.html
           grep -Fq "body.mobile-mode #mobileMenuBtn{display:flex;align-items:center;justify-content:center;flex:0 0 46px}" /tmp/nm7-home.html
+          grep -Fq 'id="playerBackBtn"' /tmp/nm7-home.html
+          grep -Fq 'aria-label="Quay lại danh sách kênh"' /tmp/nm7-home.html
+          grep -Fq 'data-a="back10"' /tmp/nm7-home.html
+          echo "IPAD_PLAYER_BACK_AND_CONTROLS_SMOKE_OK"
           echo "IPAD_LANDSCAPE_HAMBURGER_SMOKE_OK"
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=android1069" -o /tmp/nm7-tv.json
           python3 - <<'PY'
@@ -147,7 +151,7 @@ jobs:
                   raise SystemExit("YouTube UI marker missing: "+needle)
           print("YOUTUBE_UI_SMOKE_OK")
           PY
-          APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app-safari-policy.js?v=20261005-safari-policy1")"
+          APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app-safari-policy.js?v=20261009-ipad-player-controls1")"
           python3 - "$APP" <<'PY'
           import sys
           app=sys.argv[1]
@@ -166,6 +170,10 @@ jobs:
               "sports fallback alias":"function appleFallbackKey(c)",
               "cross-group HLS fallback":"var sportsPair=(isSportsGroup(group)||isSportsGroup(xGroup))&&family===appleFallbackKey(x)",
               "Safari prefers non-DRM HLS":"for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;"
+              "Touch player controls binding":"function bindPlayerControls()",
+              "Touch control click dispatch":"ctrl.addEventListener('click'",
+              "Back button closes player":"if(a==='back'){closePlayer();return}",
+              "Dedicated iPad back button binding":"back.addEventListener('click'"
           }
           for label,needle in checks.items():
               if needle not in app:

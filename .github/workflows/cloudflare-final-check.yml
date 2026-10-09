@@ -186,3 +186,24 @@ jobs:
             await verify('/playlist.json','static');
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
+      - name: Read-only verification of the existing production Worker
+        if: github.event_name == 'push' && github.ref == 'refs/heads/cloudflare-migration'
+        continue-on-error: true
+        env:
+          LIVE_URL: https://nm7-tv-web.phuongnm7-iptv.workers.dev
+        run: |
+          node <<'NODE'
+          const expected="https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd";
+          const isVtv1=ch=>{const id=String(ch.id||'').toLowerCase().replace(/[^a-z0-9]/g,'');const name=String(ch.name||'').trim().toLowerCase();return ['vtv1','vtv1hd','vtv1vn'].includes(id)||name==='vtv1'||name.startsWith('vtv1 ')};
+          async function body(path){const r=await fetch(process.env.LIVE_URL+path,{cache:'no-store'});const text=await r.text();return {status:r.status,text};}
+          (async()=>{
+            try{
+              const [app,staticRes,apiRes]=await Promise.all([body('/app.js'),body('/playlist.json'),body('/api/playlist?source=tv')]);
+              const appHasPin=app.status===200&&app.text.includes('enforceSingleVtv1Source');
+              let staticOk=false,apiOk=false,staticDetail=[],apiDetail=[];
+              try{const d=JSON.parse(staticRes.text);const hits=(d.channels||[]).filter(isVtv1);staticDetail=hits.map(ch=>({id:ch.id,name:ch.name,candidates:(ch.candidates||[]).map(x=>x.url)}));staticOk=hits.length>0&&hits.every(ch=>Array.isArray(ch.candidates)&&ch.candidates.length===1&&ch.candidates[0].url===expected)}catch(e){staticDetail=[{error:String(e),status:staticRes.status,sample:staticRes.text.slice(0,100)}]}
+              try{const d=JSON.parse(apiRes.text);const hits=(d.channels||[]).filter(isVtv1);apiDetail=hits.map(ch=>({id:ch.id,name:ch.name,candidates:(ch.candidates||[]).map(x=>x.url)}));apiOk=hits.length>0&&hits.every(ch=>Array.isArray(ch.candidates)&&ch.candidates.length===1&&ch.candidates[0].url===expected)}catch(e){apiDetail=[{error:String(e),status:apiRes.status,sample:apiRes.text.slice(0,100)}]}
+              console.log('PRODUCTION_READ_ONLY_DIAG='+JSON.stringify({base:process.env.LIVE_URL,appHttp:app.status,appHasPin,staticHttp:staticRes.status,staticOk,staticVtv1:staticDetail,apiHttp:apiRes.status,apiOk,apiVtv1:apiDetail,productionPatchPresent:appHasPin&&staticOk&&apiOk}));
+            }catch(e){console.log('PRODUCTION_READ_ONLY_DIAG_ERROR='+String(e))}
+          })();
+          NODE

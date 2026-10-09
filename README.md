@@ -84,7 +84,7 @@ Native host dùng các API EWK request interception và script injection tương
 - **Mặc định 2 (nguồn cũ):** `https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/`
 - Khi mở mục **Truyền hình**, NM7 TV Web dùng Mặc định 1. Worker tự thử Mặc định 2 nếu Mặc định 1 lỗi hoặc playlist rỗng.
 - Mở **Chỉnh sửa nguồn → Nguồn mặc định** để chọn thủ công **Dùng mặc định 1** hoặc **Dùng mặc định 2**, hoặc tải lại nguồn đang chọn.
-- Đã xác minh qua Cloudflare Worker ngày 09/10/2026: Mặc định 1 trả 359 kênh từ đúng endpoint VietMiTV Merge; Mặc định 2 vẫn trả playlist cũ. Cấu hình này chỉ áp dụng cho repository **NM7 TV Web**, không áp dụng cho NM7 Mobile hay NM7 TV Android.
+- Đã xác minh qua Cloudflare Worker ngày 09/10/2026: Mặc định 1 trả 359 kênh từ đúng endpoint VietMiTV Merge; Mặc định 2 vẫn trả playlist cũ 515 kênh. Cloudflare Deploy #426 và YouTube Original E2E #112 đều PASS trên commit `ebd9906582a815173ec570059a6d17252d37bf16`. Cấu hình này chỉ áp dụng cho repository **NM7 TV Web**, không áp dụng cho NM7 Mobile hay NM7 TV Android.
 
 ### Nguồn Thể thao
 

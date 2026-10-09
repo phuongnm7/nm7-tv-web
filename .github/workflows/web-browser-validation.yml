@@ -26,6 +26,30 @@ jobs:
           node --check api/probe.js
           node --check api/license.js
           node --check api/playlist.js
+          node --check api/vietmitv-merge.js
+          node --check api/vietmitv-source.js
+      - name: Validate bundled uploaded M3U
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const zlib = require('node:zlib');
+          const source = fs.readFileSync('api/vietmitv-source.js', 'utf8');
+          const match = source.match(/const SOURCE_GZIP_BASE64\s*=\s*"([^"]+)"/);
+          if (!match) throw new Error('Missing compressed M3U payload');
+          const playlist = zlib.gunzipSync(Buffer.from(match[1], 'base64')).toString('utf8').replace(/^\uFEFF/, '');
+          if (!/^\s*#EXTM3U\b/i.test(playlist)) throw new Error('Uploaded M3U header is invalid');
+          const lines = playlist.split(/\r?\n/);
+          const extinf = lines.filter(line => /^\s*#EXTINF:/i.test(line));
+          const groups = new Set(extinf.map(line => {
+            const m = /\bgroup-title="([^"]*)"/i.exec(line);
+            return m ? m[1] : 'Khác';
+          }));
+          if (extinf.length < 180) throw new Error('Too few channels in uploaded M3U: ' + extinf.length);
+          for (const group of ['VTV', 'HTV', 'VTVcab', 'SCTV', 'Quốc Tế', 'Địa Phương', '🇨🇳| Trung Quốc', 'In The Box']) {
+            if (!groups.has(group)) throw new Error('Missing original group: ' + group);
+          }
+          console.log('Uploaded M3U validated:', extinf.length, 'channels across', groups.size, 'groups');
+          NODE
       - name: Check required web assets
         run: |
           test -s web-tv/index.html

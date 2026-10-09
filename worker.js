@@ -94,7 +94,22 @@ async function playlistResponse(source,defaultChoice='',env=null){
     const useBinding=source==='tv'&&target==='https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/'&&env?.PLAYLIST_SOURCE;
     const r=useBinding
       ?await env.PLAYLIST_SOURCE.fetch(new Request(target,init))
-      :await fetchWithTimeout(target,init,10000);if(!r.ok)throw new Error('HTTP '+r.status);const body=await r.text();let channels=parseM3U(body,target);if(!channels.length){try{const j=JSON.parse(body),arr=Array.isArray(j)?j:(Array.isArray(j.channels)?j.channels:Array.isArray(j.data)?j.data:[]);channels=arr.map(x=>({name:String(x.name||x.title||x.channel||'Kênh'),group:String(x.group||x.groupTitle||x.category||'Khác'),logo:String(x.logo||x.tvgLogo||''),id:String(x.id||x.tvgId||x.name||x.title||''),candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:x.url||x.stream||x.src,ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])}))}catch{}}if(!channels.length)throw new Error('playlist rỗng');enrichChannels(channels);playlistCache.set(cacheKey,{time:now,channels,upstream:target});return new Response(JSON.stringify({channels,source,cached:false,preset:isDefault?preset:undefined,upstream:target}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch(e){errors.push(target+': '+e.message)}}
+      :await fetchWithTimeout(target,init,10000);if(!r.ok)throw new Error('HTTP '+r.status);const body=await r.text();let channels=parseM3U(body,target);if(!channels.length){try{const j=JSON.parse(body),arr=Array.isArray(j)?j:(Array.isArray(j.channels)?j.channels:Array.isArray(j.data)?j.data:[]);channels=arr.map(x=>({name:String(x.name||x.title||x.channel||'Kênh'),group:String(x.group||x.groupTitle||x.category||'Khác'),logo:String(x.logo||x.tvgLogo||''),id:String(x.id||x.tvgId||x.name||x.title||''),candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:x.url||x.stream||x.src,ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])}))}catch{}}if(!channels.length)throw new Error('playlist rỗng');
+    enrichChannels(channels);
+    // TV Default 1: keep only the third VTV1 candidate, which is the one verified by the user's playback test.
+    // The change is deliberately scoped to VTV1 in Default 1; Default 2, sports and custom sources are unchanged.
+    if(isDefault && preset === 1){
+      for(const channel of channels){
+        const id=String(channel.id||'').toLowerCase().replace(/[\\s_-]+/g,'');
+        const name=String(channel.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+        if(id!=='vtv1hd'&&id!=='vtv1'&&name!=='vtv1')continue;
+        const candidates=Array.isArray(channel.candidates)?channel.candidates:[];
+        const selected=candidates[2]||candidates[0];
+        channel.candidates=selected?[selected]:[];
+      }
+    }
+    playlistCache.set(cacheKey,{time:now,channels,upstream:target});
+    return new Response(JSON.stringify({channels,source,cached:false,preset:isDefault?preset:undefined,upstream:target}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch(e){errors.push(target+': '+e.message)}}
   if(hit&&hit.channels?.length)return new Response(JSON.stringify({channels:hit.channels,source,cached:true,stale:true,error:errors.join(' | ')}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
   return new Response(JSON.stringify({channels:[],source,error:errors.join(' | ')}),{status:504,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 }

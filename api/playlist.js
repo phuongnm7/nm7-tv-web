@@ -1,4 +1,4 @@
-const SOURCES={tv:["https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u","https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u","https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/"],sport:["https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"]};
+const SOURCES={tv:["https://nm7-tv-web.vercel.app/api/vietmitv-merge","https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/","https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/IPTV_Gop_VMTTV_vAppTV.m3u","https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u"],sport:["https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"]};
 function parse(t){const lines=String(t||"").replace(/^\uFEFF/,"").split(/\r?\n/),out=[];let m=null,ua="",ref="",origin="",manifestType="",licenseType="",licenseKey="";
 for(const raw of lines){const l=raw.trim();
  if(l.indexOf("#EXTINF:")===0){
@@ -79,16 +79,35 @@ async function fetchText(url){
  }finally{x.done()}
 }
 export default async function handler(req,res){
- const source=new URL(req.url,"https://nm7-tv-web.vercel.app").searchParams.get("source");
- const targets=SOURCES[source];
- if(!targets)return res.status(400).json({channels:[],source});
- const now=Date.now(),hit=cache[source];
- if(hit&&now-hit.time<30000){res.setHeader("Cache-Control","no-store");return res.status(200).json({channels:hit.channels,source,cached:true})}
+ const params=new URL(req.url,"https://nm7-tv-web.vercel.app").searchParams;
+ const source=params.get("source");
+ const choice=String(params.get("default")||"");
+ const isDefault=source==="tv"&&["1","2","android1069"].includes(choice);
+ const preset=choice==="2"?2:1;
+ const cacheKey=isDefault?"tv:default:"+preset:source;
+ const allTargets=SOURCES[source];
+ if(!allTargets)return res.status(400).json({channels:[],source});
+ const targets=isDefault?(preset===2?[SOURCES.tv[1]]:[SOURCES.tv[0],SOURCES.tv[1]]):allTargets;
+ const now=Date.now(),hit=cache[cacheKey];
+ if(hit&&now-hit.time<30000){res.setHeader("Cache-Control","no-store");return res.status(200).json({channels:hit.channels,source,cached:true,preset:isDefault?preset:undefined,upstream:hit.upstream})}
  const errors=[];
  const results=await Promise.all(targets.map(async target=>{
   try{
    const body=await fetchText(target);
    let channels=parse(body);
+   if(!channels.length){
+    try{
+     const j=JSON.parse(body);
+     const arr=Array.isArray(j)?j:(Array.isArray(j.channels)?j.channels:Array.isArray(j.data)?j.data:[]);
+     channels=arr.map(x=>({
+      name:String(x.name||x.title||x.channel||"Kênh"),
+      group:String(x.group||x.groupTitle||x.category||"Khác"),
+      logo:String(x.logo||x.tvgLogo||""),
+      id:String(x.id||x.tvgId||x.name||x.title||""),
+      candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:x.url||x.stream||x.src,ref:x.ref||x.referer||"",ua:x.ua||x.userAgent||"",headers:x.headers||{},type:x.type||"",dash:x.type==="dash",hls:x.type==="hls",drm:x.drm||null}]:[])
+     }));
+    }catch{}
+   }
    for(const ch of channels)proxyUrl(ch);
    if(!channels.length)throw new Error("playlist rỗng");
    return {target,channels};
@@ -96,14 +115,14 @@ export default async function handler(req,res){
  }));
  const good=results.find(x=>x.channels&&x.channels.length);
  if(good){
-  cache[source]={time:now,channels:good.channels};
+  cache[cacheKey]={time:now,channels:good.channels,upstream:good.target};
   res.setHeader("Cache-Control","no-store");
-  return res.status(200).json({channels:good.channels,source,cached:false,upstream:good.target});
+  return res.status(200).json({channels:good.channels,source,cached:false,preset:isDefault?preset:undefined,upstream:good.target});
  }
  for(const x of results)if(x.error)errors.push(x.target+": "+x.error);
  if(hit&&hit.channels&&hit.channels.length){
   res.setHeader("Cache-Control","no-store");
-  return res.status(200).json({channels:hit.channels,source,cached:true,stale:true,error:errors.join(" | ")});
+  return res.status(200).json({channels:hit.channels,source,cached:true,stale:true,preset:isDefault?preset:undefined,upstream:hit.upstream,error:errors.join(" | ")});
  }
  return res.status(504).json({channels:[],source,error:errors.join(" | ")});
 }

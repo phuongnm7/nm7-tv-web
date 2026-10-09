@@ -1,4 +1,5 @@
 import { getVietMiTVPlaylist } from "./vietmitv-source.js";
+import { getSportsFallbackM3U } from "./vietmitv-sports-fallback.js";
 
 const SPORTS_URL = "https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com";
 const TARGET_GROUPS = [
@@ -83,15 +84,23 @@ function entryGroup(entry) {
   return extgrp.replace(/^\s*#EXTGRP:/i, "").trim();
 }
 
-function composePlaylist(mainM3u, sportsM3u) {
+function composePlaylist(mainM3u, sportsM3u, fallbackM3U) {
   const mainLines = mainM3u.split(/\r?\n/);
   const header = mainLines.find(line => /^\s*#EXTM3U\b/i.test(line)) || "#EXTM3U";
   const mainBody = mainLines.filter(line => !/^\s*#EXTM3U\b/i.test(line)).join("\n").trim();
   if (!mainBody) throw new Error("File M3U chính không có nội dung kênh");
 
   const targets = new Set(TARGET_GROUPS.map(normalizeGroup));
-  const extras = extractEntries(sportsM3u).filter(entry => targets.has(normalizeGroup(entryGroup(entry))));
-  if (!extras.length) throw new Error("Không tìm thấy kênh thuộc 5 nhóm được yêu cầu trong sports-auto.m3u");
+  const liveExtras = extractEntries(sportsM3u).filter(entry => targets.has(normalizeGroup(entryGroup(entry))));
+  const liveGroups = new Set(liveExtras.map(entry => normalizeGroup(entryGroup(entry))));
+  const missingGroups = new Set([...targets].filter(group => !liveGroups.has(group)));
+  const fallbackExtras = extractEntries(fallbackM3U).filter(entry =>
+    targets.has(normalizeGroup(entryGroup(entry))) && missingGroups.has(normalizeGroup(entryGroup(entry)))
+  );
+  const extras = liveExtras.concat(fallbackExtras);
+  const availableGroups = new Set(extras.map(entry => normalizeGroup(entryGroup(entry))));
+  const missing = [...targets].filter(group => !availableGroups.has(group));
+  if (missing.length) throw new Error("Thiếu nhóm kênh dự phòng: " + missing.join(", "));
 
   const merged = header + "\n" + mainBody + "\n" +
     extras.map(entry => entry.join("\n").trim()).join("\n") + "\n";
@@ -120,16 +129,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [mainM3u, sportsM3u] = await Promise.all([
+    const [mainM3u, sportsResult] = await Promise.all([
       Promise.resolve(getVietMiTVPlaylist()).then(text => validatePlaylist(text, "File M3U đã tải lên")),
-      fetchSports()
+      fetchSports().then(body => ({ body, live: true })).catch(error => ({
+        body: getSportsFallbackM3U(),
+        live: false,
+        error: String(error)
+      }))
     ]);
-    const result = composePlaylist(mainM3u, sportsM3u);
+    const sportsM3u = validatePlaylist(sportsResult.body, sportsResult.live ? "sports-auto.m3u" : "Bản dự phòng thể thao");
+    const result = composePlaylist(mainM3u, sportsM3u, getSportsFallbackM3U());
     res.setHeader("X-NM7-Main-Source", "uploaded-m3u");
+    res.setHeader("X-NM7-Sports-Source", sportsResult.live ? "live" : "fallback");
     res.setHeader("X-NM7-Main-Group-Count", String(result.mainGroups.length));
     res.setHeader("X-NM7-Extra-Group-Count", String(result.extraGroups.length));
     res.setHeader("X-NM7-Extra-Entry-Count", String(result.extraEntries));
     res.setHeader("X-NM7-Extra-Groups", result.extraGroups.join(", "));
+    if (sportsResult.error) res.setHeader("X-NM7-Sports-Fallback-Reason", "upstream-unavailable");
     if (req.method === "HEAD") return res.status(200).end();
     return res.status(200).send(result.m3u);
   } catch (error) {

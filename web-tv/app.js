@@ -494,9 +494,14 @@ function showSources(){
   '<button class="db" id="tvDefault2" type="button">Dùng mặc định 2</button>'+
   '<button class="db" id="sourceReload" type="button">Tải lại</button>'+
   '<button class="db" id="sourceClose" type="button">Đóng</button></div>';
- $('tvDefault1').onclick=function(){closeDialog();loadSource('tv',true,1)};
- $('tvDefault2').onclick=function(){closeDialog();loadSource('tv',true,2)};
- $('sourceReload').onclick=function(){closeDialog();if(S.source==='local-m3u'&&S.localM3uText){applyLocalM3U(S.localM3uText,S.localM3uName,'Đã tải lại tệp M3U');return}loadSource(S.source,true,S.tvPreset)};
+ function selectTvPreset(preset){
+  closeDialog();
+  if(S.menuOpen)closeMenu();
+  loadSource('tv',true,preset);
+ }
+ $('tvDefault1').onclick=function(){selectTvPreset(1)};
+ $('tvDefault2').onclick=function(){selectTvPreset(2)};
+ $('sourceReload').onclick=function(){closeDialog();if(S.menuOpen)closeMenu();if(S.source==='local-m3u'&&S.localM3uText){applyLocalM3U(S.localM3uText,S.localM3uName,'Đã tải lại tệp M3U');return}loadSource(S.source,true,S.tvPreset)};
  $('sourceClose').onclick=closeDialog
 }
 function filterFavorite(c){return S.fav.indexOf(c.id)>=0}

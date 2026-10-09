@@ -565,12 +565,17 @@ function isDashDrmCandidate(cand){
 function variantBaseName(name){
  return String(name||'').replace(/\s*\[(?:flv|hls(?:\s*\d+)?)\]\s*$/i,'').trim()
 }
+function isVtvBackupGroup(group){
+ return /vtv\s*dự\s*phòng/i.test(String(group||''));
+}
 function addAppleHlsAlternatives(c){
  if(!isAppleTouchDevice()||!c)return c;
- var base=variantBaseName(c.name),group=String(c.group||''),extra=[];
+ var base=variantBaseName(c.name),group=String(c.group||''),isBackup=isVtvBackupGroup(group),extra=[];
  for(var i=0;i<S.list.length;i++){
-  var x=S.list[i];
-  if(x===c||String(x.group||'')!==group||variantBaseName(x.name)!==base)continue;
+  var x=S.list[i],xGroup=String(x.group||'');
+  if(x===c||variantBaseName(x.name)!==base)continue;
+  var counterpart=(isBackup&&xGroup==='VTV')||(group==='VTV'&&isVtvBackupGroup(xGroup));
+  if(xGroup!==group&&!counterpart)continue;
   var ca=x.candidates||[];
   for(var j=0;j<ca.length;j++){
    var cc=ca[j];
@@ -593,9 +598,9 @@ function startupCandidateIndex(c){
    for(var d0=0;d0<a.length;d0++)if(isDashDrmCandidate(a[d0]))return d0;
    for(var h0=0;h0<a.length;h0++)if(classify(a[h0])==='hls'&&!a[h0].drm)return h0;
   }else{
-   for(var d=0;d<a.length;d++)if(isDashDrmCandidate(a[d]))return d;
    for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;
-   for(var q=0;q<a.length;q++){var qk=classify(a[q]);if((qk==='mp4'||qk==='hls')&&!a[q].drm)return q}
+   for(var q=0;q<a.length;q++){var qk=classify(a[q]);if(qk==='mp4'&&!a[q].drm)return q}
+   for(var d=0;d<a.length;d++)if(isDashDrmCandidate(a[d]))return d;
   }
  }
  if(isDashDrmCandidate(a[0])){

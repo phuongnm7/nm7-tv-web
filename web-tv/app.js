@@ -269,6 +269,16 @@ function filterFavorite(c){return S.fav.indexOf(c.id)>=0}
 
 function loadCustom(url){
  S.source='custom';S.loading=true;toast('Đang tải nguồn…');
+ var isVietMiMerge=false;
+ try{var parsedUrl=new URL(url,location.href);isVietMiMerge=parsedUrl.hostname.toLowerCase()==='nm7-tv-web.vercel.app'&&parsedUrl.pathname==='/api/vietmitv-merge'}catch(e){}
+ if(isVietMiMerge){
+  fetchJsonTimeout('/api/playlist?source=vietmitv',12000).then(function(d){
+   if(S.source!=='custom')return;
+   if(!d||!Array.isArray(d.channels)||!d.channels.length)throw new Error((d&&d.error)||'Playlist VietMiTV rỗng');
+   S.list=d.channels.map(norm);S.query='';S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();toast('Đã tải '+S.list.length+' kênh VietMiTV qua bộ phát Web')
+  }).catch(function(e){if(S.source!=='custom')return;S.loading=false;toast('Không tải được VietMiTV: '+e.message)});
+  return
+ }
  fetch(url,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(function(t){
   var p=parseM3U(t,url);if(!p.channels.length)throw new Error('Playlist rỗng');
   S.list=p.channels;S.query='';S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();toast('Đã tải '+S.list.length+' kênh')

@@ -69,7 +69,7 @@ function toast(s){var t=$('toast');t.textContent=s;t.className='show';clearTimeo
 function isHttp(u){return /^https?:\/\//i.test(String(u||''))}
 function saveUser(){try{localStorage.setItem('nm7:fav',JSON.stringify(S.fav));localStorage.setItem('nm7:recent',JSON.stringify(S.recent.slice(0,80)))}catch(e){}}
 function restoreUser(){try{S.fav=JSON.parse(localStorage.getItem('nm7:fav')||'[]');S.recent=JSON.parse(localStorage.getItem('nm7:recent')||'[]')}catch(e){S.fav=[];S.recent=[]}}
-var CACHE_SCHEMA='20261009-vietmitv-defaults-1';
+var CACHE_SCHEMA='20261009-vietmitv-defaults-2';
 function cacheKey(){return 'nm7:web:'+CACHE_SCHEMA+':'+S.source+(S.source==='tv'?':default-'+(S.tvPreset===2?2:1):'')}
 function readCache(){try{var x=JSON.parse(localStorage.getItem(cacheKey())||'null');if(!x||x.schema!==CACHE_SCHEMA||!Array.isArray(x.channels)||!x.channels.length)return null;return x}catch(e){return null}}
 function isAndroid1069DefaultList(channels){

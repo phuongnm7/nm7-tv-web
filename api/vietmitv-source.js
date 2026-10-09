@@ -62,7 +62,23 @@ export function getVietMiTVPlaylist() {
     if (gzip.length < 18 || gzip[0] !== 0x1f || gzip[1] !== 0x8b || gzip[2] !== 0x08) {
       throw new Error("Bundled M3U compressed data has an invalid gzip header");
     }
-    const raw = inflateRawSync(gzip.subarray(10, gzip.length - 8));
+    const flags = gzip[3];
+    let deflateStart = 10;
+    if (flags & 0x04) {
+      if (deflateStart + 2 > gzip.length) throw new Error("Bundled M3U gzip extra header is truncated");
+      const extraLength = gzip.readUInt16LE(deflateStart);
+      deflateStart += 2 + extraLength;
+    }
+    for (const flag of [0x08, 0x10]) {
+      if (flags & flag) {
+        const end = gzip.indexOf(0, deflateStart);
+        if (end < 0) throw new Error("Bundled M3U gzip string header is truncated");
+        deflateStart = end + 1;
+      }
+    }
+    if (flags & 0x02) deflateStart += 2;
+    if (deflateStart >= gzip.length - 8) throw new Error("Bundled M3U gzip payload is empty");
+    const raw = inflateRawSync(gzip.subarray(deflateStart, gzip.length - 8));
     const sha256 = createHash("sha256").update(raw).digest("hex");
     if (sha256 !== SOURCE_SHA256) throw new Error("Bundled M3U failed SHA-256 integrity validation");
     cached = raw.toString("utf8").replace(/^\uFEFF/, "");

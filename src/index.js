@@ -151,6 +151,27 @@ function addBuiltin(c){
   for(const x of extra)if(!seen.has(x.url)){c.candidates.push(x);seen.add(x.url)}
 }
 
+const VTV1_USER_URL = "https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd";
+
+function isVtv1Channel(c) {
+  const id = String(c && c.id || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const name = String(c && c.name || "").trim().toLowerCase();
+  return ["vtv1", "vtv1hd", "vtv1vn"].includes(id) || name === "vtv1" || name.startsWith("vtv1 ");
+}
+
+function keepOnlyUserVtv1Source(c) {
+  if (!isVtv1Channel(c)) return c;
+  const previous = (Array.isArray(c.candidates) ? c.candidates : []).find(x => x && x.url === VTV1_USER_URL);
+  const candidate = previous ? { ...previous } : { url: VTV1_USER_URL, ref: "", ua: "", headers: {}, drm: null };
+  candidate.url = VTV1_USER_URL;
+  candidate.type = "dash";
+  candidate.dash = true;
+  candidate.hls = false;
+  if (!candidate.headers) candidate.headers = {};
+  c.url = VTV1_USER_URL;
+  c.candidates = [candidate];
+  return c;
+}
 function score(u){let s=0;if(/\.m3u8(?:$|\?)/i.test(u))s+=100;if(/\.m3u(?:$|\?)/i.test(u))s+=80;if(/\/hls\//i.test(u))s+=30;if(/playlist|index\.m3u|manifest/i.test(u))s+=20;if(/\.(mp4|ts)(?:$|\?)/i.test(u))s+=10;if(/tth\.vn\//i.test(u))s-=50;return s}
 
 async function fetchText(url){
@@ -203,6 +224,7 @@ function mergeChannels(results){
   }
   for(const c of order){
     addBuiltin(c);
+    keepOnlyUserVtv1Source(c);
     const seen=new Set(),out=[];
     for(const x of c.candidates||[]){
       if(!x.url||seen.has(x.url))continue;

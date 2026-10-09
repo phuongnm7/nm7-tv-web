@@ -47,6 +47,24 @@ jobs:
             if(!last.startsWith('200 '))process.exit(1);
           })();
           NODE
+      - name: Verify VTV1 uses only the requested URL (preview)
+        run: |
+          set -euo pipefail
+          BASE="$(cat /tmp/live.txt)"
+          export BASE
+          node <<'NODE'
+          const expected="https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd";
+          const isVtv1=ch=>{const id=String(ch.id||'').toLowerCase().replace(/[^a-z0-9]/g,'');const name=String(ch.name||'').trim().toLowerCase();return ['vtv1','vtv1hd','vtv1vn'].includes(id)||name==='vtv1'||name.startsWith('vtv1 ')};
+          async function verify(path,label){
+            const r=await fetch(process.env.BASE+path,{cache:'no-store'});
+            if(!r.ok)throw new Error(label+' HTTP '+r.status);
+            const d=await r.json();const hits=(d.channels||[]).filter(isVtv1);
+            if(!hits.length)throw new Error(label+': no VTV1 channel found');
+            for(const ch of hits){const list=Array.isArray(ch.candidates)?ch.candidates:[];if(list.length!==1||list[0].url!==expected)throw new Error(label+': '+ch.name+' has wrong candidates '+JSON.stringify(list.map(x=>x.url)));}
+            console.log('VTV1_SINGLE_SOURCE_OK '+label+' '+JSON.stringify(hits.map(ch=>({id:ch.id,name:ch.name,count:ch.candidates.length,url:ch.candidates[0].url}))));
+          }
+          (async()=>{await verify('/api/playlist?source=tv','API');await verify('/playlist.json','static');})().catch(e=>{console.error(e);process.exit(1)});
+          NODE
       - name: Install Playwright
         run: |
           npm install --no-save playwright@1.55.0
@@ -125,5 +143,31 @@ jobs:
             }
             if(errors.length)throw new Error('page errors '+JSON.stringify(errors));
             await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Deploy validated Worker to production
+        if: github.event_name == 'push' && github.ref == 'refs/heads/cloudflare-migration'
+        run: |
+          set -euo pipefail
+          npm run deploy 2>&1 | tee /tmp/production-deploy.log
+          LIVE_URL='https://nm7-tv-web.phuongnm7-iptv.workers.dev'
+          export LIVE_URL
+          node <<'NODE'
+          const expected="https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd";
+          const isVtv1=ch=>{const id=String(ch.id||'').toLowerCase().replace(/[^a-z0-9]/g,'');const name=String(ch.name||'').trim().toLowerCase();return ['vtv1','vtv1hd','vtv1vn'].includes(id)||name==='vtv1'||name.startsWith('vtv1 ')};
+          async function verify(path,label){
+            const r=await fetch(process.env.LIVE_URL+path,{cache:'no-store'});
+            if(!r.ok)throw new Error(label+' HTTP '+r.status);
+            const d=await r.json();const hits=(d.channels||[]).filter(isVtv1);
+            if(!hits.length)throw new Error(label+': no VTV1 found');
+            for(const ch of hits){const list=Array.isArray(ch.candidates)?ch.candidates:[];if(list.length!==1||list[0].url!==expected)throw new Error(label+': source contract failed '+JSON.stringify({name:ch.name,candidates:list.map(x=>x.url)}));}
+            console.log('PRODUCTION_VTV1_OK '+label+' '+hits.length+' channel entries, one exact source each');
+          }
+          (async()=>{
+            const home=await fetch(process.env.LIVE_URL+'/',{cache:'no-store'});
+            const html=await home.text();
+            if(!home.ok||!html.includes('NM7 TV'))throw new Error('Production homepage check failed: '+home.status);
+            await verify('/api/playlist?source=tv','API');
+            await verify('/playlist.json','static');
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE

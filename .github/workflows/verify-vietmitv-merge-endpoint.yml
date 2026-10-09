@@ -1,0 +1,54 @@
+name: Verify VietMiTV merge endpoint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/vietmitv-merge.js"
+      - ".github/workflows/verify-vietmitv-merge-endpoint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wait for production deployment and verify M3U endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web.vercel.app/api/vietmitv-merge"
+          ok=0
+          for attempt in $(seq 1 18); do
+            code="$(curl -sS --max-time 15 -o /tmp/diag.json -w '%{http_code}' "$BASE?diag=1&check=$attempt" || true)"
+            echo "diagnostic attempt=$attempt HTTP=$code"
+            if [[ "$code" == "200" ]] && jq -e '.ok == true and .channels > 0 and (.groupCount > 0)' /tmp/diag.json >/dev/null 2>&1; then
+              cat /tmp/diag.json
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$ok" != "1" ]]; then
+            echo "Production VietMiTV diagnostic did not return a valid response:"
+            cat /tmp/diag.json || true
+            exit 1
+          fi
+
+          code="$(curl -sS --max-time 20 -D /tmp/m3u.headers -o /tmp/vietmitv-merge.m3u -w '%{http_code}' "$BASE?verify=1")"
+          echo "M3U HTTP=$code"
+          cat /tmp/m3u.headers
+          [[ "$code" == "200" ]]
+          grep -Eq '^#EXTM3U' /tmp/vietmitv-merge.m3u
+          grep -Eq '^#EXTINF:' /tmp/vietmitv-merge.m3u
+          for group in "Giờ Vàng TV" "Gà Vàng 24h TV" "Gà Vàng 33 TV" "S8 TV" "Sao Kê TV"; do
+            grep -Fq "group-title=\"$group\"" /tmp/vietmitv-merge.m3u || {
+              echo "Missing expected group in production M3U: $group"
+              exit 1
+            }
+          done
+          echo "Verified production channels: $(grep -c '^#EXTINF:' /tmp/vietmitv-merge.m3u)"
+          echo "Verified production groups: $(grep -o 'group-title=\"[^\"]*"' /tmp/vietmitv-merge.m3u | sort -u | wc -l)"

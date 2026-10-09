@@ -1329,13 +1329,6 @@ function controlAction(action){
  }
 }
 function bindPlayerControls(){
- var back=$('playerBackBtn');
- if(back&&back.dataset.bound!=='1'){
-  back.dataset.bound='1';
-  back.addEventListener('click',function(e){
-   e.preventDefault();e.stopPropagation();closePlayer();
-  },true);
- }
  var ctrl=$('ctrl');
  if(!ctrl||ctrl.dataset.actionsBound==='1')return;
  ctrl.dataset.actionsBound='1';

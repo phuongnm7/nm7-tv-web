@@ -1313,19 +1313,34 @@ function focusControls(){
  for(var i=0;i<b.length;i++)b[i].tabIndex=i===S.ctrlIndex?0:-1;
  try{b[S.ctrlIndex].focus()}catch(e){}
 }
-function controlAction(){
- var b=document.querySelectorAll('.cb'),a=b[S.ctrlIndex]?b[S.ctrlIndex].dataset.a:'';
- if(a==='back'){showControls();return}
+function controlAction(action){
+ var b=document.querySelectorAll('#ctrl .cb');
+ var a=action||(b[S.ctrlIndex]?b[S.ctrlIndex].dataset.a:'');
+ if(a==='back'){closePlayer();return}
  if(a==='back10'){seek(-10);return}
  if(a==='fwd30'){seek(30);return}
- if(a==='play'){togglePlay();return}
- if(a==='next'){switchRelative(1);return}
+ if(a==='play'){restoreAudio();togglePlay();return}
+ if(a==='next'){restoreAudio();switchRelative(1);return}
  if(a==='background'){
   if(window.NM7Background&&typeof window.NM7Background.enter==='function'){
    window.NM7Background.enter().then(function(){toast('Đã bật chạy nền / PiP')}).catch(function(){toast('Thiết bị/trình duyệt không hỗ trợ PiP · Media Session vẫn được giữ')});
   }else toast('Chưa có module chạy nền');
   return
  }
+}
+function bindPlayerControls(){
+ var ctrl=$('ctrl');
+ if(!ctrl||ctrl.dataset.actionsBound==='1')return;
+ ctrl.dataset.actionsBound='1';
+ ctrl.addEventListener('click',function(e){
+  var button=e.target&&e.target.closest?e.target.closest('button[data-a]'):null;
+  if(!button||!ctrl.contains(button))return;
+  e.preventDefault();
+  e.stopPropagation();
+  var action=button.dataset.a;
+  S.ctrlIndex=Array.prototype.indexOf.call(ctrl.querySelectorAll('.cb'),button);
+  controlAction(action);
+ },true);
 }
 function togglePlay(){
  if(isNativeVideo()){$('video').paused?$('video').play():$('video').pause();return}
@@ -1787,6 +1802,7 @@ function startup(){
  restoreUser();
  applyDeviceMode();
  bindTouchNavigation();
+ bindPlayerControls();
  mobileHistoryGuard();
  // Capture at Window first: Samsung TV Browser may not bubble remote events
  // through the focused button/document in the same way as desktop Chrome.

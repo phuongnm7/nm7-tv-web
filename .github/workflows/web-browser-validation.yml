@@ -36,7 +36,11 @@ jobs:
           const source = fs.readFileSync('api/vietmitv-source.js', 'utf8');
           const match = source.match(/const SOURCE_GZIP_BASE64\s*=\s*"([^"]+)"/);
           if (!match) throw new Error('Missing compressed M3U payload');
-          const playlist = zlib.gunzipSync(Buffer.from(match[1], 'base64')).toString('utf8').replace(/^\uFEFF/, '');
+          const playlist = zlib.gunzipSync(Buffer.from(match[1], 'base64'), { finishFlush: zlib.constants.Z_SYNC_FLUSH }).toString('utf8').replace(/^\uFEFF/, '');
+          const crypto = require('node:crypto');
+          const sha = crypto.createHash('sha256').update(playlist, 'utf8').digest('hex');
+          console.log('Bundled source sha256:', sha);
+          if (sha !== '2cd1f0b3a7347d8f2e8913909ce2a6141d7d1ede0657dcc49cf5c4434d9c6966') throw new Error('Bundled M3U content checksum mismatch');
           if (!/^\s*#EXTM3U\b/i.test(playlist)) throw new Error('Uploaded M3U header is invalid');
           const lines = playlist.split(/\r?\n/);
           const extinf = lines.filter(line => /^\s*#EXTINF:/i.test(line));

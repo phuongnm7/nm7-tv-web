@@ -52,7 +52,7 @@ jobs:
                   drmInfo={'present':True,'type':drm.get('type'),'hasKey':bool(drm.get('key') or drm.get('clearKeys')),'hasLicense':bool(drm.get('license') or drm.get('licenseUrl'))}
               else: drmInfo={'present':bool(drm),'type':None,'hasKey':False,'hasLicense':False}
               return {'type':typ,'extension':ext,'host':p.hostname or '', 'refHost':refhost,'ua':uafam,'originHeader':bool((c.get('headers') or {}).get('Origin')),'drm':drmInfo,'forceProxy':bool(c.get('forceProxy'))}
-          primary_matches=[c for c in channels if str(c.get('group') or '')=='VTV' and re.search(r'VTV\\s*(?:1|2|3|4|5|6|7|8|9|10)\\b',str(c.get('name') or ''),re.I)]
+          primary_matches=[c for c in channels if str(c.get('group') or '')=='VTV' and re.search(r'VTV\s*(?:1|2|3|4|5|6|7|8|9|10)\\b',str(c.get('name') or ''),re.I)]
           print('PRIMARY_VTV_CHANNEL_COUNT',len(primary_matches))
           for c in primary_matches:
               print('PRIMARY_VTV',json.dumps({'name':c.get('name'),'id':c.get('id'),'candidateCount':len(c.get('candidates') or []),'candidates':[safe_candidate(x) for x in (c.get('candidates') or [])]},ensure_ascii=False))

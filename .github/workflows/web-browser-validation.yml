@@ -109,6 +109,24 @@ jobs:
           for (const group of required) if (!groups.has(group)) throw new Error('Web playlist missing group: ' + group);
           console.log('Web JSON API passed:', json.channels.length, 'channels,', groups.size, 'groups');
 
+          const VTV1_URL = 'https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd';
+          const isVtv1 = channel => {
+            const id = String(channel.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const name = String(channel.name || '').trim().toLowerCase();
+            return ['vtv1', 'vtv1hd', 'vtv1vn'].includes(id) || name === 'vtv1' || name.startsWith('vtv1 ');
+          };
+          const assertVtv1Only = (channels, label) => {
+            const vtv1Channels = channels.filter(isVtv1);
+            if (!vtv1Channels.length) throw new Error(label + ': VTV1 channel not found');
+            for (const channel of vtv1Channels) {
+              if (!Array.isArray(channel.candidates) || channel.candidates.length !== 1 || channel.candidates[0].url !== VTV1_URL) {
+                throw new Error(label + ': VTV1 must have exactly the user-provided URL; got ' + channel.name + ' candidates=' + JSON.stringify(channel.candidates));
+              }
+            }
+            console.log(label + ': VTV1 locked to one user-provided source across', vtv1Channels.length, 'matching channel entries');
+          };
+          assertVtv1Only(json.channels, 'Online API');
+
           const m3uRes = makeResponse();
           await mergeHandler({ method: 'GET', url: '/api/vietmitv-merge', headers: {} }, m3uRes);
           if (m3uRes.statusCode !== 200) throw new Error('Merged M3U endpoint returned HTTP ' + m3uRes.statusCode + ': ' + m3uRes.body);
@@ -134,6 +152,7 @@ jobs:
             if (!Array.isArray(offlineJson.channels) || offlineJson.channels.length < 300) throw new Error('Offline Web JSON API has too few channels');
             const offlineGroups = new Set(offlineJson.channels.map(channel => channel.group));
             for (const group of required) if (!offlineGroups.has(group)) throw new Error('Offline Web JSON API missing group: ' + group);
+            assertVtv1Only(offlineJson.channels, 'Offline API');
 
             const offlineM3uRes = makeResponse();
             await mergeHandler({ method: 'GET', url: '/api/vietmitv-merge', headers: {} }, offlineM3uRes);

@@ -259,3 +259,12 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - `web-tv/app.js` và `web-tv/app-safari-policy.js` đã được đồng bộ.
 - Kiểm tra CI: bước `node --check` cho `app.js`, `app-safari-policy.js`, `youtube.js` đã PASS trên commit trước đó. Deployment Cloudflare hiện đang **không thể hoàn tất do Cloudflare API token trong GitHub Actions trả Authentication error 10000 / Too many authentication failures 10502**; đây là lỗi credential của CI, không phải lỗi JavaScript vừa sửa.
 - Không thay đổi playlist, DRM, player, UI Android 1.0.69 hay logic phát kênh.
+
+
+## 2026-10-09 — Sửa phát nhóm VTV dự phòng trên iPad Web
+
+- Đối chiếu playlist production: nhóm `VTV dự phòng` có 10 kênh; VTV2 HD, VTV3 HD, VTV4 HD, VTV5 HD, VTV7 HD và VTV8 HD chỉ có candidate DASH ClearKey. Các kênh cùng tên trong nhóm `VTV` có candidate HLS không DRM tương thích hơn với native HLS trên Safari.
+- Nguyên nhân trong web: `addAppleHlsAlternatives()` chỉ tìm ứng viên thay thế trong cùng nhóm, nên không phát hiện HLS cùng tên ở nhóm `VTV`; đồng thời `startupCandidateIndex()` ưu tiên DASH ClearKey trước HLS trên iPad. `startDash()` sau đó đi thẳng tới màn hình fallback Safari và không thử được HLS tương ứng.
+- Sửa `web-tv/app-safari-policy.js` và đồng bộ `web-tv/app.js`: với iPad, tìm thêm HLS không DRM từ kênh trùng tên giữa `VTV dự phòng` và `VTV`; ưu tiên HLS không DRM trước DASH ClearKey. Giữ nguyên kênh/candidate gốc và không xoá metadata hay DRM.
+- Thêm regression checks trong Cloudflare deployment workflow cho cross-group HLS fallback và chính sách HLS-first trên iPad.
+- Chẩn đoán production lấy được 479 kênh, trong đó 10 kênh thuộc nhóm `VTV dự phòng`. CI xác nhận deploy mới và các smoke test hiện có; cần tiếp tục xác nhận phát thực tế trên Safari/iPad để khẳng định CDN HLS đang hoạt động tại thời điểm xem.

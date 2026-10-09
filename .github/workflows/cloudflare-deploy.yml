@@ -119,15 +119,12 @@ jobs:
               matches=[c for c in channels if str(c.get('id') or '').lower().startswith(prefix) or re.sub(r'[^a-z0-9]+','',str(c.get('name') or '').lower()).startswith(prefix)]
               if not matches:
                   raise SystemExit(prefix+' channel not found in deployed playlist')
-              ok=any(
-                  'e1.endpoint.cdn.sctvonline.vn' in str(x.get('url') or '')
-                  and (x.get('hls') or str(x.get('url') or '').split('?')[0].lower().endswith('.m3u8'))
-                  and x.get('forceProxy') is True
+              if not any(
+                  str(x.get('type') or '').lower()=='dash' and x.get('drm')
                   for ch in matches for x in (ch.get('candidates') or [])
-              )
-              if not ok:
-                  raise SystemExit(prefix+' official HLS fallback missing from deployed playlist')
-          print('SCTV15_17_HLS_FALLBACK_SMOKE_OK')
+              ):
+                  raise SystemExit(prefix+' original DASH/DRM source was unexpectedly removed')
+          print('SCTV15_17_ORIGINAL_DASH_PRESERVED_SMOKE_OK')
           print('CLOUDFLARE_SMOKE_OK channels=',len(channels),'groups=',groups[:8])
           PY
 

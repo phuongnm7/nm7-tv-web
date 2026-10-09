@@ -1,0 +1,64 @@
+name: Restore NM7 TV Web milestone 426
+
+on:
+  push:
+    branches:
+      - restore/milestone-426
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the target milestone
+        uses: actions/checkout@v6
+
+      - name: Roll back production Worker to the exact successful #426 version
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: rollback 43a5b86f-49f0-40b2-a0bc-cf72f3872cc2 --message "Restore NM7 TV Web milestone #426"
+
+      - name: Verify restored production source defaults and background
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/" -o /tmp/nm7-home.html
+          grep -q "NM7 TV 1.0.69" /tmp/nm7-home.html
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/assets/nm7-default-background.webp" -o /tmp/nm7-bg.webp
+          BG_META="$(file /tmp/nm7-bg.webp)"
+          echo "$BG_META"
+          echo "$BG_META" | grep -q "3840x2160"
+          test "$(sha256sum /tmp/nm7-bg.webp | cut -d' ' -f1)" = "d8af6ac8ba532db465dcb8c44e00b71865e6c9a712c8cc21cd0a2118400bd00d"
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=1" -o /tmp/nm7-tv-default1.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-tv-default1.json',encoding='utf-8'))
+          channels=d.get('channels') or []
+          if not channels: raise SystemExit('TV default 1 returned zero channels')
+          if d.get('upstream') != 'https://nm7-tv-web.vercel.app/api/vietmitv-merge':
+              raise SystemExit('TV default 1 upstream mismatch: '+str(d.get('upstream')))
+          print('RESTORED_DEFAULT1_OK channels=',len(channels),'upstream=',d.get('upstream'))
+          PY
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=2" -o /tmp/nm7-tv-default2.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-tv-default2.json',encoding='utf-8'))
+          channels=d.get('channels') or []
+          if not channels: raise SystemExit('TV default 2 returned zero channels')
+          if d.get('upstream') != 'https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/':
+              raise SystemExit('TV default 2 upstream mismatch: '+str(d.get('upstream')))
+          groups=[]; seen=set()
+          for c in channels:
+              g=c.get('group') or 'Khác'
+              if g not in seen: seen.add(g); groups.append(g)
+          if groups[:4] != ['VTV','VTVcab','Thể Thao','Quốc tế']:
+              raise SystemExit('Default 2 group order mismatch: '+repr(groups[:8]))
+          print('RESTORED_DEFAULT2_OK channels=',len(channels),'groups=',groups[:8],'upstream=',d.get('upstream'))
+          PY
+          echo 'MILESTONE_426_RESTORED_AND_VERIFIED'

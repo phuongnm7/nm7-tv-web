@@ -21,6 +21,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, urllib.request, urllib.parse, re
+          from difflib import SequenceMatcher
           from urllib.parse import urlparse
           BASE='https://nm7-tv-web.phuongnm7-iptv.workers.dev'
           req=urllib.request.Request(BASE+'/api/playlist?source=tv&default=android1069',
@@ -28,6 +29,16 @@ jobs:
           with urllib.request.urlopen(req,timeout=30) as r:
               data=json.loads(r.read().decode('utf-8'))
           channels=data.get('channels') or []
+          req2=urllib.request.Request(BASE+'/api/playlist?source=sport',
+              headers={'User-Agent':'NM7-iPad-Sport-Diagnose/1.0','Cache-Control':'no-cache'})
+          try:
+              with urllib.request.urlopen(req2,timeout=30) as r:
+                  sportData=json.loads(r.read().decode('utf-8'))
+              sportSource=sportData.get('channels') or []
+          except Exception as e:
+              print('SPORT_SOURCE_FETCH_ERROR',type(e).__name__,str(e)[:180])
+              sportData={};sportSource=[]
+          print('SPORT_SOURCE_CHANNELS',len(sportSource),'SOURCE',sportData.get('source'),'CACHED',sportData.get('cached'))
           print('PLAYLIST_CHANNELS',len(channels),'SOURCE',data.get('source'),'CACHED',data.get('cached'))
           groups=sorted(set(str(c.get('group') or '') for c in channels if re.search(r'sport|thể thao|the thao|bóng đá|bong da',str(c.get('group') or ''),re.I)))
           print('SPORT_RELATED_GROUPS',json.dumps(groups,ensure_ascii=False))
@@ -61,12 +72,36 @@ jobs:
                   u=str(cand.get('url') or '')
                   if not cand.get('drm') and (cand.get('hls') or str(cand.get('type') or '').lower()=='hls' or re.search(r'\.m3u8?(?:$|[?#])',u,re.I)):
                       hlsIndex.setdefault(norm(x.get('name')),[]).append({'name':x.get('name'),'group':g,**safe_candidate(cand)})
+          # Include a separate sports playlist; compare likely equivalents even when names differ slightly.
+          crossHls={}
+          for x in sportSource:
+              g=str(x.get('group') or '')
+              for cand in x.get('candidates') or []:
+                  u=str(cand.get('url') or '')
+                  if not cand.get('drm') and (cand.get('hls') or str(cand.get('type') or '').lower()=='hls' or re.search(r'\\.m3u8?(?:$|[?#])',u,re.I)):
+                      crossHls.setdefault(norm(x.get('name')),[]).append({'name':x.get('name'),'group':g,'dataset':'sport',**safe_candidate(cand)})
           probeTargets=[]
           for c in sports:
               cs=c.get('candidates') or []
               key=norm(c.get('name'))
               alt=[x for x in hlsIndex.get(key,[]) if x.get('group')!=c.get('group')]
-              print('SPORT_CHANNEL',json.dumps({'name':c.get('name'),'id':c.get('id'),'group':c.get('group'),'candidateCount':len(cs),'candidates':[safe_candidate(x) for x in cs],'matchingHLSAlternatives':alt[:8]},ensure_ascii=False))
+              alt += crossHls.get(key,[])
+              near=[]
+              for x in channels+sportSource:
+                  xn=norm(x.get('name'))
+                  if not xn or xn==key: continue
+                  ratio=SequenceMatcher(None,key,xn).ratio()
+                  overlap=len(set(re.findall(r'[a-z0-9]+',key)) & set(re.findall(r'[a-z0-9]+',xn)))
+                  if ratio<0.48 and overlap==0: continue
+                  opts=[]
+                  for xc in x.get('candidates') or []:
+                      xu=str(xc.get('url') or '')
+                      if not xc.get('drm') and (xc.get('hls') or str(xc.get('type') or '').lower()=='hls' or re.search(r'\\.m3u8?(?:$|[?#])',xu,re.I)):
+                          opts.append(safe_candidate(xc))
+                  if opts:
+                      near.append({'name':x.get('name'),'group':x.get('group'),'dataset':'sport' if x in sportSource else 'tv','similarity':round(ratio,2),'hls':opts[:3]})
+              near.sort(key=lambda x:x['similarity'],reverse=True)
+              print('SPORT_CHANNEL',json.dumps({'name':c.get('name'),'id':c.get('id'),'group':c.get('group'),'candidateCount':len(cs),'candidates':[safe_candidate(x) for x in cs],'matchingHLSAlternatives':alt[:8],'similarHLSAlternatives':near[:8]},ensure_ascii=False))
               for i,x in enumerate(cs[:5]):
                   u=str(x.get('url') or '')
                   if not u.startswith(('http://','https://')): continue

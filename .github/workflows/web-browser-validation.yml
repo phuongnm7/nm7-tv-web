@@ -36,7 +36,9 @@ jobs:
           const source = fs.readFileSync('api/vietmitv-source.js', 'utf8');
           const match = source.match(/const SOURCE_GZIP_BASE64\s*=\s*"([^"]+)"/);
           if (!match) throw new Error('Missing compressed M3U payload');
-          const playlist = zlib.gunzipSync(Buffer.from(match[1], 'base64'), { finishFlush: zlib.constants.Z_SYNC_FLUSH }).toString('utf8').replace(/^\uFEFF/, '');
+          const gzip = Buffer.from(match[1], 'base64');
+          if (gzip.length < 18 || gzip[0] !== 0x1f || gzip[1] !== 0x8b || gzip[2] !== 0x08) throw new Error('Invalid gzip header');
+          const playlist = zlib.inflateRawSync(gzip.subarray(10, gzip.length - 8)).toString('utf8').replace(/^\uFEFF/, '');
           const crypto = require('node:crypto');
           const sha = crypto.createHash('sha256').update(playlist, 'utf8').digest('hex');
           console.log('Bundled source sha256:', sha);

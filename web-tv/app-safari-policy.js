@@ -571,16 +571,38 @@ function variantBaseName(name){
 function isVtvBackupGroup(group){
  return /vtv\s*dự\s*phòng/i.test(String(group||''));
 }
+function isSportsGroup(group){
+ return /thể\s*thao|the\s*thao/i.test(String(group||''));
+}
+function appleFallbackKey(c){
+ var id=String(c&&c.id||'').toLowerCase().replace(/[\s_.-]+/g,''),name=variantBaseName(c&&c.name||'').toLowerCase();
+ if(id.indexOf('onsportsplus')===0||/on\s*sports\s*\+|sports\+/.test(name))return 'onsportsplus';
+ if(id.indexOf('onsportsnews')===0||/on\s*sports\s*news/.test(name))return 'onsportsnews';
+ if(id.indexOf('onfootball')===0||/on\s*football/.test(name))return 'onfootball';
+ if(id.indexOf('ongolf')===0||/\bgolf(?:\s*channel)?\b/.test(name))return 'ongolf';
+ if(id.indexOf('sctv15')===0||/\bsctv\s*15\b/.test(name))return 'sctv15';
+ if(id.indexOf('sctv17')===0||/\bsctv\s*17\b/.test(name))return 'sctv17';
+ if(id.indexOf('sctv22')===0||/\bsctv\s*22\b/.test(name))return 'sctv22';
+ if(id.indexOf('vtv6')===0||/\bvtv\s*6\b/.test(name))return 'vtv6';
+ if(id.indexOf('htvthethao')===0||/htv.*thể\s*thao|htv.*the\s*thao/.test(name))return 'htvthethao';
+ if((id.indexOf('onsports')===0||/on\s*sports/.test(name))&&!/plus|\+|news/.test(id+' '+name))return 'onsports';
+ return variantBaseName(c&&c.name||'').toLowerCase()
+  .replace(/\b(?:hd|fhd|uhd|50fps|25fps|live|trực tiếp|fpt play)\b/g,'')
+  .replace(/[^a-z0-9]+/g,'');
+}
 function addAppleHlsAlternatives(c){
  if(!isAppleTouchDevice()||!c)return c;
- var base=variantBaseName(c.name),group=String(c.group||''),isBackup=isVtvBackupGroup(group),extra=[];
+ var base=variantBaseName(c.name),group=String(c.group||''),isBackup=isVtvBackupGroup(group),family=appleFallbackKey(c),extra=[];
  for(var i=0;i<S.list.length;i++){
   var x=S.list[i],xGroup=String(x.group||'');
-  if(x===c||variantBaseName(x.name)!==base)continue;
-  // The backup VTV group contains DASH/ClearKey-only copies of some channels.
-  // On iPad, borrow the matching plain-HLS candidates from the primary VTV
-  // group rather than stopping at the Safari ClearKey fallback screen.
-  var counterpart=(isBackup&&xGroup==='VTV')||(group==='VTV'&&isVtvBackupGroup(xGroup));
+  if(x===c)continue;
+  var sameName=variantBaseName(x.name)===base;
+  var sportsPair=(isSportsGroup(group)||isSportsGroup(xGroup))&&family===appleFallbackKey(x);
+  if(!sameName&&!sportsPair)continue;
+  // Keep the VTV-backup exception narrowly paired with the primary VTV group.
+  // For the sports group, only use explicit same-channel/alias keys (e.g. VTV6
+  // or ON Sports), never merely similar names such as ON Sports vs ON Sports+.
+  var counterpart=(isBackup&&xGroup==='VTV')||(group==='VTV'&&isVtvBackupGroup(xGroup))||sportsPair;
   if(xGroup!==group&&!counterpart)continue;
   var ca=x.candidates||[];
   for(var j=0;j<ca.length;j++){
@@ -592,8 +614,6 @@ function addAppleHlsAlternatives(c){
  if(!extra.length)return c;
  var merged=(c.candidates||[]).slice();
  for(var q=0;q<extra.length;q++)if(!merged.some(function(z){return z.url===extra[q].url}))merged.push(extra[q]);
- // Put every clear HLS option ahead of DASH/ClearKey so Safari tries all
- // native-playable fallbacks before reaching the unsupported DRM candidate.
  var hls=[],rest=[];
  for(var z=0;z<merged.length;z++){
   if(classify(merged[z])==='hls'&&!merged[z].drm)hls.push(merged[z]);
@@ -605,18 +625,11 @@ function startupCandidateIndex(c){
  var a=c&&Array.isArray(c.candidates)?c.candidates:[];
  if(!a.length)return 0;
  if(isAppleTouchDevice()){
-  var id=String(c.id||'').toLowerCase().replace(/[\\s_-]+/g,''),name=String(c.name||'').toLowerCase();
-  var isCab3=id==='vtvcab3hd'||name.indexOf('vtvcab3')>=0||name.indexOf('on sports hd')>=0;
-  if(isCab3){
-   for(var d0=0;d0<a.length;d0++)if(isDashDrmCandidate(a[d0]))return d0;
-   for(var h0=0;h0<a.length;h0++)if(classify(a[h0])==='hls'&&!a[h0].drm)return h0;
-  }else{
-   // Safari/iPad cannot use the Android-style ClearKey DASH path reliably.
-   // Prefer an available non-DRM HLS candidate before falling back to DASH DRM.
-   for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;
-   for(var q=0;q<a.length;q++){var qk=classify(a[q]);if(qk==='mp4'&&!a[q].drm)return q}
-   for(var d=0;d<a.length;d++)if(isDashDrmCandidate(a[d]))return d;
-  }
+  // On iPad/Safari, prefer every plain HLS candidate before attempting DASH ClearKey,
+  // including ON Sports variants; the old ON Sports special case incorrectly picked DASH first.
+  for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;
+  for(var q=0;q<a.length;q++){var qk=classify(a[q]);if(qk==='mp4'&&!a[q].drm)return q}
+  for(var d=0;d<a.length;d++)if(isDashDrmCandidate(a[d]))return d;
  }
  if(isDashDrmCandidate(a[0])){
   for(var i=0;i<a.length;i++)if(classify(a[i])==='hls'&&!a[i].drm)return i;

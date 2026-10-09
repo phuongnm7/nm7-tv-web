@@ -28,6 +28,7 @@ jobs:
           node --check api/playlist.js
           node --check api/vietmitv-merge.js
           node --check api/vietmitv-source.js
+          node --check api/vietmitv-sports-fallback.js
       - name: Validate bundled uploaded M3U
         run: |
           node <<'NODE'
@@ -119,6 +120,33 @@ jobs:
           const count = text.split(String.fromCharCode(10)).filter(line => line.trimStart().startsWith('#EXTINF:')).length;
           if (count < 300) throw new Error('Merged M3U channel count is too low: ' + count);
           console.log('Raw M3U API passed:', count, 'entries');
+
+          // Simulate an upstream outage. Both public APIs must still serve the bundled
+          // M3U plus the last-known-good copy of all five requested groups.
+          const originalFetch = globalThis.fetch;
+          globalThis.fetch = async () => { throw new Error('simulated upstream outage'); };
+          try {
+            await new Promise(resolve => setTimeout(resolve, 5100));
+            const offlineJsonRes = makeResponse();
+            await playlistHandler({ method: 'GET', url: '/api/playlist?source=tv', headers: {} }, offlineJsonRes);
+            if (offlineJsonRes.statusCode !== 200) throw new Error('Offline Web JSON API returned HTTP ' + offlineJsonRes.statusCode + ': ' + offlineJsonRes.body);
+            const offlineJson = JSON.parse(offlineJsonRes.body);
+            if (!Array.isArray(offlineJson.channels) || offlineJson.channels.length < 300) throw new Error('Offline Web JSON API has too few channels');
+            const offlineGroups = new Set(offlineJson.channels.map(channel => channel.group));
+            for (const group of required) if (!offlineGroups.has(group)) throw new Error('Offline Web JSON API missing group: ' + group);
+
+            const offlineM3uRes = makeResponse();
+            await mergeHandler({ method: 'GET', url: '/api/vietmitv-merge', headers: {} }, offlineM3uRes);
+            if (offlineM3uRes.statusCode !== 200) throw new Error('Offline merged M3U returned HTTP ' + offlineM3uRes.statusCode + ': ' + offlineM3uRes.body);
+            const offlineText = String(offlineM3uRes.body || '');
+            if (!offlineText.trimStart().startsWith('#EXTM3U')) throw new Error('Offline M3U header missing');
+            for (const group of required) if (!offlineText.includes('group-title="' + group + '"')) throw new Error('Offline M3U missing group: ' + group);
+            const offlineCount = offlineText.split(String.fromCharCode(10)).filter(line => line.trimStart().startsWith('#EXTINF:')).length;
+            if (offlineCount < 300) throw new Error('Offline M3U count too low: ' + offlineCount);
+            console.log('Offline fallback passed:', offlineJson.channels.length, 'JSON channels and', offlineCount, 'M3U entries');
+          } finally {
+            globalThis.fetch = originalFetch;
+          }
           NODE
       - name: Check required web assets
         run: |

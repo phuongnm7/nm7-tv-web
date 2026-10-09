@@ -2,6 +2,14 @@
 
 Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi của bản Android TV **1.0.69**.
 
+## Stable baseline hiện tại — 09/10/2026
+
+- Nhánh gốc ổn định cho các bản kế tiếp: `stable/nm7-tv-web-2026-10-09`.
+- Commit production đã xác minh: `52a51a8447735259db92f33cf5a67748cdf94c40` (Deploy #428 PASS; YouTube Original E2E #114 PASS).
+- Tài liệu chuẩn: [`STABLE_BASELINE.md`](STABLE_BASELINE.md).
+- **Các bản web kế tiếp phải tạo branch feature/fix từ nhánh stable này** và giữ nguyên các tính năng hiện có, trừ phần được yêu cầu thay đổi.
+- Chỉ áp dụng cho `phuongnm7/nm7-tv-web`; không áp dụng cho NM7 Mobile hoặc NM7 TV Android.
+
 ## Mốc hiện tại
 
 - Ngày cập nhật: **09/10/2026**

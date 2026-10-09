@@ -154,7 +154,9 @@ jobs:
           # Only status/content metadata is logged; stream URLs and query tokens are never printed.
           providerTargets=[
               ('SCTV15 official CDN','https://e1.endpoint.cdn.sctvonline.vn/playlist/sctv15/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('SCTV15 CDN no Referer','https://e1.endpoint.cdn.sctvonline.vn/playlist/sctv15/index.m3u8',{'User-Agent':'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1'}),
               ('SCTV17 official CDN','https://e1.endpoint.cdn.sctvonline.vn/playlist/sctv17/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('SCTV17 CDN no Referer','https://e1.endpoint.cdn.sctvonline.vn/playlist/sctv17/index.m3u8',{'User-Agent':'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1'}),
               ('SCTV22 VTVPrime HLS','https://liveh34.vtvprime.vn/hls/SCTV22/04.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
               ('ON Sports VTVcab HLS','https://liveh34.vtvcab.vn/hls/THETHAO_HD/04.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
               ('ON Football VTVcab HLS','https://liveh34.vtvcab.vn/hls/BONGDA_HD/04.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),

@@ -487,8 +487,8 @@ function showSources(){
  var selected=S.tvPreset===2?2:1;
  S.dialog='sources';$('dlg').className='';
  $('box').innerHTML='<h2>Nguồn mặc định</h2>'+
-  '<p class="guide"><b>Truyền hình · Mặc định 1</b><br>https://nm7-tv-web.vercel.app/api/vietmitv-merge<br><br>'+
-  '<b>Truyền hình · Mặc định 2</b><br>https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/<br><br>'+
+  '<p class="guide"><b>Truyền hình · Mặc định 1</b><br><br>'+
+  '<b>Truyền hình · Mặc định 2</b><br><br>'+
   '<b>Đang chọn:</b> Mặc định '+selected+'<br><b>Thể thao:</b> Nguồn thể thao hiện tại'+local+'</p>'+
   '<div class="dialogActions"><button class="db" id="tvDefault1" type="button">Dùng mặc định 1</button>'+
   '<button class="db" id="tvDefault2" type="button">Dùng mặc định 2</button>'+

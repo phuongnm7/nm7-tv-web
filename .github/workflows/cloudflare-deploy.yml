@@ -6,6 +6,7 @@ on:
       - fix/safari-drm-final-20261005
       - fix/ios-official-drm-fallback-20261006
       - fix/youtube-original-coccoc-adblock-20261006
+      - fix/vtv1-single-source-hide-default-urls-20261009
   workflow_dispatch:
 
 concurrency:
@@ -38,6 +39,7 @@ jobs:
           command: deploy
 
       - name: Deploy dedicated YouTube reverse proxy
+        if: github.ref != 'refs/heads/fix/vtv1-single-source-hide-default-urls-20261009'
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

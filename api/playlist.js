@@ -1,4 +1,5 @@
 import { getVietMiTVPlaylist } from "./vietmitv-source.js";
+import { getSportsFallbackM3U } from "./vietmitv-sports-fallback.js";
 
 const SOURCES = {
   tv: [
@@ -189,7 +190,6 @@ function combineChannels(main, extra) {
 
 async function buildVietMiTV() {
   // Primary list is the exact M3U file uploaded by the user and bundled with this deployment.
-  // It no longer depends on vietmitv.id.vn being reachable.
   const main = parse(getVietMiTVPlaylist());
   if (!main.length) throw new Error("File M3U chính không có kênh hợp lệ");
 
@@ -202,12 +202,23 @@ async function buildVietMiTV() {
     sportError = String(error);
   }
 
+  // Fill only entire groups missing from the live source with the bundled last-known-good copy.
+  const presentGroups = new Set(extras.map(c => normalizeGroup(c.group)));
+  const missingGroups = new Set(EXTRA_GROUPS.filter(group => !presentGroups.has(group)));
+  const fallback = parse(getSportsFallbackM3U()).filter(c => missingGroups.has(normalizeGroup(c.group)));
+  extras = extras.concat(fallback);
+
   const channels = combineChannels(main, extras);
+  const extraGroups = [...new Set(extras.map(c => c.group))];
+  const availableGroups = new Set(extras.map(c => normalizeGroup(c.group)));
+  const missing = EXTRA_GROUPS.filter(group => !availableGroups.has(group));
+  if (missing.length) throw new Error("Thiếu nhóm kênh thể thao: " + missing.join(", "));
   return {
     channels,
     upstream: "bundled-uploaded-m3u",
     merged: true,
-    extraGroups: [...new Set(extras.map(c => c.group))],
+    extraGroups,
+    sportsFallback: Boolean(sportError),
     sportError
   };
 }

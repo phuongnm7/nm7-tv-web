@@ -293,5 +293,7 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - `/api/playlist?source=tv&default=1` thử VietMiTV Merge trước, sau đó tự fallback về mặc định 2 nếu endpoint lỗi hoặc trả playlist rỗng. `default=2` chỉ dùng nguồn cũ.
 - Web UI mặc định dùng preset 1; hộp thoại **Chỉnh sửa nguồn → Nguồn mặc định** có nút **Dùng mặc định 1** và **Dùng mặc định 2**. Cache key và schema được tách theo preset để không giữ nhầm playlist cũ.
 - Đồng bộ frontend `web-tv/app.js` và `web-tv/app-safari-policy.js`; cập nhật cache-buster script trong `web-tv/index.html`. Không chỉnh repository NM7 Mobile hoặc NM7 TV Android.
-- Cloudflare Deploy #424 xác nhận: preset 1 trả 359 kênh và upstream đúng URL VietMiTV Merge; preset 2 trả playlist cũ 515 kênh. Smoke tests và JavaScript syntax đều PASS. YouTube Original E2E #110 cũng PASS.
+- Cloudflare Deploy #426 xác nhận: preset 1 trả 359 kênh và upstream đúng URL VietMiTV Merge; preset 2 trả playlist cũ 515 kênh. Smoke tests và JavaScript syntax đều PASS. YouTube Original E2E #112 cũng PASS.
 - Regression checks mới xác nhận cả hai upstream, hai route preset và lựa chọn trong UI.
+
+- Cập nhật xác nhận cuối ngày 09/10/2026: commit `ebd9906582a815173ec570059a6d17252d37bf16` đã deploy thành công (Deploy #426) và E2E #112 thành công. Phạm vi chỉ là NM7 TV Web.

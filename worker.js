@@ -39,6 +39,8 @@ function addBuiltin(c){
   if(!extra.length&&(key==='vtv1'||name==='vtv1'||name.startsWith('vtv1')))extra=BUILTIN.vtv1hd;
   if(!extra.length&&(name.startsWith('onsport')||name.includes('vtvcab3')))extra=BUILTIN.vtvcab3hd;
   if(!extra.length&&(name.startsWith('onfootball')||name.includes('vtvcab16')))extra=BUILTIN.vtvcab16hd;
+  if(!extra.length&&(key.startsWith('sctv15')||name.startsWith('sctv15')))extra=BUILTIN.sctv15hd;
+  if(!extra.length&&(key.startsWith('sctv17')||name.startsWith('sctv17')))extra=BUILTIN.sctv17hd;
   const seen=new Set((c.candidates||[]).map(x=>x.url));for(const x of extra)if(!seen.has(x.url)){c.candidates.push({...x,headers:x.headers||{}});seen.add(x.url)}
 }
 function enrichChannels(channels){

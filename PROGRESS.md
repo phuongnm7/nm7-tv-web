@@ -277,3 +277,10 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Kiểm tra nhiều mirror HLS cho SCTV15/17/22 và ON Sports/Football/News/Golf. Một số manifest SCTV15/17 chỉ trả `#EXTM3U` khi request có Referer SCTV Online, nhưng cùng URL qua Worker trả 404 và request không có Referer trả HTML; các mirror khác trả 403/404/502/204 rỗng hoặc DNS failure. Chưa tìm được HLS nào có thể xác nhận phát qua worker/iPad cho những kênh này.
 - Đã bỏ candidate HLS SCTV15/17 chết qua proxy để tránh thử nguồn chắc chắn lỗi; giữ nguyên candidate DASH/ClearKey gốc. Không thay/xóa khóa DRM. Safari sẽ chuyển sang đường mở trang ON Plus/VTVgo/HTV chính thức được ánh xạ theo kênh khi không còn nguồn inline dùng được.
 - Deploy và smoke test xác nhận code/playlist vẫn hợp lệ; **chưa xác nhận toàn bộ nhóm Thể Thao phát inline trên iPad**. Các kênh DASH/ClearKey cần nguồn HLS thực sự đang hoạt động hoặc player/platform có khả năng giải mã tương thích; không coi fallback sang trang ngoài là phát inline thành công.
+
+
+## 2026-10-09 — Hiện nút menu trên iPad ngang
+
+- Nguyên nhân: nút `#mobileMenuBtn` chỉ được bật trong media query `max-width:1024px`. Khi iPad xoay ngang và Safari dùng viewport rộng hơn 1024 CSS px, body vẫn ở `mobile-mode` nhưng nút quay về `display:none`.
+- Sửa `web-tv/index.html`: thêm quy tắc `body.mobile-mode #mobileMenuBtn` trong nhánh `pointer:coarse`, luôn hiện nút ☰ cho thiết bị touch/mobile ở cả ngang và dọc, kể cả iPad ngang có viewport rộng.
+- Thêm smoke check cho CSS menu ngang trong Cloudflare deploy workflow.

@@ -10,7 +10,6 @@ const SOURCES = {
 };
 
 const MERGE_SOURCES = {
-  main: "https://vietmitv.id.vn/vietmitv.m3u",
   sport: "https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com"
 };
 

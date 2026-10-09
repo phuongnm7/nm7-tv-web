@@ -20,6 +20,18 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
 - Các chức năng/player/DRM hiện tại được giữ nguyên; local M3U là phần bổ sung riêng.
 
+
+## Tự chọn nguồn mặc định theo thiết bị — 10/10/2026
+
+- Trình duyệt trên Android tự mở trang chủ bằng **Nguồn mặc định 2**.
+- Trình duyệt trên iPhone/iPad/iPod tự mở bằng **Nguồn mặc định 1**; iPadOS bật chế độ “Yêu cầu trang web cho máy tính” cũng được nhận diện qua `MacIntel` + cảm ứng đa điểm.
+- Thiết bị khác hoặc không nhận diện được tiếp tục dùng mặc định 1, giữ hành vi cũ cho desktop và TV.
+- Việc nhận diện diễn ra trước khi đọc cache để tránh hiển thị tạm danh sách của preset 1 trên Android. Người dùng vẫn có thể đổi preset thủ công trong hộp thoại **Nguồn mặc định**; khi quay lại Truyền hình từ nhóm Thể thao, lựa chọn hiện tại được giữ nguyên.
+- Nếu API của preset 2 lỗi và không có cache preset 2 để dùng, trang báo lỗi nguồn mặc định 2 thay vì âm thầm nạp preset 1; tránh lưu nhầm dữ liệu vào cache của preset khác.
+- Logic được áp dụng cho cả `web-tv/app-safari-policy.js` (entrypoint của trang hiện tại) và `web-tv/app.js`. Đã tăng cache-buster trong `index.html` để trình duyệt lấy script mới. Regression tests bao gồm Android UA/Client Hints, iPhone, iPad, iPadOS desktop mode, desktop, Samsung Tizen, preset khi điều hướng và trạng thái lỗi.
+- Nhánh triển khai riêng: `feat/auto-device-tv-preset-android-ios-20261010`, tạo từ nhánh stable. Không sửa Worker, API playlist, URL nguồn, NM7 Mobile/Android hay Cloudflare deploy workflow. Nhánh tính năng không được thêm vào danh sách nhánh deploy production.
+
+
 ## YouTube gốc + AdBlock kiểu trình duyệt
 
 Mốc này không dùng Invidious, Piped hoặc YouTube Web Shell nữa.

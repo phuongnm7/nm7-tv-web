@@ -334,3 +334,31 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 ### Lưu ý kiểm thử
 
 Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV thật. Cần kiểm tra trực tiếp trên NM7 TV Web sau khi tải lại trang. Nếu vẫn không phát, bước tiếp theo là kiểm tra ứng viên VTV1 thực tế trong JSON của API Mặc định 1 và phản hồi HLS của chính URL đó; không tự chèn lại nguồn ngoài playlist.
+
+
+## 2026-10-10 — Tự chọn nguồn mặc định theo nền tảng trình duyệt
+
+### Yêu cầu
+
+- Android: trang chủ tự mở **Nguồn mặc định 2**.
+- iOS/iPadOS: trang chủ tự mở **Nguồn mặc định 1**.
+- Không tác động NM7 Mobile, NM7 TV Android, Worker, danh sách nguồn, hay các nhánh/phiên bản production khác.
+
+### Cách triển khai
+
+- Nhánh riêng: `feat/auto-device-tv-preset-android-ios-20261010`, tạo từ `stable/nm7-tv-web-2026-10-09`; không sửa trực tiếp nhánh stable.
+- Phát hiện Android bằng User-Agent và `navigator.userAgentData.platform` khi có.
+- Phát hiện iPhone/iPad/iPod bằng User-Agent/platform; hỗ trợ iPadOS dùng desktop website bằng `navigator.platform === 'MacIntel'` và `navigator.maxTouchPoints > 1`.
+- Gán preset ngay khi khởi tạo state, trước khi đọc local cache; như vậy cache key và danh sách ban đầu cũng dùng đúng preset của thiết bị.
+- Startup truyền preset đã nhận diện vào loader. Việc đổi nguồn thủ công trong hộp thoại vẫn giữ nguyên; khi chuyển sang Thể thao rồi quay lại Truyền hình, menu tiếp tục dùng preset hiện tại thay vì ép về 1.
+- Nếu không nhận diện được Android/iOS (desktop, Tizen TV hoặc thiết bị khác), giữ hành vi mặc định 1 hiện tại.
+- Nếu API preset 2 lỗi và chưa có cache preset 2, báo lỗi rõ ràng thay vì âm thầm nạp playlist preset 1; vẫn giữ cache/playlist hiện có nếu đã có.
+- Áp dụng cùng logic cho `web-tv/app-safari-policy.js` và `web-tv/app.js`; tăng cache-buster trong `web-tv/index.html` để tránh trình duyệt dùng script cũ. Không thay URL mặc định, logic API/Worker, player hoặc DRM.
+
+### Kiểm thử tự động
+
+- Thêm `scripts/test-device-default-preset.js` với các trường hợp Android User-Agent, Android Client Hints, iPhone, iPad, iPadOS desktop mode, desktop và Samsung Tizen TV.
+- Cập nhật `.github/workflows/web-browser-validation.yml` để kiểm tra cú pháp cả hai file player và chạy test preset.
+- Nhánh tính năng không nằm trong danh sách nhánh của Cloudflare production deploy; thay đổi này không tự triển khai lên dịch vụ đang chạy.
+- Kiểm thử GitHub Actions `Web Browser Validation` đã **PASS**: [run #286](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38005309930). Node syntax checks đều đạt; regression test xác nhận 7 trường hợp trên mỗi file player (Android UA, Android Client Hints, iPhone, iPad, iPadOS desktop mode, desktop và Samsung Tizen), giữ preset khi quay lại Truyền hình, trạng thái lỗi preset 2 và cache-buster của script đang được trang sử dụng.
+- Không chạy Cloudflare production deploy. Nhánh tính năng không nằm trong danh sách deploy; nhánh stable, Worker đang chạy và các repository NM7 khác không bị thay đổi.

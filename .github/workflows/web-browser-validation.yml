@@ -22,6 +22,7 @@ jobs:
       - name: Check web JavaScript
         run: |
           node --check web-tv/app.js
+          node --check web-tv/app-safari-policy.js
           node --check api/stream.js
           node --check api/probe.js
           node --check api/license.js
@@ -33,3 +34,5 @@ jobs:
           test -s web-tv/assets/nm7-default-background.webp
           test -s web-tv/dash.all.min.js
           grep -q 'Android 1.0.69' web-tv/index.html || true
+      - name: Test automatic Android/iOS default preset selection
+        run: node scripts/test-device-default-preset.js

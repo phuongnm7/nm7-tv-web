@@ -6,9 +6,26 @@ var PLAYLISTS={
  tv2:'/api/playlist?source=tv&default=2',
  sport:'/api/playlist?source=sport'
 };
+
+// Detect the platform only for the initial home preset. Android uses preset 2;
+// iOS/iPadOS uses preset 1. Other devices keep the existing preset-1 behavior.
+function detectDefaultTvPreset(){
+ var ua='',platform='',uaDataPlatform='',touchPoints=0;
+ try{
+  if(typeof navigator!=='undefined'){
+   ua=String(navigator.userAgent||'');
+   platform=String(navigator.platform||'');
+   uaDataPlatform=String(navigator.userAgentData&&navigator.userAgentData.platform||'');
+   touchPoints=Number(navigator.maxTouchPoints||0);
+  }
+ }catch(e){}
+ if(/android/i.test(ua)||/^android$/i.test(platform)||/^android$/i.test(uaDataPlatform))return 2;
+ if(/iphone|ipad|ipod/i.test(ua)||/iphone|ipad|ipod/i.test(platform)||(/macintel/i.test(platform)&&touchPoints>1))return 1;
+ return 1;
+}
 var S={
  source:'tv',
- tvPreset:1,
+ tvPreset:detectDefaultTvPreset(),
  list:[],
  groups:[],
  row:0,
@@ -408,7 +425,7 @@ function selectMenu(){
  if(p===1){openYouTube();return}
  if(p===2){showSearch();return}
  if(p===3){S.query='';rebuildGroups();closeMenu();return}
- if(p===4){closeMenu();loadSource('tv',false,1);return}
+ if(p===4){closeMenu();loadSource('tv',false,S.tvPreset);return}
  if(p===5){closeMenu();loadSource('sport');return}
  if(p===6){showSubset('fav');return}
  if(p===7){showSubset('recent');return}
@@ -544,7 +561,11 @@ function loadSource(source,force,tvPreset){
   if(source==='tv'){
    S.loading=false;
    if(S.list.length)toast('API không phản hồi · giữ playlist hiện tại');
-   else fallbackOriginal(cached,e);
+   else if(requestPreset===1)fallbackOriginal(cached,e);
+   else{
+    $('homeRows').innerHTML='<div class="empty">Không tải được Nguồn mặc định 2. Vui lòng thử lại.</div>';
+    toast('Không tải được nguồn mặc định 2: '+(e&&e.message||String(e||'lỗi không xác định')));
+   }
   }else{S.loading=false;toast('Không tải được playlist: '+e.message)}
  })
 }
@@ -1848,7 +1869,7 @@ function startup(){
  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')restoreRemoteFocus()},true);
  bindTvPointerNavigation();
  var cached=readCache();if(cached){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome()}
- loadSource('tv',false,1);
+ loadSource('tv',false,S.tvPreset);
 }
 startup();
 })();

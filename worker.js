@@ -23,12 +23,7 @@ const BUILTIN = {
     {url:'https://livevliatmcdw.seenow.vn/live/data8/BONGDA_HD/Live_DASHDRM/BONGDA_HD.mpd',ref:'',ua:'Dalvik/2.1.0',headers:{},type:'dash',dash:true,hls:false,drm:{type:'clearkey',key:'f3d73b3a9b89462ebf7911004ea3b3b9:2e547a81ff90aa02648cb9e3f79e7339'},forceProxy:true},
     {url:'https://livevlisctcdnw.seenow.vn/mean/BONGDA_HD/manifest.mpd',ref:'',ua:'Dalvik/2.1.0',headers:{},type:'dash',dash:true,hls:false,drm:{type:'clearkey',key:'f69bf028397e4ecfafce84abb7c5fe2b:25028aad0e2003b2785cf5196a4e2fa1'},forceProxy:true}
   ],
-  sctv15hd: [
-    {url:'https://e1.endpoint.cdn.sctvonline.vn/playlist/sctv15/index.m3u8',ref:'https://sctvonline.vn/',ua:'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36',hls:true,forceProxy:true}
-  ],
-  sctv17hd: [
-    {url:'https://e1.endpoint.cdn.sctvonline.vn/playlist/sctv17/index.m3u8',ref:'https://sctvonline.vn/',ua:'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36',hls:true,forceProxy:true}
-  ]
+
 };
 const playlistCache=new Map(),CACHE_TTL=30000;
 function isHttp(u){return /^https?:\/\//i.test(String(u||''))}
@@ -39,8 +34,6 @@ function addBuiltin(c){
   if(!extra.length&&(key==='vtv1'||name==='vtv1'||name.startsWith('vtv1')))extra=BUILTIN.vtv1hd;
   if(!extra.length&&(name.startsWith('onsport')||name.includes('vtvcab3')))extra=BUILTIN.vtvcab3hd;
   if(!extra.length&&(name.startsWith('onfootball')||name.includes('vtvcab16')))extra=BUILTIN.vtvcab16hd;
-  if(!extra.length&&(key.startsWith('sctv15')||name.startsWith('sctv15')))extra=BUILTIN.sctv15hd;
-  if(!extra.length&&(key.startsWith('sctv17')||name.startsWith('sctv17')))extra=BUILTIN.sctv17hd;
   const seen=new Set((c.candidates||[]).map(x=>x.url));for(const x of extra)if(!seen.has(x.url)){c.candidates.push({...x,headers:x.headers||{}});seen.add(x.url)}
 }
 function enrichChannels(channels){

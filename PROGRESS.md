@@ -297,3 +297,13 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Regression checks mới xác nhận cả hai upstream, hai route preset và lựa chọn trong UI.
 
 - Cập nhật xác nhận cuối ngày 09/10/2026: commit `ebd9906582a815173ec570059a6d17252d37bf16` đã deploy thành công (Deploy #426) và E2E #112 thành công. Phạm vi chỉ là NM7 TV Web.
+
+
+## 2026-10-09 — Chốt NM7 TV Web stable baseline
+
+- Tạo nhánh `stable/nm7-tv-web-2026-10-09` làm nền chuẩn cho các lần phát triển tiếp theo.
+- Commit production dùng để chốt mốc: `52a51a8447735259db92f33cf5a67748cdf94c40`.
+- Bằng chứng: Cloudflare Deploy #428 = SUCCESS; YouTube Original E2E #114 = SUCCESS.
+- Tạo `STABLE_BASELINE.md` và cập nhật `README.md` nêu quy tắc: các branch feature/fix sau này phải được tạo từ nhánh stable này; không dựa vào NM7 Mobile/NM7 TV Android hay baseline cũ khác.
+- Không thay đổi mã ứng dụng trong đợt chốt stable này; chỉ thêm tài liệu. Tất cả thay đổi tính năng tiếp theo phải làm ở branch mới, không sửa trực tiếp nhánh stable.
+- Phạm vi: riêng repository `phuongnm7/nm7-tv-web`.

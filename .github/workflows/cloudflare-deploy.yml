@@ -142,13 +142,17 @@ jobs:
           checks={
               "ClearKey Safari guard":"if(isAppleTouchDevice()&&drm&&isDashDrmCandidate(cand))",
               "Safari official fallback":"function safariOfficialUrl(c)",
-              "On Sports official URL":"vtvprime.vn/content/channel/02efed81-3e71-4328-89dc-667c33fa0e9f",
+              "On Sports official fallback":"www.onplus.com.vn/channel?id=d61a9ace-2b7d-4474-9e6d-8f5c0c0d870d",
+              "ON Football official fallback":"www.onplus.com.vn/channel?id=1a8ca8c8-1754-4c02-ae49-146374f3a567",
+              "SCTV15 official fallback":"www.onplus.com.vn/channel?id=342775b9-7c03-4332-a7c5-54a4e7bf23c3",
               "Safari fallback UI":"officialBtn",
               "Apple direct DASH request filter":"(!appleDrm||S.proxyAttempt)",
               "DRM hard recovery":"hardRestartDrm",
               "real stall watchdog":"function armDrmStallWatch(reason)",
               "VTV backup group resolver":"function isVtvBackupGroup(group)",
-              "Cross-group VTV HLS fallback":"var counterpart=(isBackup&&xGroup==='VTV')",
+              "sports group resolver":"function isSportsGroup(group)",
+              "sports fallback alias":"function appleFallbackKey(c)",
+              "cross-group HLS fallback":"var sportsPair=(isSportsGroup(group)||isSportsGroup(xGroup))&&family===appleFallbackKey(x)",
               "Safari prefers non-DRM HLS":"for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;"
           }
           for label,needle in checks.items():

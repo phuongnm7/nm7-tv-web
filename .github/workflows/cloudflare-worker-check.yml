@@ -1,0 +1,190 @@
+name: Cloudflare Worker Build and Preview
+
+on:
+  push:
+    branches: ["cloudflare-migration"]
+  workflow_dispatch:
+
+concurrency:
+  group: nm7-tv-web-cloudflare-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install
+      - name: Build static assets
+        run: npm run build
+      - name: Check Worker syntax
+        run: node --check src/index.js
+      - name: Deploy temporary Cloudflare preview
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --temporary 2>&1 | tee /tmp/cloudflare-deploy.log
+          LIVE_URL="$(grep -o 'https://[^[:space:]]*workers.dev' /tmp/cloudflare-deploy.log | tail -1)"
+          test -n "$LIVE_URL"
+          echo "LIVE_URL=$LIVE_URL" | tee /tmp/cloudflare-live-url
+          printf '%s\n' "$LIVE_URL" > /tmp/cloudflare-live-url.txt
+
+      - name: Inspect merged playlist candidates
+        run: |
+          set -euo pipefail
+          LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
+          export LIVE_URL
+          node <<'NODE'
+          const base=process.env.LIVE_URL;
+          (async()=>{
+            const r=await fetch(base+'/api/playlist?source=tv',{cache:'no-store'});
+            const d=await r.json();
+            const wanted=['vtv1hd','VTV1.vn','onfootball','onsports','onsportsplus','onsportsnews'];
+            for(const id of wanted){
+              const hits=(d.channels||[]).filter(c=>String(c.id).toLowerCase()===id.toLowerCase()||String(c.name).toLowerCase().includes(id.toLowerCase().replace('.vn','')));
+              for(const c of hits.slice(0,2)){
+                console.log('CANDIDATES '+c.name+' '+JSON.stringify((c.candidates||[]).slice(0,6).map(x=>({url:x.url,type:x.type,hls:x.hls,dash:x.dash,expires:(/[?&]expires=(\\d+)/i.exec(x.url)||[])[1]||null}))));
+              }
+            }
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Diagnose direct and proxy HLS manifests
+        run: |
+          set -euo pipefail
+          LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
+          export LIVE_URL
+          node <<'NODE'
+          const base=process.env.LIVE_URL;
+          const tests=[
+            ['VTV1-VTVGo','https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8','', 'Mozilla/5.0'],
+            ['VTV1-FPT','https://live-a.fptplay53.net/live/media/vtv1/live247-hls-avc/index.m3u8','', 'Mozilla/5.0'],
+            ['ON-Sports-SCTV','https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/sd2/index.m3u8','http://sctvonline.vn/','ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'],
+            ['ON-Sports-Plus-SCTV','https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab6/sd2/index.m3u8','http://sctvonline.vn/','ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'],
+            ['ON-Football-SCTV','https://e1.endpoint.cdn.sctvonline.vn/hls/vtvcab16/sd2/index.m3u8','http://sctvonline.vn/','ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'],
+            ['ON-Sports-News','https://livevlive.vtvcab.vn/hls/OS_THETHAO_TINTUC_HD/sc-gaFEAA/m30_index.m3u8','','Mozilla/5.0']
+          ];
+          (async()=>{
+            let available=0;
+            for(const [name,u,r,uAgent] of tests){
+              let direct={status:0,ok:false,ct:''},proxy={status:0,ok:false,ct:''};
+              try{
+                const x=await fetch(u,{redirect:'follow',cache:'no-store',headers:{'Accept':'application/vnd.apple.mpegurl,text/plain,*/*','User-Agent':uAgent,'Referer':r||undefined}});
+                const body=(await x.text()).slice(0,200).trim();
+                direct={status:x.status,ok:x.ok&&(body.startsWith('#EXTM3U')||body.includes('#EXT-X-')),ct:x.headers.get('content-type')||'',sample:body.slice(0,80)};
+              }catch(e){direct.error=String(e)}
+              try{
+                const q=new URL(base+'/__nm7/stream');q.searchParams.set('u',u);if(r)q.searchParams.set('r',r);if(uAgent)q.searchParams.set('ua',uAgent);
+                const x=await fetch(q,{headers:{'Accept':'application/vnd.apple.mpegurl,text/plain,*/*'},redirect:'follow',cache:'no-store'});
+                const body=(await x.text()).slice(0,200).trim();
+                proxy={status:x.status,ok:x.ok&&(body.startsWith('#EXTM3U')||body.includes('#EXT-X-')),ct:x.headers.get('content-type')||'',sample:body.slice(0,80)};
+              }catch(e){proxy.error=String(e)}
+              const usable=direct.ok||proxy.ok;
+              console.log(JSON.stringify({name,usable,direct,proxy}));
+              if(usable)available++;
+            }
+            console.log('MANIFEST_AVAILABLE='+available+'/'+tests.length);
+            if(available===0)console.log('No sample upstream was reachable from GitHub runner; UI/player fixture tests below remain authoritative for code-path validation.');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Install Playwright package and browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install chromium --with-deps
+
+      - name: Smoke test live Worker
+        run: |
+          set -euo pipefail
+          LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
+          echo "Testing $LIVE_URL"
+          export LIVE_URL
+          node <<'NODE'
+          const fs=require('fs');
+          const base=fs.readFileSync('/tmp/cloudflare-live-url.txt','utf8').trim();
+          async function get(path){
+            const r=await fetch(base+path,{redirect:'follow',cache:'no-store'});
+            const text=await r.text();
+            console.log(path, r.status, text.slice(0,180).replace(/\s+/g,' '));
+            if(!r.ok)throw new Error(path+' HTTP '+r.status);
+            return {status:r.status,text};
+          }
+          (async()=>{
+            const page=await get('/');
+            if(!/NM7 TV/i.test(page.text))throw new Error('homepage marker missing');
+            const staticList=await get('/playlist.json');
+            const d=JSON.parse(staticList.text);
+            if(!Array.isArray(d.channels)||!d.channels.length)throw new Error('static playlist empty');
+            const api=await get('/api/playlist?source=tv');
+            const a=JSON.parse(api.text);
+            if(!Array.isArray(a.channels)||!a.channels.length)throw new Error('API playlist empty');
+            console.log('SMOKE_OK='+JSON.stringify({staticChannels:d.channels.length,apiChannels:a.channels.length}));
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Smoke test live UI, remote navigation, and playback
+        run: |
+          set -euo pipefail
+          LIVE_URL="$(cat /tmp/cloudflare-live-url.txt)"
+          export LIVE_URL
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          const base=fs.readFileSync('/tmp/cloudflare-live-url.txt','utf8').trim();
+          (async()=>{
+            const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            const p=await b.newPage({viewport:{width:1920,height:1080}});
+            const errors=[];
+            p.on('pageerror',e=>errors.push(e.message));
+
+            // Replace playlist/API responses with a controlled channel and intercept its HLS.
+            const fixturePlaylist=JSON.stringify({channels:[{
+              id:'e2e-hls',name:'E2E HLS',group:'VTV',logo:'',
+              candidates:[{url:'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]
+            }]});
+            await p.route('**/playlist.json*',route=>route.fulfill({status:200,contentType:'application/json',body:fixturePlaylist}));
+            await p.route('**/api/playlist*',route=>route.fulfill({status:200,contentType:'application/json',body:fixturePlaylist}));
+
+            await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
+            await p.waitForSelector('.card',{timeout:15000});
+            const n=await p.locator('.card').count();
+            const active=await p.evaluate(()=>({tag:document.activeElement?.tagName,row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col}));
+            console.log('UI_INITIAL='+JSON.stringify({cards:n,active,errors}));
+            if(n<1||active.tag!=='BUTTON')throw new Error('initial focus not on channel card');
+
+            // Find the largest row and verify horizontal navigation scrolls beyond the viewport.
+            const rowInfo=await p.evaluate(()=>Array.from(document.querySelectorAll('.row')).map((r,i)=>({i,count:r.querySelectorAll('.card').length})).sort((a,b)=>b.count-a.count)[0]);
+            if(!rowInfo||rowInfo.count<26)throw new Error('no channel row large enough for horizontal scroll test '+JSON.stringify(rowInfo));
+            const firstInRow=p.locator('.card[data-row="'+rowInfo.i+'"][data-col="0"]');
+            await firstInRow.focus();
+            for(let i=0;i<25;i++)await p.keyboard.press('ArrowRight');
+            const farRight=await p.evaluate(()=>({row:Number(document.activeElement?.dataset?.row||0),col:Number(document.activeElement?.dataset?.col||0),scrollLeft:document.activeElement?.closest('.cards')?.scrollLeft||0}));
+            console.log('REMOTE_RIGHT='+JSON.stringify(farRight));
+            if(farRight.row!==rowInfo.i||farRight.col<20||farRight.scrollLeft<=0)throw new Error('RIGHT/scroll failed '+JSON.stringify(farRight));
+
+            // Verify DOWN eventually scrolls the page container, not just the visible viewport.
+            await firstInRow.focus();
+            let down=null;
+            for(let i=0;i<12;i++){
+              await p.keyboard.press('ArrowDown'); await p.waitForTimeout(40);
+              down=await p.evaluate(()=>({row:Number(document.activeElement?.dataset?.row||0),homeScroll:document.querySelector('#home')?.scrollTop||0}));
+              if(down.homeScroll>0&&down.row>0)break;
+            }
+            console.log('REMOTE_DOWN='+JSON.stringify(down));
+            if(!down||down.row<=0||down.homeScroll<=0)throw new Error('DOWN/page scroll failed '+JSON.stringify(down));
+
+            // Controlled real HLS playback: if the HLS.js/player path is broken, this fails.
+            await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
+            await p.waitForSelector('.card',{timeout:15000});
+            await p.locator('.card').first().click();
+            await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&v.currentTime>0&&v.readyState>=2},{timeout:15000});
+            const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {time:v.currentTime,ready:v.readyState,paused:v.paused,error:v.error?{code:v.error.code,message:v.error.message}:null,status:document.querySelector('#status')?.textContent||'',debug:document.querySelector('#debug')?.textContent||''}});
+            console.log('FIXTURE_PLAYBACK_OK='+JSON.stringify(media));
+            if(media.time<=0||media.ready<2||media.paused)throw new Error('HLS playback fixture failed '+JSON.stringify(media));
+            if(errors.length)throw new Error('browser page errors '+JSON.stringify(errors));
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

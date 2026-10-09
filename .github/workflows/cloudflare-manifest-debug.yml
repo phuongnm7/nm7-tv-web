@@ -1,0 +1,112 @@
+name: Cloudflare Manifest Chain Check
+
+on:
+  push:
+    branches: ["cloudflare-migration"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - run: npm run build
+      - name: Deploy preview
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --temporary 2>&1 | tee /tmp/deploy.log
+          grep -o 'https://[^[:space:]]*workers.dev' /tmp/deploy.log | tail -1 > /tmp/live.txt
+          echo "LIVE_URL=$(cat /tmp/live.txt)"
+          echo "Waiting for Cloudflare preview to become reachable..."
+          node <<'NODE'
+          const fs=require('fs');
+          const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
+          (async()=>{
+            let last='';
+            for(let i=0;i<30;i++){
+              try{
+                const r=await fetch(base+'/',{redirect:'follow',cache:'no-store'});
+                const t=await r.text();
+                last=r.status+' '+(r.headers.get('content-type')||'')+' '+t.slice(0,40).replace(/\s+/g,' ');
+                if(r.status===200)break;
+              }catch(e){last=String(e)}
+              await new Promise(x=>setTimeout(x,2000));
+            }
+            console.log('PREVIEW_READY='+last);
+            if(!last.startsWith('200 '))process.exit(1);
+          })();
+          NODE
+      - name: Wait for HLS API readiness
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
+          const master='https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8';
+          (async()=>{
+            let last='';
+            for(let i=0;i<30;i++){
+              try{
+                const u=base+'/api/stream?u='+encodeURIComponent(master);
+                const r=await fetch(u,{redirect:'follow',cache:'no-store'});
+                const t=await r.text();
+                last=r.status+' '+(r.headers.get('content-type')||'')+' '+t.slice(0,24).replace(/\s+/g,' ');
+                if(r.status===200&&/^#EXTM3U/m.test(t))break;
+              }catch(e){last=String(e)}
+              await new Promise(x=>setTimeout(x,2000));
+            }
+            console.log('HLS_API_READY='+last);
+            if(!last.startsWith('200 ')||!last.includes('#EXTM3U'))process.exit(1);
+          })();
+          NODE
+      - name: Check manifest chain
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
+          const master='https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8';
+          async function get(u){
+            const r=await fetch(u,{redirect:'follow',cache:'no-store'});
+            const text=await r.text();
+            return {status:r.status,ct:r.headers.get('content-type')||'',url:r.url,text};
+          }
+          function firstVariant(text,baseUrl){
+            const lines=text.split(/\r?\n/);
+            for(let i=0;i<lines.length-1;i++){
+              if(lines[i].startsWith('#EXT-X-STREAM-INF:')){
+                const u=lines[i+1].trim();
+                if(u&&!u.startsWith('#'))return new URL(u,baseUrl).toString();
+              }
+            }
+            return null;
+          }
+          (async()=>{
+            const purl=base+'/api/stream?u='+encodeURIComponent(master);
+            const m=await get(purl);
+            console.log('MASTER='+JSON.stringify({status:m.status,ct:m.ct,len:m.text.length}));
+            console.log(m.text.slice(0,5000));
+            if(m.status!==200||!/^#EXTM3U/m.test(m.text))throw new Error('master failed');
+            const v=firstVariant(m.text,m.url);
+            console.log('VARIANT_URL='+v);
+            if(!v)throw new Error('no variant found');
+            const vr=await get(v);
+            console.log('VARIANT='+JSON.stringify({status:vr.status,ct:vr.ct,len:vr.text.length,url:vr.url}));
+            console.log(vr.text.slice(0,3000));
+            if(vr.status!==200||!/^#EXTM3U/m.test(vr.text))throw new Error('variant failed');
+            const mediaLine=vr.text.split(/\r?\n/).find(x=>x.trim()&&!x.trim().startsWith('#'));
+            if(!mediaLine)throw new Error('no media segment found');
+            const mediaUrl=new URL(mediaLine,vr.url).toString();
+            console.log('MEDIA_URL='+mediaUrl);
+            const mr=await fetch(mediaUrl,{redirect:'follow',cache:'no-store'});
+            console.log('MEDIA='+JSON.stringify({status:mr.status,ct:mr.headers.get('content-type')||'',len:mr.headers.get('content-length')||''}));
+            if(!(mr.ok||mr.status===206))throw new Error('media segment failed '+mr.status);
+            console.log('CHAIN_OK');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

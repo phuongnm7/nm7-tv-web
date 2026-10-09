@@ -1,0 +1,13 @@
+{
+  "name": "nm7-tv-web",
+  "private": true,
+  "version": "1.0.69",
+  "scripts": {
+    "build": "rm -rf dist && mkdir -p dist && cp -R web-tv/. dist/ && cp -R assets dist/assets",
+    "dev": "wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.102.0"
+  }
+}

@@ -1,0 +1,191 @@
+name: Cloudflare Final TV Web Check
+
+on:
+  push:
+    branches: ["cloudflare-migration"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  final:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install
+      - name: Build
+        run: npm run build
+      - name: Syntax
+        run: node --check src/index.js
+      - name: Deploy preview
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --temporary 2>&1 | tee /tmp/deploy.log
+          grep -o 'https://[^[:space:]]*workers.dev' /tmp/deploy.log | tail -1 > /tmp/live.txt
+          test -s /tmp/live.txt
+          echo "LIVE_URL=$(cat /tmp/live.txt)"
+          echo "Waiting for Cloudflare preview to become reachable..."
+          node <<'NODE'
+          const fs=require('fs');
+          const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
+          (async()=>{
+            let last='';
+            for(let i=0;i<30;i++){
+              try{
+                const r=await fetch(base+'/',{redirect:'follow',cache:'no-store'});
+                const t=await r.text();
+                last=r.status+' '+(r.headers.get('content-type')||'')+' '+t.slice(0,40).replace(/\s+/g,' ');
+                if(r.status===200)break;
+              }catch(e){last=String(e)}
+              await new Promise(x=>setTimeout(x,2000));
+            }
+            console.log('PREVIEW_READY='+last);
+            if(!last.startsWith('200 '))process.exit(1);
+          })();
+          NODE
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install chromium --with-deps
+      - name: Final UI and playback test
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          const base=fs.readFileSync('/tmp/live.txt','utf8').trim();
+          const channels=[];
+          const hlsUpstream='https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/v5/prog_index.m3u8';
+          const hlsProxy=base+'/api/stream?u='+encodeURIComponent(hlsUpstream);
+          for(let g=0;g<12;g++)for(let i=0;i<30;i++)channels.push({id:'e2e-'+g+'-'+i,name:'E2E '+(g+1)+'-'+(i+1),group:'GROUP '+String(g+1).padStart(2,'0'),logo:'',candidates:[{url:hlsProxy,type:'hls',hls:true,dash:false,drm:null,ref:'',ua:'',headers:{}}]});
+          const body=JSON.stringify({channels});
+          (async()=>{
+            const b=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required','--disable-gpu']});
+            const p=await b.newPage({viewport:{width:1920,height:1080}});
+            const errors=[];
+            p.on('pageerror',e=>errors.push(e.message));
+            await p.route('**/playlist.json*',r=>r.fulfill({status:200,contentType:'application/json',body}));
+            await p.route('**/api/playlist*',r=>r.fulfill({status:200,contentType:'application/json',body}));
+            const mediaResponses=[];
+            p.on('response',r=>{if(/__nm7\/stream|\.m3u8|\.ts/.test(r.url()))mediaResponses.push({status:r.status(),url:r.url()});});
+            p.on('requestfailed',r=>{if(/__nm7\/stream|\.m3u8|\.ts/.test(r.url()))console.log('REQUEST_FAILED='+r.url()+' '+(r.failure()?.errorText||''));});
+            await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
+            await p.waitForSelector('.card',{timeout:15000});
+            const initial=await p.evaluate(()=>({tag:document.activeElement?.tagName,row:document.activeElement?.dataset?.row,col:document.activeElement?.dataset?.col,count:document.querySelectorAll('.card').length}));
+            if(initial.tag!=='BUTTON'||initial.row!=='0'||initial.col!=='0')throw new Error('initial focus '+JSON.stringify(initial));
+            for(let i=0;i<25;i++)await p.keyboard.press('ArrowRight');
+            const right=await p.evaluate(()=>({row:Number(document.activeElement?.dataset?.row),col:Number(document.activeElement?.dataset?.col),scrollLeft:document.activeElement?.closest('.cards')?.scrollLeft||0}));
+            if(right.row!==0||right.col<20||right.scrollLeft<=0)throw new Error('horizontal navigation '+JSON.stringify(right));
+            for(let i=0;i<10;i++){await p.keyboard.press('ArrowDown');await p.waitForTimeout(30);}
+            const down=await p.evaluate(()=>({row:Number(document.activeElement?.dataset?.row),homeScroll:document.querySelector('#home')?.scrollTop||0}));
+            if(down.row<=0||down.homeScroll<=0)throw new Error('vertical navigation '+JSON.stringify(down));
+            await p.goto(base+'/?debug=1',{waitUntil:'domcontentloaded',timeout:30000});
+            await p.waitForSelector('.card',{timeout:15000});
+            const preflight=await p.evaluate(async u=>{
+              try{const r=await fetch(u,{cache:'no-store'});const t=await r.text();return {status:r.status,ct:r.headers.get('content-type')||'',sample:t.slice(0,500)}}catch(e){return {error:String(e)}}
+            },hlsProxy);
+            console.log('PREFLIGHT='+JSON.stringify(preflight));
+            const libs=await p.evaluate(()=>({
+              Hls:!!window.Hls,
+              HlsSupported:!!(window.Hls&&Hls.isSupported()),
+              MediaSource:!!window.MediaSource,
+              HlsVersion:window.Hls?.version||null,
+              avcMse:!!(window.MediaSource&&MediaSource.isTypeSupported&&MediaSource.isTypeSupported('video/mp4;codecs="avc1.640020"'))
+            }));
+            console.log('LIBS='+JSON.stringify(libs));
+            await p.locator('.card').first().click();
+            await p.waitForTimeout(3000);
+            if(libs.avcMse){
+              try{await p.waitForFunction(()=>{const v=document.querySelector('#video');return !!v&&v.readyState>=2&&v.currentTime>0},{timeout:8000});}catch(e){}
+            } else {
+              await p.waitForTimeout(3000);
+            }
+            const media=await p.evaluate(()=>{const v=document.querySelector('#video');return {time:v.currentTime,ready:v.readyState,paused:v.paused,error:v.error?{code:v.error.code,message:v.error.message}:null,status:document.querySelector('#status')?.textContent||'',debug:document.querySelector('#debug')?.textContent||''}});
+            console.log('INITIAL='+JSON.stringify(initial));
+            console.log('RIGHT='+JSON.stringify(right));
+            console.log('DOWN='+JSON.stringify(down));
+            console.log('PLAYBACK='+JSON.stringify(media));
+            console.log('MEDIA_RESPONSES='+JSON.stringify(mediaResponses.slice(0,30)));
+            const media200=mediaResponses.filter(x=>x.status>=200&&x.status<300);
+            if(!libs.avcMse){
+              console.log('HLS_NETWORK_OK_CODEC_UNAVAILABLE='+JSON.stringify({
+                reason:'GitHub Actions Chromium cannot decode the H.264 codec used by the real HLS fixture',
+                responses:media200.length,
+                sawPlaylist:media200.some(x=>/\.m3u8/.test(x.url)),
+                sawSegment:media200.some(x=>/\.ts($|\?)/.test(x.url))
+              }));
+              if(!media200.some(x=>/\.m3u8/.test(x.url))||!media200.some(x=>/\.ts($|\?)/.test(x.url)))
+                throw new Error('HLS network path failed '+JSON.stringify(media));
+            } else if(media.time<=0||media.ready<2||media.paused){
+              throw new Error('HLS playback failed '+JSON.stringify(media));
+            }
+            if(errors.length)throw new Error('page errors '+JSON.stringify(errors));
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Check Cloudflare production token
+        id: cf_prod_token
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/cloudflare-migration'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Production deploy skipped: configure CLOUDFLARE_API_TOKEN in repository Actions secrets."
+          fi
+
+      - name: Deploy validated Worker to production
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/cloudflare-migration' && steps.cf_prod_token.outputs.available == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm run deploy 2>&1 | tee /tmp/production-deploy.log
+          LIVE_URL='https://nm7-tv-web.phuongnm7-iptv.workers.dev'
+          export LIVE_URL
+          node <<'NODE'
+          const expected="https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd";
+          const isVtv1=ch=>{const id=String(ch.id||'').toLowerCase().replace(/[^a-z0-9]/g,'');const name=String(ch.name||'').trim().toLowerCase();return ['vtv1','vtv1hd','vtv1vn'].includes(id)||name==='vtv1'||name.startsWith('vtv1 ')};
+          async function verify(path,label){
+            const r=await fetch(process.env.LIVE_URL+path,{cache:'no-store'});
+            if(!r.ok)throw new Error(label+' HTTP '+r.status);
+            const d=await r.json();const hits=(d.channels||[]).filter(isVtv1);
+            if(!hits.length)throw new Error(label+': no VTV1 found');
+            for(const ch of hits){const list=Array.isArray(ch.candidates)?ch.candidates:[];if(list.length!==1||list[0].url!==expected)throw new Error(label+': source contract failed '+JSON.stringify({name:ch.name,candidates:list.map(x=>x.url)}));}
+            console.log('PRODUCTION_VTV1_OK '+label+' '+hits.length+' channel entries, one exact source each');
+          }
+          (async()=>{
+            const home=await fetch(process.env.LIVE_URL+'/',{cache:'no-store'});
+            const html=await home.text();
+            if(!home.ok||!html.includes('NM7 TV'))throw new Error('Production homepage check failed: '+home.status);
+            await verify('/api/playlist?source=tv','API');
+            await verify('/playlist.json','static');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Read-only verification of the existing production Worker
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/cloudflare-migration'
+        continue-on-error: true
+        env:
+          LIVE_URL: https://nm7-tv-web.phuongnm7-iptv.workers.dev
+        run: |
+          node <<'NODE'
+          const expected="https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd";
+          const isVtv1=ch=>{const id=String(ch.id||'').toLowerCase().replace(/[^a-z0-9]/g,'');const name=String(ch.name||'').trim().toLowerCase();return ['vtv1','vtv1hd','vtv1vn'].includes(id)||name==='vtv1'||name.startsWith('vtv1 ')};
+          async function body(path){const r=await fetch(process.env.LIVE_URL+path,{cache:'no-store'});const text=await r.text();return {status:r.status,text};}
+          (async()=>{
+            try{
+              const [app,staticRes,apiRes]=await Promise.all([body('/app.js'),body('/playlist.json'),body('/api/playlist?source=tv')]);
+              const appHasPin=app.status===200&&app.text.includes('enforceSingleVtv1Source');
+              let staticOk=false,apiOk=false,staticDetail=[],apiDetail=[];
+              try{const d=JSON.parse(staticRes.text);const hits=(d.channels||[]).filter(isVtv1);staticDetail=hits.map(ch=>({id:ch.id,name:ch.name,candidates:(ch.candidates||[]).map(x=>x.url)}));staticOk=hits.length>0&&hits.every(ch=>Array.isArray(ch.candidates)&&ch.candidates.length===1&&ch.candidates[0].url===expected)}catch(e){staticDetail=[{error:String(e),status:staticRes.status,sample:staticRes.text.slice(0,100)}]}
+              try{const d=JSON.parse(apiRes.text);const hits=(d.channels||[]).filter(isVtv1);apiDetail=hits.map(ch=>({id:ch.id,name:ch.name,candidates:(ch.candidates||[]).map(x=>x.url)}));apiOk=hits.length>0&&hits.every(ch=>Array.isArray(ch.candidates)&&ch.candidates.length===1&&ch.candidates[0].url===expected)}catch(e){apiDetail=[{error:String(e),status:apiRes.status,sample:apiRes.text.slice(0,100)}]}
+              console.log('PRODUCTION_READ_ONLY_DIAG='+JSON.stringify({base:process.env.LIVE_URL,appHttp:app.status,appHasPin,staticHttp:staticRes.status,staticOk,staticVtv1:staticDetail,apiHttp:apiRes.status,apiOk,apiVtv1:apiDetail,productionPatchPresent:appHasPin&&staticOk&&apiOk}));
+            }catch(e){console.log('PRODUCTION_READ_ONLY_DIAG_ERROR='+String(e))}
+          })();
+          NODE

@@ -165,7 +165,7 @@ jobs:
           ]
           for label,url,headers in providerTargets:
               print('PROVIDER_HLS_GET',json.dumps({'label':label,'host':urlparse(url).hostname,'result':safe_get(url,headers)},ensure_ascii=False))
-                    for name,i,x in getTargets[:32]:
+          for name,i,x in getTargets[:32]:
               u=str(x.get('url') or '')
               h={'User-Agent':str(x.get('ua') or 'Mozilla/5.0')[:500]}
               ref=str(x.get('ref') or '')

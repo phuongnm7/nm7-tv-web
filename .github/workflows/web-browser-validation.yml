@@ -112,11 +112,11 @@ jobs:
           await mergeHandler({ method: 'GET', url: '/api/vietmitv-merge', headers: {} }, m3uRes);
           if (m3uRes.statusCode !== 200) throw new Error('Merged M3U endpoint returned HTTP ' + m3uRes.statusCode + ': ' + m3uRes.body);
           const text = String(m3uRes.body || '');
-          if (!/^\\s*#EXTM3U\\b/i.test(text)) throw new Error('Merged M3U header missing');
+          if (!text.trimStart().startsWith('#EXTM3U')) throw new Error('Merged M3U header missing');
           for (const group of required) {
             if (!text.includes('group-title="' + group + '"')) throw new Error('Merged M3U missing group: ' + group);
           }
-          const count = (text.match(/^\\s*#EXTINF:/gim) || []).length;
+          const count = text.split(String.fromCharCode(10)).filter(line => line.trimStart().startsWith('#EXTINF:')).length;
           if (count < 300) throw new Error('Merged M3U channel count is too low: ' + count);
           console.log('Raw M3U API passed:', count, 'entries');
           NODE

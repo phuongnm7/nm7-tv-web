@@ -25,32 +25,29 @@ function validatePlaylist(text, label) {
 }
 
 async function fetchSports() {
-  let lastError;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 11000);
-    try {
-      const response = await fetch(SPORTS_URL, {
-        method: "GET",
-        redirect: "follow",
-        signal: controller.signal,
-        headers: {
-          "Accept": "application/x-mpegURL, audio/x-mpegurl, text/plain, */*",
-          "Cache-Control": "no-cache",
-          "Pragma": "no-cache",
-          "User-Agent": "NM7-TV-Playlist-Merger/1.0"
-        }
-      });
-      if (!response.ok) throw new Error("sports-auto.m3u phản hồi HTTP " + response.status);
-      return validatePlaylist(await response.text(), "sports-auto.m3u");
-    } catch (error) {
-      lastError = error;
-      if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 250));
-    } finally {
-      clearTimeout(timer);
-    }
+  // Keep the request short so a slow upstream cannot consume the serverless function's
+  // execution window. A bundled fallback is available immediately after this timeout.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4500);
+  try {
+    const response = await fetch(SPORTS_URL, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "Accept": "application/x-mpegURL, audio/x-mpegurl, text/plain, */*",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "User-Agent": "NM7-TV-Playlist-Merger/1.0"
+      }
+    });
+    if (!response.ok) throw new Error("sports-auto.m3u phản hồi HTTP " + response.status);
+    return validatePlaylist(await response.text(), "sports-auto.m3u");
+  } catch (error) {
+    throw new Error("Không tải được sports-auto.m3u trong 4,5 giây: " + (error?.message || "lỗi nguồn"));
+  } finally {
+    clearTimeout(timer);
   }
-  throw new Error("Không tải được sports-auto.m3u: " + (lastError?.message || "lỗi không xác định"));
 }
 
 function extractEntries(m3u) {

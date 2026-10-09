@@ -101,6 +101,7 @@ function parse(t) {
   }
   for (const c of merged) {
     addBuiltin(c);
+    keepOnlyUserVtv1Source(c);
     c.candidates.sort((a, b) => score(b.url) - score(a.url));
   }
   return merged;
@@ -111,6 +112,27 @@ const BUILTIN = {
   vtvcab3hd: [{ url: "https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8", ref: "http://sctvonline.vn/", ua: "ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3", hls: true }],
   vtvcab16hd: [{ url: "https://e7.endpoint.cdn.sctvonline.vn/live/smil:VTVCAB16.smil/chunklist_w2005840737_b1692000.m3u8", ref: "http://sctvonline.vn/", ua: "ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3", hls: true }]
 };
+
+const VTV1_USER_URL = "https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifest.mpd";
+
+function keepOnlyUserVtv1Source(c) {
+  const id = String(c.id || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const name = String(c.name || "").trim();
+  const isVtv1 = ["vtv1", "vtv1hd", "vtv1vn"].includes(id) || /^vtv1(?:\\s|$)/i.test(name);
+  if (!isVtv1) return c;
+  c.url = VTV1_USER_URL;
+  c.candidates = [{
+    url: VTV1_USER_URL,
+    ref: "",
+    ua: "",
+    headers: {},
+    type: "dash",
+    dash: true,
+    hls: false,
+    drm: null
+  }];
+  return c;
+}
 
 function addBuiltin(c) {
   const key = String(c.id || "").toLowerCase().trim();
@@ -184,7 +206,7 @@ function combineChannels(main, extra) {
     }
     if (!old.logo && c.logo) old.logo = c.logo;
   }
-  for (const c of merged) { addBuiltin(c); c.candidates.sort((a, b) => score(b.url) - score(a.url)); proxyUrl(c); }
+  for (const c of merged) { addBuiltin(c); keepOnlyUserVtv1Source(c); c.candidates.sort((a, b) => score(b.url) - score(a.url)); proxyUrl(c); }
   return merged;
 }
 

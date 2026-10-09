@@ -83,7 +83,7 @@ jobs:
           grep -q "NM7 TV 1.0.69" /tmp/nm7-home.html
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=android1069" -o /tmp/nm7-tv.json
           python3 - <<'PY'
-          import json
+          import json, re
           d=json.load(open('/tmp/nm7-tv.json',encoding='utf-8'))
           channels=d.get('channels') or []
           if not channels:

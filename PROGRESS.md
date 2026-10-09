@@ -307,3 +307,30 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Tạo `STABLE_BASELINE.md` và cập nhật `README.md` nêu quy tắc: các branch feature/fix sau này phải được tạo từ nhánh stable này; không dựa vào NM7 Mobile/NM7 TV Android hay baseline cũ khác.
 - Không thay đổi mã ứng dụng trong đợt chốt stable này; chỉ thêm tài liệu. Tất cả thay đổi tính năng tiếp theo phải làm ở branch mới, không sửa trực tiếp nhánh stable.
 - Phạm vi: riêng repository `phuongnm7/nm7-tv-web`.
+
+
+## 2026-10-09 — VTV1 lấy nguồn trực tiếp từ playlist mặc định 1
+
+### Thay đổi mã nguồn
+
+- Nhánh: `fix/vtv1-single-source-hide-default-urls-20261009`.
+- Trong `worker.js` đã xóa ba URL VTV1 hardcode: hai URL FPT và URL VTVGo; xóa luôn logic tự chèn các URL đó và logic ép chọn VTVGo/ứng viên thứ ba.
+- Worker không còn tự thay nguồn VTV1 bằng URL VTVGo. Kênh VTV1 giữ các ứng viên do playlist Mặc định 1 trả về.
+- Giữ nguyên upstream Mặc định 1: `https://nm7-tv-web.vercel.app/api/vietmitv-merge`; không thay URL mặc định toàn playlist.
+- Tăng cache schema lên `20261009-vietmitv-defaults-2` và cập nhật version tham chiếu script để tránh cache danh sách kênh cũ.
+- Không sửa NM7 Mobile/Android, không đổi nguồn thể thao, không deploy dedicated YouTube reverse proxy trên nhánh này.
+
+### Triển khai
+
+- Production Cloudflare: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`.
+- Cloudflare Deploy #435: **SUCCESS** — [workflow run](https://github.com/phuongnm7/nm7-tv-web/actions/runs/37931847498).
+- JavaScript syntax check: **SUCCESS**.
+- Deploy to Cloudflare Workers: **SUCCESS**.
+- Smoke test YouTube redirect/ad guard: **SUCCESS**.
+- Smoke test deployed Cloudflare Worker: **SUCCESS**.
+- Dedicated YouTube reverse proxy: **SKIPPED** theo điều kiện của nhánh, tránh tác động dịch vụ không liên quan.
+- Kiểm tra mã nguồn xác nhận URL VTVGo và danh sách VTV1 hardcode đã bị loại khỏi Worker.
+
+### Lưu ý kiểm thử
+
+Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV thật. Cần kiểm tra trực tiếp trên NM7 TV Web sau khi tải lại trang. Nếu vẫn không phát, bước tiếp theo là kiểm tra ứng viên VTV1 thực tế trong JSON của API Mặc định 1 và phản hồi HLS của chính URL đó; không tự chèn lại nguồn ngoài playlist.

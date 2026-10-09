@@ -6,6 +6,7 @@ on:
       - fix/safari-drm-final-20261005
       - fix/ios-official-drm-fallback-20261006
       - fix/youtube-original-coccoc-adblock-20261006
+      - fix/vtv1-single-source-hide-default-urls-20261009
   workflow_dispatch:
 
 concurrency:
@@ -38,6 +39,7 @@ jobs:
           command: deploy
 
       - name: Deploy dedicated YouTube reverse proxy
+        if: github.ref != 'refs/heads/fix/vtv1-single-source-hide-default-urls-20261009'
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -187,8 +189,6 @@ jobs:
               "Touch player controls binding":"function bindPlayerControls()",
               "Touch control click dispatch":"ctrl.addEventListener('click'",
               "Back button closes player":"if(a==='back'){closePlayer();return}",
-              "TV default 1 URL":"https://nm7-tv-web.vercel.app/api/vietmitv-merge",
-              "TV default 2 URL":"https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/",
               "TV default 1 API route":"tv:'/api/playlist?source=tv&default=1'",
               "TV default 2 API route":"tv2:'/api/playlist?source=tv&default=2'",
               "TV default 2 selector":"tvDefault2",

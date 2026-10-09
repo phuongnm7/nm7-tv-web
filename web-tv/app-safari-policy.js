@@ -69,7 +69,7 @@ function toast(s){var t=$('toast');t.textContent=s;t.className='show';clearTimeo
 function isHttp(u){return /^https?:\/\//i.test(String(u||''))}
 function saveUser(){try{localStorage.setItem('nm7:fav',JSON.stringify(S.fav));localStorage.setItem('nm7:recent',JSON.stringify(S.recent.slice(0,80)))}catch(e){}}
 function restoreUser(){try{S.fav=JSON.parse(localStorage.getItem('nm7:fav')||'[]');S.recent=JSON.parse(localStorage.getItem('nm7:recent')||'[]')}catch(e){S.fav=[];S.recent=[]}}
-var CACHE_SCHEMA='20261009-vietmitv-defaults-1';
+var CACHE_SCHEMA='20261009-vietmitv-defaults-2';
 function cacheKey(){return 'nm7:web:'+CACHE_SCHEMA+':'+S.source+(S.source==='tv'?':default-'+(S.tvPreset===2?2:1):'')}
 function readCache(){try{var x=JSON.parse(localStorage.getItem(cacheKey())||'null');if(!x||x.schema!==CACHE_SCHEMA||!Array.isArray(x.channels)||!x.channels.length)return null;return x}catch(e){return null}}
 function isAndroid1069DefaultList(channels){
@@ -487,8 +487,8 @@ function showSources(){
  var selected=S.tvPreset===2?2:1;
  S.dialog='sources';$('dlg').className='';
  $('box').innerHTML='<h2>Nguồn mặc định</h2>'+
-  '<p class="guide"><b>Truyền hình · Mặc định 1</b><br>https://nm7-tv-web.vercel.app/api/vietmitv-merge<br><br>'+
-  '<b>Truyền hình · Mặc định 2</b><br>https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/<br><br>'+
+  '<p class="guide"><b>Truyền hình · Mặc định 1</b><br><br>'+
+  '<b>Truyền hình · Mặc định 2</b><br><br>'+
   '<b>Đang chọn:</b> Mặc định '+selected+'<br><b>Thể thao:</b> Nguồn thể thao hiện tại'+local+'</p>'+
   '<div class="dialogActions"><button class="db" id="tvDefault1" type="button">Dùng mặc định 1</button>'+
   '<button class="db" id="tvDefault2" type="button">Dùng mặc định 2</button>'+
@@ -766,8 +766,11 @@ function hideStatus(){$('status').style.display='none'}
 function getCandidate(){return S.current&&S.current.candidates?normalizeCandidate(S.current.candidates[S.candidateIndex]):null}
 
 function openPlayer(c){
+ var sourceId=String(c&&c.id||'').toLowerCase().replace(/[\\s_-]+/g,'');
+ var sourceName=String(c&&c.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+ var singleDefaultVtv1=S.source==='tv'&&S.tvPreset===1&&(sourceId==='vtv1hd'||sourceId==='vtv1'||sourceName==='vtv1');
  c=sanitizeAppleCandidates(c);
- c=addAppleHlsAlternatives(c);
+ if(!singleDefaultVtv1)c=addAppleHlsAlternatives(c);
  c=sanitizeAppleCandidates(c);
  if(!c||!c.candidates||!c.candidates.length){toast('Kênh chưa có URL phát');return}
  S.current=c;S.candidateIndex=startupCandidateIndex(c);S.attemptStep=0;S.proxyAttempt=false;S.player=true;S.drmRecoveryCount=0;S.drmHardRecoveryCount=0;S.drmStallAnchor=0;S.drmStallSince=0;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;

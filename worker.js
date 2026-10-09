@@ -11,11 +11,6 @@ const SOURCES = {
   ]
 };
 const BUILTIN = {
-  vtv1hd: [
-    {url:'https://live-a.fptplay53.net/live/media/vtv1/live247-hls-avc/index.m3u8',ref:'https://fptplay.vn/',ua:'Mozilla/5.0 (Linux; Android 15; SM-S918B) AppleWebKit/537.36 Chrome/135.0.7049.111 Mobile Safari/537.36 vAppTV/1.0.2',headers:{Origin:'https://fptplay.vn'},hls:true},
-    {url:'https://vips-livecdn.fptplay.net/live/media/vtv1/live247-hls-avc/vtv1-avc1_5600000=10000-mp4a_131600=20000.m3u8',ref:'https://fptplay.vn/',ua:'Mozilla/5.0 (Linux; Android 15; SM-S918B) AppleWebKit/537.36 Chrome/135.0.7049.111 Mobile Safari/537.36 vAppTV/1.0.2',headers:{Origin:'https://fptplay.vn'},hls:true},
-    {url:'https://vtvgolive-failover.vtvdigital.vn/vtvgo/vtv1-manifest.m3u8',ref:'https://vtvgo.vn/',ua:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36',headers:{Origin:'https://vtvgo.vn'},hls:true}
-  ],
   vtvcab3hd: [
     {url:'https://856175157.r.vtvcdn.com/ondrm/THETHAO_HD/m30_index.m3u8',ref:'',ua:'KhoaTivi',hls:true,forceProxy:true},
     {url:'https://e3.endpoint.cdn.sctvonline.vn/hls/vtvcab3/index.m3u8',ref:'http://sctvonline.vn/',ua:'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3',hls:true,forceProxy:true}
@@ -32,7 +27,6 @@ function safeUrl(u,b){try{return new URL(u,b).toString()}catch{return String(u||
 function score(u){let s=0;if(/\.m3u8(?:$|[?#])/i.test(u))s+=100;if(/\.m3u(?:$|[?#])/i.test(u))s+=80;if(/\/hls\//i.test(u))s+=30;if(/playlist|index\.m3u|manifest/i.test(u))s+=20;if(/\.(mp4|ts)(?:$|[?#])/i.test(u))s+=10;if(/tth\.vn\//i.test(u))s-=50;return s}
 function addBuiltin(c){
   const key=String(c.id||'').toLowerCase().trim(),name=String(c.name||'').toLowerCase().replace(/[^a-z0-9]+/g,'');let extra=BUILTIN[key]||[];
-  if(!extra.length&&(key==='vtv1'||name==='vtv1'||name.startsWith('vtv1')))extra=BUILTIN.vtv1hd;
   if(!extra.length&&(name.startsWith('onsport')||name.includes('vtvcab3')))extra=BUILTIN.vtvcab3hd;
   if(!extra.length&&(name.startsWith('onfootball')||name.includes('vtvcab16')))extra=BUILTIN.vtvcab16hd;
   const seen=new Set((c.candidates||[]).map(x=>x.url));for(const x of extra)if(!seen.has(x.url)){c.candidates.push({...x,headers:x.headers||{}});seen.add(x.url)}
@@ -94,7 +88,10 @@ async function playlistResponse(source,defaultChoice='',env=null){
     const useBinding=source==='tv'&&target==='https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/'&&env?.PLAYLIST_SOURCE;
     const r=useBinding
       ?await env.PLAYLIST_SOURCE.fetch(new Request(target,init))
-      :await fetchWithTimeout(target,init,10000);if(!r.ok)throw new Error('HTTP '+r.status);const body=await r.text();let channels=parseM3U(body,target);if(!channels.length){try{const j=JSON.parse(body),arr=Array.isArray(j)?j:(Array.isArray(j.channels)?j.channels:Array.isArray(j.data)?j.data:[]);channels=arr.map(x=>({name:String(x.name||x.title||x.channel||'Kênh'),group:String(x.group||x.groupTitle||x.category||'Khác'),logo:String(x.logo||x.tvgLogo||''),id:String(x.id||x.tvgId||x.name||x.title||''),candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:x.url||x.stream||x.src,ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])}))}catch{}}if(!channels.length)throw new Error('playlist rỗng');enrichChannels(channels);playlistCache.set(cacheKey,{time:now,channels,upstream:target});return new Response(JSON.stringify({channels,source,cached:false,preset:isDefault?preset:undefined,upstream:target}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch(e){errors.push(target+': '+e.message)}}
+      :await fetchWithTimeout(target,init,10000);if(!r.ok)throw new Error('HTTP '+r.status);const body=await r.text();let channels=parseM3U(body,target);if(!channels.length){try{const j=JSON.parse(body),arr=Array.isArray(j)?j:(Array.isArray(j.channels)?j.channels:Array.isArray(j.data)?j.data:[]);channels=arr.map(x=>({name:String(x.name||x.title||x.channel||'Kênh'),group:String(x.group||x.groupTitle||x.category||'Khác'),logo:String(x.logo||x.tvgLogo||''),id:String(x.id||x.tvgId||x.name||x.title||''),candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:x.url||x.stream||x.src,ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])}))}catch{}}if(!channels.length)throw new Error('playlist rỗng');
+    enrichChannels(channels);
+    playlistCache.set(cacheKey,{time:now,channels,upstream:target});
+    return new Response(JSON.stringify({channels,source,cached:false,preset:isDefault?preset:undefined,upstream:target}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch(e){errors.push(target+': '+e.message)}}
   if(hit&&hit.channels?.length)return new Response(JSON.stringify({channels:hit.channels,source,cached:true,stale:true,error:errors.join(' | ')}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
   return new Response(JSON.stringify({channels:[],source,error:errors.join(' | ')}),{status:504,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 }

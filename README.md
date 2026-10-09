@@ -13,8 +13,8 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 ## Mốc hiện tại
 
 - Ngày cập nhật: **09/10/2026**
-- Nhánh: `fix/youtube-original-coccoc-adblock-20261006`
-- Tính năng mới nhất: **YouTube gốc + native AdBlock host cho Tizen + chạy nền mobile**
+- Nhánh sửa mới nhất: `fix/vtv1-single-source-hide-default-urls-20261009`
+- Tính năng mới nhất: **VTV1 dùng nguồn từ playlist mặc định 1; loại bỏ nguồn VTV1 hardcode và ép chọn VTVGo**
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Nơi triển khai: **Cloudflare Workers**
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
@@ -216,3 +216,39 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Native Tizen YouTube host bổ sung nút nổi **⌂ NM7** trong trang YouTube gốc và phím **Home/XF86Home/XF86HomePage** để quay thẳng về trang chủ NM7.
 - Browser web thuần không thể chèn nút vào youtube.com sau khi đã chuyển origin do same-origin isolation; vì vậy shortcut một chạm trong YouTube được thực hiện ở native host. Trên mobile browser thuần, nút Home/điều hướng tab vẫn thuộc quyền kiểm soát của browser.
 - Chưa đánh dấu native adblock thành công: vẫn cần build/sign và E2E trên Samsung UA49M5500 Tizen 3.0.
+
+
+## 2026-10-09 — VTV1 dùng nguồn từ playlist mặc định 1
+
+### Yêu cầu và nguyên nhân
+
+- VTV1 trên NM7 TV Web chỉ phát được khi app thử nhiều ứng viên; hai URL FPT được chèn thêm trong Worker không phát được ở lần kiểm tra của người dùng, còn URL VTVGo được chọn cuối cùng cũng không phát được.
+- Lỗi nằm ở logic riêng trong Worker: `BUILTIN.vtv1hd` tự bổ sung ba URL VTV1 không lấy từ playlist mặc định, sau đó nhánh xử lý Mặc định 1 ép chọn URL VTVGo (hoặc ứng viên thứ ba).
+- Cách làm đó khiến luồng VTV1 thực tế khác với URL do playlist mặc định 1 cung cấp.
+
+### Thay đổi đã triển khai
+
+- Xóa danh sách nguồn VTV1 hardcode khỏi `worker.js`, gồm hai URL FPT và URL VTVGo.
+- Xóa mapping tự động chèn `BUILTIN.vtv1hd` cho kênh VTV1.
+- Xóa nhánh ép chọn URL VTVGo/ứng viên thứ ba cho VTV1 khi tải Mặc định 1.
+- VTV1 giờ giữ các ứng viên có sẵn trong playlist từ nguồn mặc định 1; Worker không tự thay URL bằng nguồn VTVGo hoặc hai URL FPT đã bị loại bỏ.
+- Tăng `CACHE_SCHEMA` từ `20261009-vietmitv-defaults-1` lên `20261009-vietmitv-defaults-2` và đổi query version của `app-safari-policy.js` để trình duyệt tải script mới, tránh dùng cache danh sách kênh cũ.
+- Giữ nguyên URL Mặc định 1: `https://nm7-tv-web.vercel.app/api/vietmitv-merge`.
+- Giữ nguyên URL Mặc định 2, nguồn thể thao, các built-in của VTVCab, player, giao diện 1.0.69 và logic DRM không liên quan.
+- Phạm vi chỉ là repository **NM7 TV Web**. Không áp dụng cho NM7 Mobile hoặc NM7 TV Android.
+
+### Triển khai và xác minh
+
+- Nhánh sửa: `fix/vtv1-single-source-hide-default-urls-20261009`.
+- Cloudflare production: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`.
+- GitHub Actions Cloudflare Deploy **#435 — SUCCESS**: [xem workflow](https://github.com/phuongnm7/nm7-tv-web/actions/runs/37931847498).
+- Các bước JavaScript syntax check, Cloudflare deploy và smoke test Worker đều thành công.
+- Bước deploy dedicated YouTube reverse proxy được **skip có chủ đích** trên nhánh này; không triển khai thay đổi sang Worker YouTube riêng.
+- Đã xác nhận trong mã nguồn sau sửa không còn URL VTVGo nói trên, không còn danh sách VTV1 hardcode và không còn nhánh ép chọn ứng viên thứ ba.
+- **Giới hạn xác minh:** smoke test xác nhận deploy và API tổng thể, không tự chứng minh VTV1 phát thành công trên TV thật. Cần kiểm tra phát lại trên thiết bị để xác nhận URL ứng viên hiện có trong playlist mặc định 1 còn hoạt động.
+
+### URL cần phân biệt
+
+- Trang NM7 TV Web production: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
+- API playlist Mặc định 1: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/playlist?source=tv&default=1`
+- Nguồn upstream Mặc định 1: `https://nm7-tv-web.vercel.app/api/vietmitv-merge` (đây là URL playlist, không phải URL luồng video riêng của VTV1).

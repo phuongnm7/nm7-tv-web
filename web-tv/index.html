@@ -188,6 +188,8 @@ body.mobile-mode #debug{font-synthesis:none}
 /* NM7 mobile density/layout refinement — baseline 1.0.69 preserved. */
 #appShortcut{display:none!important}
 @media screen and (pointer:coarse){
+  /* Tablet landscape can exceed the max-width:1024px media query, but remains mobile-mode. */
+  body.mobile-mode #mobileMenuBtn{display:flex;align-items:center;justify-content:center;flex:0 0 46px}
   body.mobile-mode #homeTabs{display:flex}
   body.mobile-mode #appShortcut{display:none!important}
   body.mobile-mode #homeTitle{left:144px;right:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

@@ -4,7 +4,7 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 
 ## Mốc hiện tại
 
-- Ngày cập nhật: **06/10/2026**
+- Ngày cập nhật: **09/10/2026**
 - Nhánh: `fix/youtube-original-coccoc-adblock-20261006`
 - Tính năng mới nhất: **YouTube gốc + native AdBlock host cho Tizen + chạy nền mobile**
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
@@ -77,6 +77,14 @@ Native host dùng các API EWK request interception và script injection tương
 - Điều hướng remote/bàn phím TV được giữ nguyên.
 
 ## Quản lý nguồn
+
+### Nguồn Truyền hình
+
+- **Mặc định 1:** `https://nm7-tv-web.vercel.app/api/vietmitv-merge`
+- **Mặc định 2 (nguồn cũ):** `https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/`
+- Khi mở mục **Truyền hình**, NM7 TV Web dùng Mặc định 1. Worker tự thử Mặc định 2 nếu Mặc định 1 lỗi hoặc playlist rỗng.
+- Mở **Chỉnh sửa nguồn → Nguồn mặc định** để chọn thủ công **Dùng mặc định 1** hoặc **Dùng mặc định 2**, hoặc tải lại nguồn đang chọn.
+- Đã xác minh qua Cloudflare Worker ngày 09/10/2026: Mặc định 1 trả 359 kênh từ đúng endpoint VietMiTV Merge; Mặc định 2 vẫn trả playlist cũ. Cấu hình này chỉ áp dụng cho repository **NM7 TV Web**, không áp dụng cho NM7 Mobile hay NM7 TV Android.
 
 ### Nguồn Thể thao
 

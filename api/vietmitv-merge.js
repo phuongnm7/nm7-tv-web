@@ -1,6 +1,8 @@
 import { getVietMiTVPlaylist } from "./vietmitv-source.js";
 import { getSportsFallbackM3U } from "./vietmitv-sports-fallback.js";
 
+// This endpoint is isolated from /api/playlist?source=sport. The original sport source
+// URL and its handler are intentionally not changed here.
 const SPORTS_URL = "https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com";
 const TARGET_GROUPS = [
   "Giờ Vàng TV",
@@ -25,8 +27,6 @@ function validatePlaylist(text, label) {
 }
 
 async function fetchSports() {
-  // Keep the request short so a slow upstream cannot consume the serverless function's
-  // execution window. A bundled fallback is available immediately after this timeout.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4500);
   try {
@@ -43,8 +43,6 @@ async function fetchSports() {
     });
     if (!response.ok) throw new Error("sports-auto.m3u phản hồi HTTP " + response.status);
     return validatePlaylist(await response.text(), "sports-auto.m3u");
-  } catch (error) {
-    throw new Error("Không tải được sports-auto.m3u trong 4,5 giây: " + (error?.message || "lỗi nguồn"));
   } finally {
     clearTimeout(timer);
   }
@@ -54,10 +52,13 @@ function extractEntries(m3u) {
   const entries = [];
   let current = null;
   function finish() {
-    if (current && current.some(line => {
+    if (!current) return;
+    const hasUrl = current.some(line => {
       const value = line.trim();
-      return value && !value.startsWith("#") && /^(https?|rtsp|rtmp|udp):\/\//i.test(value.split("|")[0]);
-    })) entries.push(current);
+      return value && !value.startsWith("#") &&
+        /^(https?|rtsp|rtmp|udp):\/\//i.test(value.split("|")[0]);
+    });
+    if (hasUrl) entries.push(current);
   }
 
   for (const line of m3u.split(/\r?\n/)) {
@@ -104,13 +105,15 @@ function composePlaylist(mainM3u, sportsM3u, fallbackM3U) {
 
   return {
     m3u: merged,
+    mainEntries: extractEntries(mainM3u).length,
     extraEntries: extras.length,
+    mainGroups: [...new Set(extractEntries(mainM3u).map(entry => entryGroup(entry)).filter(Boolean))],
     extraGroups: [...new Set(extras.map(entry => entryGroup(entry)))],
-    mainGroups: [...new Set(extractEntries(mainM3u).map(entry => entryGroup(entry)).filter(Boolean))]
+    totalEntries: extractEntries(merged).length
   };
 }
 
-export default async function handler(req, res) {
+function setHeaders(res) {
   res.setHeader("Content-Type", "audio/x-mpegurl; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
   res.setHeader("Pragma", "no-cache");
@@ -118,35 +121,91 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+  res.setHeader("X-NM7-Merge-Endpoint", "vietmitv-merge-v2");
+}
 
+export default async function handler(req, res) {
+  setHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.setHeader("Allow", "GET, HEAD, OPTIONS");
     return res.status(405).send("Method not allowed");
   }
 
+  // Read both bundled files before touching the network. Sports-source failures must
+  // never stop the primary uploaded playlist from being served.
+  let mainM3u;
+  let fallbackM3u;
   try {
-    const [mainM3u, sportsResult] = await Promise.all([
-      Promise.resolve(getVietMiTVPlaylist()).then(text => validatePlaylist(text, "File M3U đã tải lên")),
-      fetchSports().then(body => ({ body, live: true })).catch(error => ({
-        body: getSportsFallbackM3U(),
-        live: false,
-        error: String(error)
-      }))
-    ]);
-    const sportsM3u = validatePlaylist(sportsResult.body, sportsResult.live ? "sports-auto.m3u" : "Bản dự phòng thể thao");
-    const result = composePlaylist(mainM3u, sportsM3u, getSportsFallbackM3U());
-    res.setHeader("X-NM7-Main-Source", "uploaded-m3u");
-    res.setHeader("X-NM7-Sports-Source", sportsResult.live ? "live" : "fallback");
-    res.setHeader("X-NM7-Main-Group-Count", String(result.mainGroups.length));
-    res.setHeader("X-NM7-Extra-Group-Count", String(result.extraGroups.length));
-    res.setHeader("X-NM7-Extra-Entry-Count", String(result.extraEntries));
-    res.setHeader("X-NM7-Extra-Groups", result.extraGroups.join(", "));
-    if (sportsResult.error) res.setHeader("X-NM7-Sports-Fallback-Reason", "upstream-unavailable");
-    if (req.method === "HEAD") return res.status(200).end();
-    return res.status(200).send(result.m3u);
+    mainM3u = validatePlaylist(getVietMiTVPlaylist(), "File M3U đã tải lên");
+    fallbackM3u = validatePlaylist(getSportsFallbackM3U(), "Bản dự phòng thể thao");
   } catch (error) {
+    // A local bundled-data error is an internal error, not an upstream 502.
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(502).send("Không thể tạo playlist gộp: " + (error?.message || "lỗi nguồn phát"));
+    res.setHeader("X-NM7-Merge-Error-Stage", "local-bundled-data");
+    return res.status(500).send("Không đọc được dữ liệu M3U đã đóng gói: " + (error?.message || "lỗi dữ liệu"));
   }
+
+  let sportsM3u = fallbackM3u;
+  let live = false;
+  let fallbackReason = "upstream-unavailable";
+  try {
+    sportsM3u = await fetchSports();
+    live = true;
+    fallbackReason = "";
+  } catch (_) {
+    // Keep the original source URL unchanged and use the bundled sports groups.
+    // Deliberately do not propagate the upstream error into the HTTP response.
+  }
+
+  let result;
+  try {
+    result = composePlaylist(mainM3u, sportsM3u, fallbackM3u);
+  } catch (_) {
+    // A malformed/incomplete live source must not prevent playback of the known-good
+    // bundled groups. Retry composition using bundled data only.
+    live = false;
+    fallbackReason = "local-merge-recovery";
+    try {
+      result = composePlaylist(mainM3u, fallbackM3u, fallbackM3u);
+    } catch (_) {
+      // Last-resort response: the primary M3U is locally valid, so serve it rather than
+      // returning a gateway error. This branch is independent of sports-auto.m3u.
+      res.setHeader("X-NM7-Sports-Source", "fallback-failed-primary-only");
+      res.setHeader("X-NM7-Main-Source", "uploaded-m3u");
+      if (req.method === "HEAD") return res.status(200).end();
+      return res.status(200).send(mainM3u.endsWith("\n") ? mainM3u : mainM3u + "\n");
+    }
+  }
+
+  res.setHeader("X-NM7-Main-Source", "uploaded-m3u");
+  res.setHeader("X-NM7-Sports-Source", live ? "live" : "fallback");
+  res.setHeader("X-NM7-Main-Group-Count", String(result.mainGroups.length));
+  res.setHeader("X-NM7-Main-Entry-Count", String(result.mainEntries));
+  res.setHeader("X-NM7-Extra-Group-Count", String(result.extraGroups.length));
+  res.setHeader("X-NM7-Extra-Entry-Count", String(result.extraEntries));
+  res.setHeader("X-NM7-Total-Entry-Count", String(result.totalEntries));
+  res.setHeader("X-NM7-Extra-Groups", result.extraGroups.join(", "));
+  if (fallbackReason) res.setHeader("X-NM7-Sports-Fallback-Reason", fallbackReason);
+
+  const wantsDiag = new URL(req.url, "https://nm7-tv-web.vercel.app").searchParams.has("diag");
+  if (wantsDiag) {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    if (req.method === "HEAD") return res.status(200).end();
+    return res.status(200).json({
+      ok: true,
+      endpoint: "vietmitv-merge-v2",
+      mainSource: "uploaded-m3u",
+      sportsSource: live ? "live" : "bundled-fallback",
+      mainEntries: result.mainEntries,
+      mainGroups: result.mainGroups.length,
+      extraEntries: result.extraEntries,
+      extraGroups: result.extraGroups,
+      totalEntries: result.totalEntries,
+      fallbackReason: fallbackReason || null
+    });
+  }
+
+  if (req.method === "HEAD") return res.status(200).end();
+  return res.status(200).send(result.m3u);
 }

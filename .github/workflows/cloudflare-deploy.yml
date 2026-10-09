@@ -169,7 +169,7 @@ jobs:
               "sports group resolver":"function isSportsGroup(group)",
               "sports fallback alias":"function appleFallbackKey(c)",
               "cross-group HLS fallback":"var sportsPair=(isSportsGroup(group)||isSportsGroup(xGroup))&&family===appleFallbackKey(x)",
-              "Safari prefers non-DRM HLS":"for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;"
+              "Safari prefers non-DRM HLS":"for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;",
               "Touch player controls binding":"function bindPlayerControls()",
               "Touch control click dispatch":"ctrl.addEventListener('click'",
               "Back button closes player":"if(a==='back'){closePlayer();return}",

@@ -47,7 +47,18 @@ jobs:
           });
           const gzip = Buffer.from(parts.join(''), 'base64');
           if (gzip.length < 18 || gzip[0] !== 0x1f || gzip[1] !== 0x8b || gzip[2] !== 0x08) throw new Error('Invalid gzip header');
-          const playlist = zlib.inflateRawSync(gzip.subarray(10, gzip.length - 8)).toString('utf8').replace(/^\uFEFF/, '');
+          const flags = gzip[3];
+          let deflateStart = 10;
+          if (flags & 0x04) deflateStart += 2 + gzip.readUInt16LE(deflateStart);
+          for (const flag of [0x08, 0x10]) {
+            if (flags & flag) {
+              const end = gzip.indexOf(0, deflateStart);
+              if (end < 0) throw new Error('Truncated gzip string header');
+              deflateStart = end + 1;
+            }
+          }
+          if (flags & 0x02) deflateStart += 2;
+          const playlist = zlib.inflateRawSync(gzip.subarray(deflateStart, gzip.length - 8)).toString('utf8').replace(/^\uFEFF/, '');
           const sha = crypto.createHash('sha256').update(playlist, 'utf8').digest('hex');
           console.log('Bundled source sha256:', sha);
           if (sha !== '2cd1f0b3a7347d8f2e8913909ce2a6141d7d1ede0657dcc49cf5c4434d9c6966') throw new Error('Bundled M3U content checksum mismatch');

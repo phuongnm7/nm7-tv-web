@@ -88,13 +88,26 @@ jobs:
           grep -Fq 'data-a="back10"' /tmp/nm7-home.html
           echo "IPAD_TAP_CONTROLS_WITHOUT_PERSISTENT_BACK_SMOKE_OK"
           echo "IPAD_LANDSCAPE_HAMBURGER_SMOKE_OK"
-          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=android1069" -o /tmp/nm7-tv.json
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=1" -o /tmp/nm7-tv-default1.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-tv-default1.json',encoding='utf-8'))
+          channels=d.get('channels') or []
+          if not channels:
+              raise SystemExit('TV default 1 (VietMiTV Merge) returned zero channels')
+          if d.get('upstream') != 'https://nm7-tv-web.vercel.app/api/vietmitv-merge':
+              raise SystemExit('TV default 1 did not use VietMiTV Merge: '+str(d.get('upstream')))
+          print('TV_VIETMITV_DEFAULT1_SMOKE_OK channels=',len(channels),'upstream=',d.get('upstream'))
+          PY
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=2" -o /tmp/nm7-tv.json
           python3 - <<'PY'
           import json, re
           d=json.load(open('/tmp/nm7-tv.json',encoding='utf-8'))
           channels=d.get('channels') or []
           if not channels:
-              raise SystemExit('default Android 1.0.69 playlist returned zero channels')
+              raise SystemExit('TV default 2 (legacy playlist) returned zero channels')
+          if d.get('upstream') != 'https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/':
+              raise SystemExit('TV default 2 did not use legacy source: '+str(d.get('upstream')))
           groups=[]
           seen=set()
           for c in channels:

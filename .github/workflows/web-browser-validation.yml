@@ -75,6 +75,51 @@ jobs:
           }
           console.log('Uploaded M3U validated:', extinf.length, 'channels across', groups.size, 'groups');
           NODE
+      - name: Test playlist API handlers with uploaded M3U
+        run: |
+          node --experimental-default-type=module --input-type=module <<'NODE'
+          import playlistHandler from './api/playlist.js';
+          import mergeHandler from './api/vietmitv-merge.js';
+
+          function makeResponse() {
+            return {
+              statusCode: 200,
+              headers: {},
+              body: null,
+              setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+              status(code) { this.statusCode = code; return this; },
+              json(value) { this.body = JSON.stringify(value); return this; },
+              send(value) { this.body = value; return this; },
+              end(value) { if (value !== undefined) this.body = value; return this; }
+            };
+          }
+
+          const required = [
+            'VTV', 'HTV', 'VTVcab', 'SCTV', 'Quốc Tế', 'Địa Phương', '🇨🇳| Trung Quốc', 'In The Box',
+            'Giờ Vàng TV', 'Gà Vàng 24h TV', 'Gà Vàng 33 TV', 'S8 TV', 'Sao Kê TV'
+          ];
+
+          const jsonRes = makeResponse();
+          await playlistHandler({ method: 'GET', url: '/api/playlist?source=tv', headers: {} }, jsonRes);
+          if (jsonRes.statusCode !== 200) throw new Error('TV playlist API returned HTTP ' + jsonRes.statusCode + ': ' + jsonRes.body);
+          const json = JSON.parse(jsonRes.body);
+          if (!Array.isArray(json.channels) || json.channels.length < 300) throw new Error('Merged Web channel list is too short: ' + (json.channels || []).length);
+          const groups = new Set(json.channels.map(channel => channel.group));
+          for (const group of required) if (!groups.has(group)) throw new Error('Web playlist missing group: ' + group);
+          console.log('Web JSON API passed:', json.channels.length, 'channels,', groups.size, 'groups');
+
+          const m3uRes = makeResponse();
+          await mergeHandler({ method: 'GET', url: '/api/vietmitv-merge', headers: {} }, m3uRes);
+          if (m3uRes.statusCode !== 200) throw new Error('Merged M3U endpoint returned HTTP ' + m3uRes.statusCode + ': ' + m3uRes.body);
+          const text = String(m3uRes.body || '');
+          if (!/^\\s*#EXTM3U\\b/i.test(text)) throw new Error('Merged M3U header missing');
+          for (const group of required) {
+            if (!text.includes('group-title="' + group + '"')) throw new Error('Merged M3U missing group: ' + group);
+          }
+          const count = (text.match(/^\\s*#EXTINF:/gim) || []).length;
+          if (count < 300) throw new Error('Merged M3U channel count is too low: ' + count);
+          console.log('Raw M3U API passed:', count, 'entries');
+          NODE
       - name: Check required web assets
         run: |
           test -s web-tv/index.html

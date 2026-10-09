@@ -2,11 +2,13 @@
 'use strict';
 var VERSION='1.0.69'; // Native 1.0.69 wallpaper asset restored from APK.
 var PLAYLISTS={
- tv:'/api/playlist?source=tv&default=android1069',
+ tv:'/api/playlist?source=tv&default=1',
+ tv2:'/api/playlist?source=tv&default=2',
  sport:'/api/playlist?source=sport'
 };
 var S={
  source:'tv',
+ tvPreset:1,
  list:[],
  groups:[],
  row:0,
@@ -67,8 +69,8 @@ function toast(s){var t=$('toast');t.textContent=s;t.className='show';clearTimeo
 function isHttp(u){return /^https?:\/\//i.test(String(u||''))}
 function saveUser(){try{localStorage.setItem('nm7:fav',JSON.stringify(S.fav));localStorage.setItem('nm7:recent',JSON.stringify(S.recent.slice(0,80)))}catch(e){}}
 function restoreUser(){try{S.fav=JSON.parse(localStorage.getItem('nm7:fav')||'[]');S.recent=JSON.parse(localStorage.getItem('nm7:recent')||'[]')}catch(e){S.fav=[];S.recent=[]}}
-var CACHE_SCHEMA='20261005-drm-final-1';
-function cacheKey(){return 'nm7:web:'+CACHE_SCHEMA+':'+S.source}
+var CACHE_SCHEMA='20261009-vietmitv-defaults-1';
+function cacheKey(){return 'nm7:web:'+CACHE_SCHEMA+':'+S.source+(S.source==='tv'?':default-'+(S.tvPreset===2?2:1):'')}
 function readCache(){try{var x=JSON.parse(localStorage.getItem(cacheKey())||'null');if(!x||x.schema!==CACHE_SCHEMA||!Array.isArray(x.channels)||!x.channels.length)return null;return x}catch(e){return null}}
 function isAndroid1069DefaultList(channels){
  if(!Array.isArray(channels)||!channels.length)return false;
@@ -406,7 +408,7 @@ function selectMenu(){
  if(p===1){openYouTube();return}
  if(p===2){showSearch();return}
  if(p===3){S.query='';rebuildGroups();closeMenu();return}
- if(p===4){closeMenu();loadSource('tv');return}
+ if(p===4){closeMenu();loadSource('tv',false,1);return}
  if(p===5){closeMenu();loadSource('sport');return}
  if(p===6){showSubset('fav');return}
  if(p===7){showSubset('recent');return}
@@ -415,7 +417,7 @@ function selectMenu(){
  if(p===10){
   closeMenu();
   if(S.source==='local-m3u'&&S.localM3uText){applyLocalM3U(S.localM3uText,S.localM3uName,'Đã tải lại tệp M3U · '+S.list.length+' kênh');return}
-  loadSource(S.source,true);return
+  loadSource(S.source,true,S.tvPreset);return
  }
 }
 function openYouTube(raw){
@@ -481,9 +483,21 @@ function loadLocalM3UFile(file,onSuccess){
  }).catch(function(e){toast('Không đọc được M3U: '+String(e&&e.message||e))})
 }
 function showSources(){
- var local=S.source==='local-m3u'&&S.localM3uName?'<br>Tệp M3U: '+esc(S.localM3uName):'';
- S.dialog='sources';$('dlg').className='';$('box').innerHTML='<h2>Nguồn hiện tại</h2><p class="guide">Truyền hình: '+esc(PLAYLISTS.tv)+'<br>Thể thao: '+esc(PLAYLISTS.sport)+local+'</p><div class="dialogActions"><button class="db" id="sourceReload">Tải lại</button><button class="db" id="sourceClose">Đóng</button></div>';
- $('sourceReload').onclick=function(){closeDialog();loadSource(S.source,true)};$('sourceClose').onclick=closeDialog
+ var local=S.source==='local-m3u'&&S.localM3uName?'<br>Tệp M3U đang mở: '+esc(S.localM3uName):'';
+ var selected=S.tvPreset===2?2:1;
+ S.dialog='sources';$('dlg').className='';
+ $('box').innerHTML='<h2>Nguồn mặc định</h2>'+
+  '<p class="guide"><b>Truyền hình · Mặc định 1</b><br>https://nm7-tv-web.vercel.app/api/vietmitv-merge<br><br>'+
+  '<b>Truyền hình · Mặc định 2</b><br>https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/<br><br>'+
+  '<b>Đang chọn:</b> Mặc định '+selected+'<br><b>Thể thao:</b> Nguồn thể thao hiện tại'+local+'</p>'+
+  '<div class="dialogActions"><button class="db" id="tvDefault1" type="button">Dùng mặc định 1</button>'+
+  '<button class="db" id="tvDefault2" type="button">Dùng mặc định 2</button>'+
+  '<button class="db" id="sourceReload" type="button">Tải lại</button>'+
+  '<button class="db" id="sourceClose" type="button">Đóng</button></div>';
+ $('tvDefault1').onclick=function(){closeDialog();loadSource('tv',true,1)};
+ $('tvDefault2').onclick=function(){closeDialog();loadSource('tv',true,2)};
+ $('sourceReload').onclick=function(){closeDialog();if(S.source==='local-m3u'&&S.localM3uText){applyLocalM3U(S.localM3uText,S.localM3uName,'Đã tải lại tệp M3U');return}loadSource(S.source,true,S.tvPreset)};
+ $('sourceClose').onclick=closeDialog
 }
 function filterFavorite(c){return S.fav.indexOf(c.id)>=0}
 
@@ -507,15 +521,21 @@ function applyPlaylist(d,source,message){
  if(source!==S.source)return false;
  S.list=d.channels.map(norm);S.row=0;S.col=0;rebuildGroups();renderHome();S.loading=false;saveCache();if(message)toast(message);return true
 }
-function loadSource(source,force){
- S.source=source;S.query='';S.loading=true;
- var cached=readCache();if(source==='tv'&&cached&&!isAndroid1069DefaultList(cached.channels))cached=null;
- if(cached&&!force){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome();toast('Đã mở cache 1.0.69 · đang cập nhật…')}
+function loadSource(source,force,tvPreset){
+ S.source=source;
+ if(source==='tv')S.tvPreset=tvPreset===2?2:1;
+ S.query='';S.loading=true;
+ var requestPreset=source==='tv'?S.tvPreset:0;
+ var cached=readCache();
+ if(cached&&!force){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome();toast('Đã mở cache · đang cập nhật…')}
  else $('homeRows').innerHTML='<div class="empty">Đang tải '+(source==='sport'?'thể thao':'truyền hình')+'…</div>';
 
- fetchJsonTimeout(PLAYLISTS[source],12000).then(function(d){
-  applyPlaylist(d,source,'Đã cập nhật '+d.channels.length+' kênh');
+ var playlistUrl=source==='tv'&&requestPreset===2?PLAYLISTS.tv2:PLAYLISTS[source];
+ fetchJsonTimeout(playlistUrl,15000).then(function(d){
+  if(source==='tv'&&S.tvPreset!==requestPreset)return;
+  applyPlaylist(d,source,'Đã cập nhật '+d.channels.length+' kênh'+(source==='tv'?' · mặc định '+requestPreset:''));
  }).catch(function(e){
+  if(source==='tv'&&S.tvPreset!==requestPreset)return;
   if(source==='tv'){
    S.loading=false;
    if(S.list.length)toast('API không phản hồi · giữ playlist hiện tại');
@@ -1820,7 +1840,7 @@ function startup(){
  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')restoreRemoteFocus()},true);
  bindTvPointerNavigation();
  var cached=readCache();if(cached){S.list=cached.channels.map(norm);rebuildGroups();S.row=0;S.col=0;renderHome()}
- loadSource('tv',false);
+ loadSource('tv',false,1);
 }
 startup();
 })();

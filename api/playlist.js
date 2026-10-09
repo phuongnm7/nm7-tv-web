@@ -1,3 +1,5 @@
+import { getVietMiTVPlaylist } from "./vietmitv-source.js";
+
 const SOURCES = {
   tv: [
     "https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/",
@@ -187,19 +189,28 @@ function combineChannels(main, extra) {
 }
 
 async function buildVietMiTV() {
-  const [mainResult, sportsResult] = await Promise.all([
-    fetchText(MERGE_SOURCES.main).then(body => ({ body })).catch(error => ({ error: String(error) })),
-    fetchText(MERGE_SOURCES.sport).then(body => ({ body })).catch(error => ({ error: String(error) }))
-  ]);
-  if (!mainResult.body) throw new Error("Không tải được VietMiTV: " + (mainResult.error || "lỗi nguồn"));
-  const main = parse(mainResult.body);
-  if (!main.length) throw new Error("VietMiTV không có kênh hợp lệ");
+  // Primary list is the exact M3U file uploaded by the user and bundled with this deployment.
+  // It no longer depends on vietmitv.id.vn being reachable.
+  const main = parse(getVietMiTVPlaylist());
+  if (!main.length) throw new Error("File M3U chính không có kênh hợp lệ");
+
   let extras = [];
-  if (sportsResult.body) {
-    extras = parse(sportsResult.body).filter(c => EXTRA_GROUPS.includes(normalizeGroup(c.group)));
+  let sportError = "";
+  try {
+    const sportM3u = await fetchText(MERGE_SOURCES.sport);
+    extras = parse(sportM3u).filter(c => EXTRA_GROUPS.includes(normalizeGroup(c.group)));
+  } catch (error) {
+    sportError = String(error);
   }
+
   const channels = combineChannels(main, extras);
-  return { channels, upstream: MERGE_SOURCES.main, merged: true, extraGroups: [...new Set(extras.map(c => c.group))] };
+  return {
+    channels,
+    upstream: "bundled-uploaded-m3u",
+    merged: true,
+    extraGroups: [...new Set(extras.map(c => c.group))],
+    sportError
+  };
 }
 
 export default async function handler(req, res) {

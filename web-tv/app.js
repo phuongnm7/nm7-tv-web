@@ -563,7 +563,10 @@ function isDashDrmCandidate(cand){
  return !!cand.drm&&(cand.dash||t==='dash'||m.indexOf('dash+xml')>=0||/\.mpd(?:$|\?)/i.test(u))
 }
 function variantBaseName(name){
- return String(name||'').replace(/\s*\[(?:flv|hls(?:\s*\d+)?)\]\s*$/i,'').trim()
+ return String(name||'')
+  .replace(/\s*\[(?:flv|hls(?:\s*\d+)?)\]\s*$/i,'')
+  .replace(/\s*[-–]\s*(?:TRỰC TIẾP|FPT PLAY)\s*$/i,'')
+  .trim()
 }
 function isVtvBackupGroup(group){
  return /vtv\s*dự\s*phòng/i.test(String(group||''));
@@ -586,7 +589,14 @@ function addAppleHlsAlternatives(c){
  if(!extra.length)return c;
  var merged=(c.candidates||[]).slice();
  for(var q=0;q<extra.length;q++)if(!merged.some(function(z){return z.url===extra[q].url}))merged.push(extra[q]);
- return Object.assign({},c,{candidates:merged})
+ // Put every clear HLS option ahead of DASH/ClearKey so Safari tries all
+ // native-playable fallbacks before reaching the unsupported DRM candidate.
+ var hls=[],rest=[];
+ for(var z=0;z<merged.length;z++){
+  if(classify(merged[z])==='hls'&&!merged[z].drm)hls.push(merged[z]);
+  else rest.push(merged[z]);
+ }
+ return Object.assign({},c,{candidates:hls.concat(rest)})
 }
 function startupCandidateIndex(c){
  var a=c&&Array.isArray(c.candidates)?c.candidates:[];

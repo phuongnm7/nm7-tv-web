@@ -167,6 +167,31 @@ jobs:
           ]
           for label,url,headers in providerTargets:
               print('PROVIDER_HLS_GET',json.dumps({'label':label,'host':urlparse(url).hostname,'result':safe_get(url,headers)},ensure_ascii=False))
+          altTargets=[
+              ('SCTV15 alternate edge CDN','https://z215ymcm4tliv.vcdn.cloud/s9/hls/sctv15/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'}),
+              ('SCTV15 alternate CDN 2','https://kw9lnjfrr3liv.vcdn.cloud/SCTV15/index.m3u8',{'User-Agent':'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1'}),
+              ('SCTV15 alternate vcdn path','https://uy7qk2oykpliv.vcdn.cloud/hls/sctv15/index.m3u8',{'User-Agent':'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1'}),
+              ('SCTV15 e8 HLS','https://e8.endpoint.cdn.sctvonline.vn/hls/sctv15/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'}),
+              ('SCTV17 official chunklist','https://e7.endpoint.cdn.sctvonline.vn/live/smil:SCTV17.smil/chunklist_b1692000.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'}),
+              ('SCTV17 edge chunklist','https://s12.edge.cdn.sctvonline.vn/cdn-cgi/edge/v2/e7.endpoint.cdn.sctvonline.vn/nginx.s12.edge.cdn.sctvonline.vn/live/smil:SCTV17.smil/chunklist_b1692000.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'}),
+              ('SCTV17 e7 HLS','https://e7.endpoint.cdn.sctvonline.vn/hls/sctv17/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'}),
+              ('SCTV22 current channel HLS','https://e1.endpoint.cdn.sctvonline.vn/channel/sctv22/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'}),
+              ('SCTV22 channel s1 HLS','https://e1.endpoint.cdn.sctvonline.vn/channel/sctv22/s1/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'}),
+              ('SCTV22 e5 HLS','https://e5.endpoint.cdn.sctvonline.vn/hls/sctv22/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'ReactNativeVideo/3.4.4 (Linux;Android 9) ExoPlayerLib/2.13.3'}),
+              ('ON Sports WinTV HLS','https://api.wintv.me/vtvcab3/index.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Sports+ WinTV HLS','https://api.wintv.me/vtvcab6/index.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Football WinTV HLS','https://api.wintv.me/vtvcab16/index.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Sports News WinTV HLS','https://api.wintv.me/vtvcab18/index.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Golf WinTV HLS','https://api.wintv.me/360/169/index.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Golf alt WinTV HLS','https://api.wintv.me/360/188/index.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+          ]
+          for label,url,headers in altTargets:
+              direct=safe_get(url,headers)
+              q={'u':url,'ua':headers.get('User-Agent','Mozilla/5.0')}
+              if headers.get('Referer'):q['r']=headers['Referer']
+              proxy=safe_get(BASE+'/api/stream?'+urllib.parse.urlencode(q),{'User-Agent':'Mozilla/5.0'})
+              p=urlparse(url)
+              print('SPORT_ALT_TEST',json.dumps({'label':label,'host':p.hostname,'path':p.path,'direct':direct,'proxy':proxy},ensure_ascii=False))
           for name,i,x in getTargets[:32]:
               u=str(x.get('url') or '')
               h={'User-Agent':str(x.get('ua') or 'Mozilla/5.0')[:500]}

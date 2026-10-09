@@ -78,7 +78,7 @@ jobs:
               g=str(x.get('group') or '')
               for cand in x.get('candidates') or []:
                   u=str(cand.get('url') or '')
-                  if not cand.get('drm') and (cand.get('hls') or str(cand.get('type') or '').lower()=='hls' or re.search(r'\\.m3u8?(?:$|[?#])',u,re.I)):
+                  if not cand.get('drm') and (cand.get('hls') or str(cand.get('type') or '').lower()=='hls' or re.search(r'\.m3u8?(?:$|[?#])',u,re.I)):
                       crossHls.setdefault(norm(x.get('name')),[]).append({'name':x.get('name'),'group':g,'dataset':'sport',**safe_candidate(cand)})
           probeTargets=[]
           for c in sports:
@@ -128,10 +128,6 @@ jobs:
                   if not (x.get('hls') or str(x.get('type') or '').lower()=='hls' or re.search(r'\\.m3u8?(?:$|[?#])',u,re.I)): continue
                   if u in seenUrls: continue
                   seenUrls.add(u);getTargets.append((str(c.get('name')),i,x))
-          for c in sports:
-              key=norm(c.get('name'))
-              for x in hlsIndex.get(key,[])+crossHls.get(key,[]):
-                  url=x.get('_url')
           # include all current sports HLS candidates plus HLS alternatives found in primary playlist/source
           for c in channels+sportSource:
               name=str(c.get('name') or '')
@@ -156,7 +152,7 @@ jobs:
                   return {'errorType':type(e).__name__,'error':str(e)[:100]}
           for name,i,x in getTargets[:32]:
               u=str(x.get('url') or '')
-              h={'User-Agent':str(x.get('ua') or 'Mozilla/5.0','')[:500]}
+              h={'User-Agent':str(x.get('ua') or 'Mozilla/5.0')[:500]}
               ref=str(x.get('ref') or '')
               if ref:h['Referer']=ref
               for k,v in (x.get('headers') or {}).items():

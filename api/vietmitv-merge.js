@@ -1,5 +1,3 @@
-import { getVietMiTVPlaylist } from "./vietmitv-source.js";
-import { getSportsFallbackM3U } from "./vietmitv-sports-fallback.js";
 
 // This endpoint is isolated from /api/playlist?source=sport. The original sport source
 // URL and its handler are intentionally not changed here.
@@ -132,18 +130,22 @@ export default async function handler(req, res) {
     return res.status(405).send("Method not allowed");
   }
 
-  // Read both bundled files before touching the network. Sports-source failures must
-  // never stop the primary uploaded playlist from being served.
+  // Load bundled modules inside the request handler so module initialization failures
+  // can be reported as a diagnostic response instead of Vercel's generic invocation page.
   let mainM3u;
   let fallbackM3u;
   try {
-    mainM3u = validatePlaylist(getVietMiTVPlaylist(), "File M3U đã tải lên");
-    fallbackM3u = validatePlaylist(getSportsFallbackM3U(), "Bản dự phòng thể thao");
+    res.setHeader("X-NM7-Merge-Stage", "load-bundled-modules");
+    const sourceModule = await import("./vietmitv-source.js");
+    const fallbackModule = await import("./vietmitv-sports-fallback.js");
+    res.setHeader("X-NM7-Merge-Stage", "decode-bundled-data");
+    mainM3u = validatePlaylist(sourceModule.getVietMiTVPlaylist(), "File M3U đã tải lên");
+    fallbackM3u = validatePlaylist(fallbackModule.getSportsFallbackM3U(), "Bản dự phòng thể thao");
   } catch (error) {
-    // A local bundled-data error is an internal error, not an upstream 502.
+    console.error("[vietmitv-merge] bundled-data failure", error?.stack || error);
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("X-NM7-Merge-Error-Stage", "local-bundled-data");
-    return res.status(500).send("Không đọc được dữ liệu M3U đã đóng gói: " + (error?.message || "lỗi dữ liệu"));
+    res.setHeader("X-NM7-Merge-Error-Stage", "load-or-decode-bundled-data");
+    return res.status(500).send("Lỗi nạp/giải nén M3U đóng gói: " + (error?.message || String(error)));
   }
 
   let sportsM3u = fallbackM3u;

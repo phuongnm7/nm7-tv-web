@@ -118,7 +118,8 @@ const VTV1_USER_URL = "https://livevlisctcdnw.seenow.vn/livesnv2/VTV1_HD/manifes
 function keepOnlyUserVtv1Source(c) {
   const id = String(c.id || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const name = String(c.name || "").trim();
-  const isVtv1 = ["vtv1", "vtv1hd", "vtv1vn"].includes(id) || /^vtv1(?:\\s|$)/i.test(name);
+  const lowerName = name.toLowerCase();
+  const isVtv1 = ["vtv1", "vtv1hd", "vtv1vn"].includes(id) || lowerName === "vtv1" || lowerName.startsWith("vtv1 ");
   if (!isVtv1) return c;
   c.url = VTV1_USER_URL;
   c.candidates = [{

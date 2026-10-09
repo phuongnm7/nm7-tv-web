@@ -145,8 +145,23 @@ jobs:
             await b.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
+      - name: Check Cloudflare production token
+        id: cf_prod_token
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/cloudflare-migration'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Production deploy skipped: configure CLOUDFLARE_API_TOKEN in repository Actions secrets."
+          fi
+
       - name: Deploy validated Worker to production
-        if: github.event_name == 'push' && github.ref == 'refs/heads/cloudflare-migration'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/cloudflare-migration' && steps.cf_prod_token.outputs.available == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
           npm run deploy 2>&1 | tee /tmp/production-deploy.log

@@ -1,0 +1,74 @@
+name: Diagnose iPad VTV backup playback
+on:
+  push:
+    branches:
+      - fix/youtube-original-coccoc-adblock-20261006
+    paths:
+      - ".github/workflows/diagnose-ipad-vtv-backup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect VTV backup channel candidates without exposing tokens
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.parse, urllib.error, re
+          from urllib.parse import urlparse
+          BASE='https://nm7-tv-web.phuongnm7-iptv.workers.dev'
+          req=urllib.request.Request(BASE+'/api/playlist?source=tv&default=android1069',
+              headers={'User-Agent':'NM7-iPad-Diagnose/1.0','Cache-Control':'no-cache'})
+          with urllib.request.urlopen(req,timeout=30) as r:
+              data=json.loads(r.read().decode('utf-8'))
+          channels=data.get('channels') or []
+          print('PLAYLIST_CHANNELS',len(channels),'SOURCE',data.get('source'),'CACHED',data.get('cached'))
+          groups=sorted(set(str(c.get('group') or '') for c in channels if 'vtv' in str(c.get('group') or '').lower() or 'phòng' in str(c.get('group') or '').lower()))
+          print('RELEVANT_GROUPS',json.dumps(groups,ensure_ascii=False))
+          matches=[c for c in channels if 'dự phòng' in str(c.get('group') or '').lower() or 'du phong' in str(c.get('group') or '').lower()]
+          print('VTV_BACKUP_CHANNEL_COUNT',len(matches))
+          def safe_candidate(c):
+              u=str(c.get('url') or c.get('resolvedUrl') or '')
+              p=urlparse(u)
+              ext=''
+              m=re.search(r'\.(m3u8?|mpd|flv|mp4|ts)(?:$|[?#])',p.path+'?x',re.I)
+              if m: ext=m.group(1).lower()
+              typ=str(c.get('type') or '')
+              if not typ:
+                  typ='dash' if c.get('dash') or ext=='mpd' else 'hls' if c.get('hls') or ext in ('m3u','m3u8') else 'unknown'
+              ref=str(c.get('ref') or '')
+              try: refhost=urlparse(ref).hostname or ''
+              except: refhost=''
+              ua=str(c.get('ua') or '')
+              uafam='custom' if ua else 'browser-default'
+              drm=c.get('drm')
+              if isinstance(drm,dict):
+                  drmInfo={'present':True,'type':drm.get('type'),'hasKey':bool(drm.get('key') or drm.get('clearKeys')),'hasLicense':bool(drm.get('license') or drm.get('licenseUrl'))}
+              else: drmInfo={'present':bool(drm),'type':None,'hasKey':False,'hasLicense':False}
+              return {'type':typ,'extension':ext,'host':p.hostname or '', 'refHost':refhost,'ua':uafam,'originHeader':bool((c.get('headers') or {}).get('Origin')),'drm':drmInfo,'forceProxy':bool(c.get('forceProxy'))}
+          probeTargets=[]
+          for c in matches:
+              cs=c.get('candidates') or []
+              print('CHANNEL',json.dumps({'name':c.get('name'),'id':c.get('id'),'group':c.get('group'),'candidateCount':len(cs),'candidates':[safe_candidate(x) for x in cs]},ensure_ascii=False))
+              for i,x in enumerate(cs[:5]):
+                  u=str(x.get('url') or '')
+                  if not u.startswith(('http://','https://')): continue
+                  q={'u':u}
+                  if x.get('ua'): q['ua']=str(x['ua'])
+                  if x.get('ref'): q['r']=str(x['ref'])
+                  probeTargets.append((str(c.get('name')),i,BASE+'/api/probe?'+urllib.parse.urlencode(q)))
+          for name,i,url in probeTargets[:20]:
+              try:
+                  with urllib.request.urlopen(url,timeout=20) as r:
+                      d=json.loads(r.read().decode('utf-8'))
+                  final=urlparse(str(d.get('resolvedUrl') or d.get('finalUrl') or '')).hostname or ''
+                  print('PROBE',json.dumps({'channel':name,'candidate':i,'type':d.get('type'),'contentType':d.get('contentType'),'finalHost':final,'error':d.get('error')},ensure_ascii=False))
+              except Exception as e:
+                  print('PROBE_ERROR',json.dumps({'channel':name,'candidate':i,'errorType':type(e).__name__,'message':str(e)[:180]},ensure_ascii=False))
+          PY

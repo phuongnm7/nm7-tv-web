@@ -150,7 +150,22 @@ jobs:
                   return {'status':e.code,'error':'HTTPError'}
               except Exception as e:
                   return {'errorType':type(e).__name__,'error':str(e)[:100]}
-          for name,i,x in getTargets[:32]:
+          # Probe potential official-domain HLS variants reported by the channel providers/public manifests.
+          # Only status/content metadata is logged; stream URLs and query tokens are never printed.
+          providerTargets=[
+              ('SCTV15 official CDN','https://e1.endpoint.cdn.sctvonline.vn/playlist/sctv15/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('SCTV17 official CDN','https://e1.endpoint.cdn.sctvonline.vn/playlist/sctv17/index.m3u8',{'Referer':'https://sctvonline.vn/','User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('SCTV22 VTVPrime HLS','https://liveh34.vtvprime.vn/hls/SCTV22/04.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Sports VTVcab HLS','https://liveh34.vtvcab.vn/hls/THETHAO_HD/04.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Football VTVcab HLS','https://liveh34.vtvcab.vn/hls/BONGDA_HD/04.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Sports News VTVcab HLS','https://liveh34.vtvcab.vn/hls/THETHAO_TINTUC_HD/04.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Golf VTVcab HLS','https://livevlive.vtvcab.vn/hls/OS_THETHAO_GOLF_HD/sc-gaFEAA/m40_index.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Sports+ VTVcab HLS','https://livevlive.vtvcab.vn/hls/HAY_TV_1924/sc-gaFEAA/m40_index.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+              ('ON Football VTVcab HLS v2','https://livevlive.vtvcab.vn/hls/OS_BONGDA_HD/sc-gaFEAA/m40_index.m3u8',{'User-Agent':'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'}),
+          ]
+          for label,url,headers in providerTargets:
+              print('PROVIDER_HLS_GET',json.dumps({'label':label,'host':urlparse(url).hostname,'result':safe_get(url,headers)},ensure_ascii=False))
+                    for name,i,x in getTargets[:32]:
               u=str(x.get('url') or '')
               h={'User-Agent':str(x.get('ua') or 'Mozilla/5.0')[:500]}
               ref=str(x.get('ref') or '')

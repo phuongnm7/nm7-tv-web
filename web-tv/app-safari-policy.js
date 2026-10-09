@@ -780,6 +780,10 @@ function nextCandidate(reason){
  if(S.candidateIndex<c.candidates.length){
   toast((reason||'Nguồn lỗi')+' · chuyển nguồn '+(S.candidateIndex+1));setTimeout(tryCandidate,120);return;
  }
+ if(isAppleTouchDevice()&&safariOfficialUrl(c)){
+  showSafariOfficialFallback(c,S.generation);
+  return;
+ }
  setStatus('Không phát được '+c.name+'\\nĐã thử '+(c.candidates?c.candidates.length:0)+' nguồn');dbg(reason||'playback failed');
 }
 
@@ -949,25 +953,33 @@ function getAppleDrmRuntime(){
 function safariOfficialUrl(c){
  var id=String(c&&c.id||'').toLowerCase().replace(/[\s_-]+/g,'');
  var name=String(c&&c.name||'').toLowerCase();
- if(id==='onsports'&&name.indexOf('50fps')>=0)return 'https://vtvprime.vn/content/channel/02efed81-3e71-4328-89dc-667c33fa0e9f';
- if(id==='sctv22hd'||name==='sctv22')return 'https://vtvgo.vn/channel/sctv22';
- if(id==='sctv17hd'||name==='sctv17')return 'https://apps.apple.com/vn/app/sctv/id1564652065';
+ if(id.indexOf('sctv22')===0||name==='sctv22')return 'https://vtvgo.vn/channel/sctv22';
+ if(id.indexOf('onsportsplus')===0||/on\s*sports\s*\+|sports\+/.test(name))return 'https://www.onplus.com.vn/channel?id=19bd2799-c693-4cff-9648-fa80e23e843a&type=1';
+ if(id.indexOf('onsportsnews')===0||/on\s*sports\s*news/.test(name))return 'https://www.onplus.com.vn/channel?id=812a139b-1a74-498e-bc92-06a3117d3114&type=1';
+ if(id.indexOf('onfootball')===0||/on\s*football/.test(name))return 'https://www.onplus.com.vn/channel?id=1a8ca8c8-1754-4c02-ae49-146374f3a567&type=1';
+ if(id.indexOf('ongolf')===0||/\bgolf(?:\s*channel)?\b/.test(name))return 'https://www.onplus.com.vn/channel?id=b48802e4-1afc-429a-aac0-be53b1a0092c&type=1';
+ if(id.indexOf('sctv15')===0||/sctv\s*15/.test(name))return 'https://www.onplus.com.vn/channel?id=342775b9-7c03-4332-a7c5-54a4e7bf23c3&type=1';
+ if(id.indexOf('sctv17')===0||/sctv\s*17/.test(name))return 'https://www.onplus.com.vn/channel?id=a7f11eb9-aef0-4c33-b277-6cb5b83c038f';
+ if(id.indexOf('onsports')===0||/on\s*sports/.test(name))return 'https://www.onplus.com.vn/channel?id=d61a9ace-2b7d-4474-9e6d-8f5c0c0d870d&type=1';
+ if(id.indexOf('vtv6')===0||/vtv\s*6/.test(name))return 'https://www.vtvgo.vn/';
+ if(id.indexOf('htvthethao')===0||/htv.*thể\s*thao|htv.*the\s*thao/.test(name))return 'https://www.htv.com.vn/truc-tuyen';
  return '';
 }
 function showSafariOfficialFallback(c,gen){
  var u=safariOfficialUrl(c);
  if(gen!==S.generation||!S.player)return;
  clearPlayers();
+ var onplus=!!(u&&u.indexOf('onplus.com.vn')>=0),htv=!!(u&&u.indexOf('htv.com.vn')>=0),vtvgo=!!(u&&u.indexOf('vtvgo.vn')>=0);
  var message='Safari không phát được DASH/ClearKey nội tuyến.';
  if(u){
-  var provider=u.indexOf('vtvgo.vn')>=0?'VTVgo':u.indexOf('apps.apple.com')>=0?'ứng dụng SCTV':'VTVprime';
-  message+='\nMở '+provider+' chính thức để xem; có thể cần đăng nhập hoặc gói thuê bao.';
+  var provider=onplus?'ON Plus':htv?'HTV trực tuyến':vtvgo?'VTVgo':'dịch vụ chính thức';
+  message+='\nMở '+provider+' để xem; có thể cần đăng nhập hoặc gói thuê bao.';
  }
  setStatus(message);
  var b=$('officialBtn');
  if(b){
   b.className=u?'cb':'cb hidden';
-  b.textContent=u?(u.indexOf('vtvgo.vn')>=0?'Mở SCTV22 trên VTVgo':u.indexOf('apps.apple.com')>=0?'Mở ứng dụng SCTV':'Mở VTVprime chính thức'):'Mở trình phát chính thức';
+  b.textContent=u?(onplus?'Mở kênh trên ON Plus':htv?'Mở HTV trực tuyến':vtvgo?'Mở SCTV22 trên VTVgo':'Mở dịch vụ chính thức'):'Mở trình phát chính thức';
   b.onclick=function(){try{window.open(u,'_blank','noopener,noreferrer')}catch(e){location.href=u}};
   setTimeout(function(){try{b.focus()}catch(e){}},30);
  }

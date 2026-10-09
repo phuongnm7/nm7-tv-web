@@ -766,8 +766,11 @@ function hideStatus(){$('status').style.display='none'}
 function getCandidate(){return S.current&&S.current.candidates?normalizeCandidate(S.current.candidates[S.candidateIndex]):null}
 
 function openPlayer(c){
+ var sourceId=String(c&&c.id||'').toLowerCase().replace(/[\\s_-]+/g,'');
+ var sourceName=String(c&&c.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+ var singleDefaultVtv1=S.source==='tv'&&S.tvPreset===1&&(sourceId==='vtv1hd'||sourceId==='vtv1'||sourceName==='vtv1');
  c=sanitizeAppleCandidates(c);
- c=addAppleHlsAlternatives(c);
+ if(!singleDefaultVtv1)c=addAppleHlsAlternatives(c);
  c=sanitizeAppleCandidates(c);
  if(!c||!c.candidates||!c.candidates.length){toast('Kênh chưa có URL phát');return}
  S.current=c;S.candidateIndex=startupCandidateIndex(c);S.attemptStep=0;S.proxyAttempt=false;S.player=true;S.drmRecoveryCount=0;S.drmHardRecoveryCount=0;S.drmStallAnchor=0;S.drmStallSince=0;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;

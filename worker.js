@@ -104,7 +104,7 @@ async function playlistResponse(source,defaultChoice='',env=null){
         const name=String(channel.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
         if(id!=='vtv1hd'&&id!=='vtv1'&&name!=='vtv1')continue;
         const candidates=Array.isArray(channel.candidates)?channel.candidates:[];
-        const selected=candidates[2]||candidates[0];
+        const selected=candidates.find(candidate=>/vtvgolive-failover\\.vtvdigital\\.vn\\/vtvgo\\/vtv1-manifest\\.m3u8/i.test(String(candidate.url||'')))||candidates[2]||candidates[0];
         channel.candidates=selected?[selected]:[];
       }
     }

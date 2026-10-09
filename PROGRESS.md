@@ -284,3 +284,14 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Nguyên nhân: nút `#mobileMenuBtn` chỉ được bật trong media query `max-width:1024px`. Khi iPad xoay ngang và Safari dùng viewport rộng hơn 1024 CSS px, body vẫn ở `mobile-mode` nhưng nút quay về `display:none`.
 - Sửa `web-tv/index.html`: thêm quy tắc `body.mobile-mode #mobileMenuBtn` trong nhánh `pointer:coarse`, luôn hiện nút ☰ cho thiết bị touch/mobile ở cả ngang và dọc, kể cả iPad ngang có viewport rộng.
 - Thêm smoke check cho CSS menu ngang trong Cloudflare deploy workflow.
+
+
+## 2026-10-09 — VietMiTV Merge làm mặc định 1 cho Truyền hình (chỉ NM7 Web)
+
+- Đổi upstream mặc định 1 trong `worker.js` và `api/playlist.js` thành `https://nm7-tv-web.vercel.app/api/vietmitv-merge`.
+- Chuyển nguồn truyền hình cũ `https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/` xuống mặc định 2; vẫn giữ các nguồn cũ còn lại làm fallback cho truy vấn tổng hợp không chọn preset.
+- `/api/playlist?source=tv&default=1` thử VietMiTV Merge trước, sau đó tự fallback về mặc định 2 nếu endpoint lỗi hoặc trả playlist rỗng. `default=2` chỉ dùng nguồn cũ.
+- Web UI mặc định dùng preset 1; hộp thoại **Chỉnh sửa nguồn → Nguồn mặc định** có nút **Dùng mặc định 1** và **Dùng mặc định 2**. Cache key và schema được tách theo preset để không giữ nhầm playlist cũ.
+- Đồng bộ frontend `web-tv/app.js` và `web-tv/app-safari-policy.js`; cập nhật cache-buster script trong `web-tv/index.html`. Không chỉnh repository NM7 Mobile hoặc NM7 TV Android.
+- Cloudflare Deploy #424 xác nhận: preset 1 trả 359 kênh và upstream đúng URL VietMiTV Merge; preset 2 trả playlist cũ 515 kênh. Smoke tests và JavaScript syntax đều PASS. YouTube Original E2E #110 cũng PASS.
+- Regression checks mới xác nhận cả hai upstream, hai route preset và lựa chọn trong UI.

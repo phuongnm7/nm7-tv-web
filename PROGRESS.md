@@ -268,3 +268,12 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Sửa `web-tv/app-safari-policy.js` và đồng bộ `web-tv/app.js`: với iPad, tìm thêm HLS không DRM từ kênh trùng tên giữa `VTV dự phòng` và `VTV`; ưu tiên HLS không DRM trước DASH ClearKey. Giữ nguyên kênh/candidate gốc và không xoá metadata hay DRM.
 - Thêm regression checks trong Cloudflare deployment workflow cho cross-group HLS fallback và chính sách HLS-first trên iPad.
 - Chẩn đoán production lấy được 479 kênh, trong đó 10 kênh thuộc nhóm `VTV dự phòng`. CI xác nhận deploy mới và các smoke test hiện có; cần tiếp tục xác nhận phát thực tế trên Safari/iPad để khẳng định CDN HLS đang hoạt động tại thời điểm xem.
+
+
+## 2026-10-09 — Điều tra playback nhóm Thể Thao trên iPad Safari
+
+- Đã triển khai cơ chế HLS-first và ghép candidate HLS chéo nhóm theo alias kênh chính xác (ví dụ VTV6), cùng fallback mở trang dịch vụ chính thức khi Safari không phát được DASH/ClearKey.
+- Kiểm tra playlist production: nhóm `Thể Thao` hiện có 10 kênh. HTV Thể Thao có HLS; VTV6 có HLS trùng kênh ở nhóm VTV; On Sports có URL HLS cũ nhưng các endpoint đã trả 404/530 trong probe; phần lớn các kênh ON/SCTV khác chỉ có DASH ClearKey trong danh sách hiện tại.
+- Kiểm tra nhiều mirror HLS cho SCTV15/17/22 và ON Sports/Football/News/Golf. Một số manifest SCTV15/17 chỉ trả `#EXTM3U` khi request có Referer SCTV Online, nhưng cùng URL qua Worker trả 404 và request không có Referer trả HTML; các mirror khác trả 403/404/502/204 rỗng hoặc DNS failure. Chưa tìm được HLS nào có thể xác nhận phát qua worker/iPad cho những kênh này.
+- Đã bỏ candidate HLS SCTV15/17 chết qua proxy để tránh thử nguồn chắc chắn lỗi; giữ nguyên candidate DASH/ClearKey gốc. Không thay/xóa khóa DRM. Safari sẽ chuyển sang đường mở trang ON Plus/VTVgo/HTV chính thức được ánh xạ theo kênh khi không còn nguồn inline dùng được.
+- Deploy và smoke test xác nhận code/playlist vẫn hợp lệ; **chưa xác nhận toàn bộ nhóm Thể Thao phát inline trên iPad**. Các kênh DASH/ClearKey cần nguồn HLS thực sự đang hoạt động hoặc player/platform có khả năng giải mã tương thích; không coi fallback sang trang ngoài là phát inline thành công.

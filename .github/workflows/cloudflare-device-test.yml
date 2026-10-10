@@ -15,6 +15,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      statuses: write
     steps:
       - name: Checkout isolated Cloudflare test branch
         uses: actions/checkout@v6
@@ -55,3 +56,66 @@ jobs:
                   raise SystemExit(f"TV default {preset} returned zero channels")
               print(f"DEVICE_TEST_DEFAULT{preset}_API_OK channels={len(channels)}")
           PY
+
+      
+      - name: Smoke test custom source URL imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web-device-test.phuongnm7-iptv.workers.dev"
+          encode_url() {
+            python3 - "$1" <<'PY'
+          import sys
+          from urllib.parse import quote
+          print(quote(sys.argv[1], safe=""))
+          PY
+          }
+
+          KNOWN_URL="https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com"
+          KNOWN_ENCODED="$(encode_url "$KNOWN_URL")"
+          curl -sS --max-time 45 "$BASE/api/source?u=$KNOWN_ENCODED" -o /tmp/nm7-source-known.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-source-known.json', encoding='utf-8'))
+          channels=d.get('channels') or []
+          if not channels:
+              raise SystemExit('KNOWN_M3U_SOURCE_IMPORT_FAILED: '+str(d.get('error')))
+          print('KNOWN_M3U_SOURCE_IMPORT_OK channels='+str(len(channels)))
+          PY
+
+          TARGET_URL="https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"
+          TARGET_ENCODED="$(encode_url "$TARGET_URL")"
+          curl -sS --max-time 45 "$BASE/api/source?u=$TARGET_ENCODED" -o /tmp/nm7-source-target.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.load(open('/tmp/nm7-source-target.json', encoding='utf-8'))
+          channels=d.get('channels') or []
+          summary=('TARGET_SOURCE_IMPORT_OK channels='+str(len(channels))+
+                   ' fetchMode='+str(d.get('fetchMode'))) if channels else (
+                   'TARGET_SOURCE_IMPORT_FAILED '+str(d.get('error')))
+          Path('/tmp/nm7-source-target-summary.txt').write_text(summary, encoding='utf-8')
+          print(summary)
+          if not channels:
+              raise SystemExit(summary)
+          PY
+
+      - name: Publish isolated source-test status for verification
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="success"
+          if [ "$JOB_STATUS" != "success" ]; then state="failure"; fi
+          summary="$(cat /tmp/nm7-source-target-summary.txt 2>/dev/null || true)"
+          if [ -z "$summary" ]; then summary="Cloudflare source import test $state; inspect workflow logs"; fi
+          summary="${summary:0:140}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state="$state" \
+            -f context="NM7 Cloudflare source import test" \
+            -f description="$summary" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+          echo "SOURCE_TEST_STATUS_PUBLISHED $state $summary"

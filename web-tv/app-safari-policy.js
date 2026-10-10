@@ -865,7 +865,7 @@ function startByType(c,cand,url,kind,gen){
   var status=$('status'),statusText=String(status&&status.textContent||'');
   var waitingForPlayback=!!(status&&status.style.display!=='none'&&statusText.trim());
   // Safari's explicit external-service fallback is intentional, not a stalled inline player.
-  if(waitingForPlayback&&/^Safari không phát được DASH\\/ClearKey nội tuyến\\./i.test(statusText))return;
+  if(waitingForPlayback&&statusText.indexOf('Safari không phát được DASH/ClearKey nội tuyến.')===0)return;
   // readyState can be >= 2 even when no decoded frame ever starts. Use the visible
   // startup status as the primary signal, and retry direct -> proxy if still waiting.
   if(waitingForPlayback||$('video').readyState<2||$('video').paused)
@@ -905,8 +905,7 @@ function startHls(c,cand,url,gen){
  var native=!!(v.canPlayType&&(v.canPlayType('application/vnd.apple.mpegurl')||v.canPlayType('application/x-mpegURL')))&&(safariLike||tizenLike);
  if(native){
   v.muted=false;v.defaultMuted=false;v.volume=1;
-  v.onloadedmetadata=function(){markPlaying(gen)};
-  v.oncanplay=function(){markPlaying(gen)};
+  v.onplaying=function(){markPlaying(gen)};
   v.onerror=function(){
    if(gen!==S.generation)return;
    if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}
@@ -1258,7 +1257,7 @@ function startShaka(c,cand,url,drm,gen){
   });
 
   p.load(url).then(function(){
-   markPlaying(gen);
+   // Manifest readiness is not proof that a video frame is playing.
    var x=$('video').play();if(x&&x.catch)x.catch(function(){});
   }).catch(function(e){
    if(gen!==S.generation)return;

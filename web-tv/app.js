@@ -701,6 +701,10 @@ function startupCandidateIndex(c){
 
 function shouldProxyFirst(cand,kind){
  cand=normalizeCandidate(cand||{});
+ // Production diagnostics confirmed the SCTV4K upstream manifest is HTTP 200,
+ // but its child TS segments return HTTP 400 directly and HTTP 200 via Worker.
+ // Start this known source through the proxy instead of wasting a direct attempt.
+ if(kind==='hls'&&(/sctv4k/i.test(String(cand.name||'')+' '+String(cand.id||''))||/vietanhtv\\.id\\.vn/i.test(String(cand.resolvedUrl||cand.url||''))))return true;
  if(isAppleTouchDevice()&&isDashDrmCandidate(cand))return false;
  if(kind==='flv'||kind==='mpegts')return true;
  if(cand.forceProxy===true)return true;
@@ -874,11 +878,10 @@ function startByType(c,cand,url,kind,gen){
  else if(kind==='mpegts')startMpegTs(c,cand,url,gen);
  else startDirect(c,cand,url,gen);
  var isKnownSlow4k=kind==='hls'&&(/sctv4k/i.test(String((c&&c.name)||'')+' '+String((c&&c.id)||''))||/vietanhtv\.id\.vn/i.test(String(cand.resolvedUrl||cand.url||'')));
- var wait=kind==='hls'?(isKnownSlow4k?45000:8000):15000;
+ var wait=kind==='hls'?8000:15000;
  if(isAppleTouchDevice()&&kind==='hls'&&c&&c.candidates&&c.candidates.length>1)wait=5000;
  if(isAppleTouchDevice()&&kind==='dash'&&cand&&cand.drm)wait=30000;
- // 4K TS chunks are much larger than ordinary TV segments; allow them to buffer.
- if(isKnownSlow4k)wait=45000;
+ // Do not extend startup timeout for SCTV4K: its direct TS endpoint is known to return HTTP 400.
  S.watchdog=setTimeout(function(){
   if(S.generation!==gen||!S.player)return;
   S.watchdog=null;

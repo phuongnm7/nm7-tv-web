@@ -491,7 +491,7 @@ async function sourceResponse(q){
   return new Response(JSON.stringify({
     channels:[],source:'custom',
     error:lastError+'; '+detail+ct+' sau '+attempts.length+' lần thử',
-    upstream:lastUrl
+    upstreamHost:(()=>{try{return new URL(lastUrl).host}catch{return ''}})()
   }),{status:502,headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
 }
 function detectMediaType(url,contentType,bodyText=""){

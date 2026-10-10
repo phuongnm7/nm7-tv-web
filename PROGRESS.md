@@ -498,3 +498,31 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Added regression test `scripts/test-sctv4k-proxy-preference.js`; full Web Browser Validation PASS: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38025807061.
 - Browser HLS E2E is pending; CI lacks H.264 decoder, so actual device playback remains required.
 - DAZN was not found in server presets 1/2 or sports playlists. It is likely in the user's custom/local source; exact URL/entry must be provided to inspect the upstream and headers. No source defaults, NM7 Mobile, or NM7 TV Android changed.
+
+## 2026-10-10 — Điều tra video 224593: SCTV4K còn chậm và kênh thể thao quốc tế bị đen
+
+### Quan sát từ video và chẩn đoán trước đó
+
+- Video mới cho thấy các kênh như `UK - SKY SPORTS+ 12 FHD`, `UK - SKY SPORTS+ 39 FHD` và `UK - TNT SPORTS 1 FHD` đi từ trạng thái xác định định dạng sang thử nguồn có gắn nhãn proxy, nhưng màn hình vẫn đen.
+- Các kênh này không nằm trong ba playlist do Worker phục vụ (TV preset 1, TV preset 2, Thể thao) ở lượt chẩn đoán trước. Nhiều khả năng chúng đến từ nguồn M3U cục bộ/tùy chỉnh. Video không hiển thị đủ URL và các dòng header để xác định upstream status, cấu hình DRM hoặc codec; không được suy đoán rằng proxy 200 đồng nghĩa phát được.
+- Với SCTV4K, diagnostic production xác nhận manifest trực tiếp HTTP 200 nhưng TS child segments trực tiếp HTTP 400; hai segment mẫu qua Worker proxy HTTP 200 và `video/mp2t`. Lượt kiểm tra trước đó nhận diện stream là HEVC/H.265 3840×2160. Điều này giải thích vì sao proxy-first là cần thiết, nhưng chưa giải thích được toàn bộ độ trễ đến khung hình đầu tiên trên thiết bị thật.
+
+### Sửa lỗi trên nhánh cô lập
+
+Nhánh: `fix/sports-hls-startup-proxy-20261010`. **Chưa merge vào stable và chưa deploy production.**
+
+- `worker.js`: thêm nhận diện nội dung dựa trên tối đa 4 KB đầu của bản sao response. HLS ở URL không có đuôi và MIME `text/plain` được rewrite giống manifest HLS bình thường; segment TS/fMP4 bị gắn sai MIME được chuyển tiếp dạng nhị phân thay vì bị đọc như văn bản.
+- `web-tv/app.js` và `web-tv/app-safari-policy.js`: tuần tự hóa chuyển candidate để lỗi HLS.js và lỗi media element không gây retry đua nhau; nếu candidate proxy-first thất bại ở proxy thì chuyển candidate kế tiếp, không chờ thêm một chu kỳ watchdog để thử lại đúng proxy đó.
+- HLS.js bật fragment prefetch và Web Worker trên trình duyệt không phải Tizen; vẫn giữ worker tắt với UA Tizen/SMART-TV cũ. Tăng cache-buster của script đang được trang sử dụng.
+- Regression bổ sung: manifest HLS extensionless + `text/plain`; segment URI tương đối được rewrite; bảo toàn User-Agent/Referer/header tùy chỉnh; segment TS không có extension nhưng bị gắn MIME HLS phải được giữ nguyên byte; kiểm tra retry không đua và HLS prefetch.
+
+### Kết quả kiểm thử
+
+- Web Browser Validation #388: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027250808. Syntax, regression checks và required assets đều PASS.
+- Browser remote + HLS E2E #419: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027250824. Đây là fixture HLS phục vụ test UI; không chứng minh các URL thể thao thật đã phát được, và không giải mã HEVC 4K trên TV thật.
+- Không thay đổi playlist/URL mặc định, không merge/deploy, không sửa NM7 Mobile hoặc NM7 TV Android.
+
+### Còn phải xác minh trước khi phát hành
+
+- Cần lấy đúng một entry đang lỗi từ nguồn M3U tùy chỉnh: dòng `#EXTINF`, các dòng `#EXTHTTP`/`#EXTVLCOPT` nếu có, và URL stream. Có thể che token nhạy cảm sau khi giữ lại hostname và cấu trúc đường dẫn phù hợp. Sau đó phải kiểm tra status và Content-Type của manifest, URI con, segment/fragment, header bắt buộc, codec/DRM và thời gian tải thực.
+- Độ trễ SCTV4K cần đo từ khi bấm kênh đến các mốc manifest, segment đầu, `loadeddata`/`playing` và khung hình giải mã trên thiết bị. E2E CI giả lập không thay thế phép đo đó.

@@ -778,10 +778,36 @@ async function probeResponse(request,q){
 }
 
 const NEWS_SOURCES = {
-  highlights: {url:'https://www.24h.com.vn/video-highlight-c953.html', label:'Highlights 24h'},
-  onplus: {url:'https://onplus.com.vn/', label:'ON Plus'},
-  replay: {url:'https://www.bongtv.com/gateway-api/sp/sports/anon/getReplay?pageNo=1&pageSize=30', label:'BongTV Xem lại'}
+  highlights: {url:'https://www.24h.com.vn/video-highlight-c953.html', label:'HighLight 24h'},
+  onplus: {url:'https://onplus.com.vn/', label:'Video thể thao · ON Plus'},
+  replay: {url:'', label:'Xem lại · GetOut'}
 };
+// GetOut's BTV adapter reads the current base URL from this public text config.
+// Restrict the result to the provider hosts found in the APK so a changed remote
+// config cannot make the Worker fetch an arbitrary host.
+const GETOUT_BTV_CONFIG_URL = 'https://raw.githubusercontent.com/leeshin5757/getout/main/txt/btv';
+const GETOUT_BTV_ALLOWED_HOSTS = new Set(['bongplus.vip','www.bongplus.vip','bongtv.com','www.bongtv.com']);
+let getoutBtvBaseCache = {at:0, base:'https://bongplus.vip'};
+async function getGetOutBtvBase() {
+  const now = Date.now();
+  if (now - getoutBtvBaseCache.at < 300000 && getoutBtvBaseCache.base) return getoutBtvBaseCache.base;
+  try {
+    const configResponse = await fetch(GETOUT_BTV_CONFIG_URL, {
+      headers:{'User-Agent':'Mozilla/5.0 (compatible; NM7TV/1.0)','Accept':'text/plain'},
+      redirect:'follow', signal:AbortSignal.timeout(5000)
+    });
+    if (configResponse.ok) {
+      const raw = (await configResponse.text()).trim();
+      const parsed = new URL(raw);
+      if (parsed.protocol === 'https:' && GETOUT_BTV_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase()) && parsed.pathname === '/') {
+        getoutBtvBaseCache = {at:now,base:parsed.origin};
+        return parsed.origin;
+      }
+    }
+  } catch (_) {}
+  getoutBtvBaseCache.at = now;
+  return getoutBtvBaseCache.base || 'https://bongplus.vip';
+}
 const newsCache = new Map();
 async function newsResponse(url) {
   const source = url.searchParams.get('source') || 'highlights';
@@ -791,7 +817,11 @@ async function newsResponse(url) {
   const now = Date.now(), cached = newsCache.get(source);
   if (cached && now-cached.at < 120000) return new Response(JSON.stringify(cached.data), {headers:{...headersOut,'Cache-Control':'public, max-age=60'}});
   try {
-    const upstream = await fetch(cfg.url,{headers:{'User-Agent':'Mozilla/5.0 (compatible; NM7TV/1.0)','Accept':'text/html,application/xhtml+xml'},redirect:'follow', signal:AbortSignal.timeout(9000)});
+    const providerBase = source === 'replay' ? await getGetOutBtvBase() : '';
+    const sourceUrl = source === 'replay'
+      ? new URL('/gateway-api/sp/sports/anon/getReplay?pageNo=1&pageSize=30',providerBase).href
+      : cfg.url;
+    const upstream = await fetch(sourceUrl,{headers:{'User-Agent':'Mozilla/5.0 (compatible; NM7TV/1.0)','Accept':source === 'replay' ? 'application/json' : 'text/html,application/xhtml+xml'},redirect:'follow', signal:AbortSignal.timeout(9000)});
     if (!upstream.ok) throw new Error('upstream-'+upstream.status);
     if (source === 'replay') {
       const payload = await upstream.json();
@@ -813,7 +843,9 @@ async function newsResponse(url) {
         const awayName = typeof away === 'string' ? away : (away.name || away.teamName || '');
         const title = String(rec.title || rec.matchName || rec.name || (homeName && awayName ? homeName + ' - ' + awayName : '') || 'Video xem lại trận đấu').trim();
         const videos = Array.isArray(rec.videos) ? rec.videos : [];
-        const rawHref = rec.url || rec.detailUrl || rec.webUrl || rec.link || (videos[0] && (videos[0].url || videos[0].link)) || '';
+        const videoCandidate = videos.map(v => v && (v.url || v.playUrl || v.videoUrl || v.link)).find(v => typeof v === 'string' && /^https:\/\//i.test(v)) || '';
+        const playbackUrl = /\.(m3u8|mp4)(?:$|[?#])/i.test(videoCandidate) ? videoCandidate : '';
+        const rawHref = rec.url || rec.detailUrl || rec.webUrl || rec.link || videoCandidate || '';
         let href = '';
         try { if (rawHref) { const parsed = new URL(String(rawHref), 'https://www.bongtv.com/'); if (parsed.protocol === 'http:' || parsed.protocol === 'https:') href = parsed.href; } } catch {}
         if (!href || seen.has(href)) continue;
@@ -822,7 +854,7 @@ async function newsResponse(url) {
         const awayLogo = typeof away === 'object' ? (away.logo || away.logoUrl || away.image || '') : '';
         let image = '';
         try { image = new URL(homeLogo || awayLogo, 'https://www.bongtv.com/').href; } catch {}
-        items.push({title, href, image, source: 'BongTV Xem lại', matchTime: rec.matchTime || rec.time || rec.startTime || ''});
+        items.push({title, href, playbackUrl, image, source: 'Xem lại · GetOut', matchTime: rec.matchTime || rec.time || rec.startTime || ''});
         if (items.length >= 40) break;
       }
       const data = {source, sourceUrl:'https://www.bongtv.com/', updatedAt:new Date().toISOString(), items};

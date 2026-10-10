@@ -14,7 +14,7 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 
 - Ngày cập nhật: **10/10/2026**
 - Nhánh ổn định: `stable/nm7-tv-web-2026-10-09`
-- Cập nhật mới nhất: **Service Binding Cloudflare sửa lỗi nhập nguồn thể thao qua URL `/playlist.m3u`; bản production đã được smoke test và người dùng xác nhận hoạt động**
+- Cập nhật mới nhất: **Thể thao bỏ qua cache Worker khi mở lại/tải lại nguồn**, đồng thời giữ Service Binding sửa lỗi nhập URL `/playlist.m3u`
 - Giữ lại đường TCP socket Stalker/Xtream đã được xác minh trước đó.
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Nơi triển khai: **Cloudflare Workers**
@@ -40,6 +40,20 @@ URL `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u` trả HTTP 200 
 - Người dùng đã xác nhận thêm nguồn hoạt động trên NM7 TV Web.
 
 Phạm vi chỉ là `phuongnm7/nm7-tv-web` và Cloudflare Workers. Không sửa NM7 TV Android hoặc NM7 Mobile; không chuyển ứng dụng sang Vercel.
+
+
+## Sửa lỗi “Tải lại nguồn” của Thể thao — 10/10/2026
+
+### Nguyên nhân
+Nút tải lại đã bỏ qua cache trong giao diện nhưng gọi `/api/playlist?source=sport`, và Worker vẫn trả cache nội bộ có TTL 30 giây. Luồng nhập URL trực tiếp đi qua `/api/source` nên không dùng cache này.
+
+### Sửa lỗi
+- Hai player script `web-tv/app.js` và `web-tv/app-safari-policy.js` thêm `refresh=1` mỗi khi mở hoặc tải lại nguồn Thể thao.
+- `worker.js` chuyển cờ này vào `playlistResponse()` để bỏ qua cache nội bộ khi có yêu cầu làm mới. Cache của các nguồn khác không đổi.
+- `index.html` tăng cache-buster để trình duyệt lấy script mới.
+- Thêm regression test `scripts/test-sport-playlist-refresh.js`; workflow Cloudflare kiểm tra API trả `refreshed:true` khi gọi `/api/playlist?source=sport&refresh=1`.
+
+Phạm vi chỉ là NM7 TV Web và Cloudflare Workers. Không sửa NM7 TV Android hoặc NM7 Mobile.
 
 
 ## Tự chọn nguồn mặc định theo thiết bị — 10/10/2026

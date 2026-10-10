@@ -275,7 +275,16 @@ jobs:
                   # Compare a different proxy egress using the same source/header metadata.
                   # Log status/host/container metadata only; never output the query URL or token.
                   vercel_proxy_url = VERCEL_TEST_BASE + "/api/stream?" + urllib.parse.urlencode(q)
-                  vercel_result = probe(name.replace(" ", "_") + "_VERCEL_PREVIEW_PROXY", vercel_proxy_url, {"User-Agent": UA}, limit=12000, timeout=18)
+                  vercel_result = request(vercel_proxy_url, {"User-Agent": UA}, limit=12000, timeout=18)
+                  vercel_body = vercel_result.get("body", b"")
+                  ts_sync = bool(len(vercel_body) > 376 and vercel_body[0] == 0x47 and vercel_body[188] == 0x47 and vercel_body[376] == 0x47)
+                  print(name.replace(" ", "_") + "_VERCEL_PREVIEW_PROXY", json.dumps({
+                      "status": vercel_result.get("status"), "contentType": vercel_result.get("contentType"),
+                      "headerMs": vercel_result.get("headerMs"), "bodyReadMs": vercel_result.get("bodyReadMs"),
+                      "totalMs": vercel_result.get("totalMs"), "bytesRead": len(vercel_body),
+                      "host": safe_url(vercel_result.get("finalUrl") or vercel_proxy_url),
+                      "tsSync188": ts_sync, "error": vercel_result.get("error")
+                  }, ensure_ascii=False))
               is_stalker = (
                   urlparse(url).path.lower().endswith("/play/live.php")
                   and all(key in query_fields for key in ("mac", "stream", "extension"))

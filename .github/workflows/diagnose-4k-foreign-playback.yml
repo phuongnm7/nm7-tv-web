@@ -26,6 +26,8 @@ jobs:
       - name: Inspect production playlist candidates and nested HLS resources
         shell: bash
         run: |
+          # Deploy workflow runs in parallel on branch pushes; let the test Worker publish this exact commit first.
+          sleep 30
           python3 - <<'PY'
           import json, re, os, tempfile, subprocess, shutil, time, urllib.parse, urllib.request, urllib.error
           from urllib.parse import urlparse, urljoin, parse_qs

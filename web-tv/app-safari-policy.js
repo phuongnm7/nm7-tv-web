@@ -910,12 +910,19 @@ function startHls(c,cand,url,gen){
    if(gen!==S.generation)return;
    if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}
    if(!S.proxyAttempt){
+    S.attemptStep=1;
     S.proxyAttempt=true;
     var pu=makeProxy(cand.resolvedUrl||cand.url,cand);
     setStatus('HLS trực tiếp lỗi · chuyển proxy '+c.name);
     try{
      v.src=pu;var p=v.play();if(p&&p.catch)p.catch(function(){});
-     S.watchdog=setTimeout(function(){if(gen===S.generation&&S.player&&($('video').readyState<2||$('video').paused))nextCandidate('HLS proxy timeout 5s')},5000)
+     S.watchdog=setTimeout(function(){
+      if(gen!==S.generation||!S.player)return;
+      S.watchdog=null;
+      var status=$('status'),stillWaiting=!!(status&&status.style.display!=='none'&&String(status.textContent||'').trim());
+      if(stillWaiting||$('video').readyState<2||$('video').paused)
+       nextCandidate('HLS proxy timeout 5s · chưa xác nhận video chạy');
+     },5000)
     }catch(e){nextCandidate('HLS proxy lỗi')}
     return
    }

@@ -53,6 +53,16 @@ for (const file of files) {
     file + ': no double-escaped newline in player status/debug text');
   assert.match(source, /Lỗi cuối: '\+String\(reason\|\|'Không rõ'\)\.slice\(0,160\)/,
     file + ': terminal failure exposes a short reason without printing URLs');
+  assert.ok(source.includes('function scheduleCandidateRetry()'),
+    file + ': simultaneous video-element and HLS.js errors are serialized');
+  assert.ok(source.includes('!(proxyFirst&&S.proxyAttempt)'),
+    file + ': failed proxy-first providers are not retried through the same proxy');
+  assert.ok(source.includes('if(S.hls)return;'),
+    file + ': generic video error listener does not race HLS.js diagnostics');
+  assert.ok(source.includes('startFragPrefetch:true'),
+    file + ': first HLS fragment may start as soon as listed by the playlist');
+  assert.ok(source.includes('enableWorker:!tizenLike'),
+    file + ': HLS transmuxing worker is enabled except on older Tizen browsers');
   console.log('PASS', file);
 }
 

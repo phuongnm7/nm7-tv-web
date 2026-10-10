@@ -348,8 +348,8 @@ async function probeResponse(request,q){
   const requestedReferer=q.get("r")||"";
   if(requestedUA)headers.set("User-Agent",requestedUA);
   if(requestedReferer)headers.set("Referer",requestedReferer);
-  let r=null,bodyText="";
-  try{r=await fetchWithTimeout(target,{method:"HEAD",headers},5000)}catch{}
+  let r=null,bodyText="",headStatus=0,getStatus=0;
+  try{r=await fetchWithTimeout(target,{method:"HEAD",headers},5000);headStatus=r.status}catch{}
   let finalUrl=r?.url||target,ct=(r?.headers.get("content-type")||"").toLowerCase();
   let type=detectMediaType(finalUrl,ct);
   // HEAD is frequently blocked by IPTV hosts, even when GET is allowed.
@@ -359,7 +359,7 @@ async function probeResponse(request,q){
       const getHeaders=new Headers(headers);
       getHeaders.set("Range","bytes=0-2047");
       const gr=await fetchWithTimeout(target,{method:"GET",headers:getHeaders},7000);
-      r=gr;finalUrl=gr.url||target;ct=(gr.headers.get("content-type")||"").toLowerCase();
+      r=gr;getStatus=gr.status;finalUrl=gr.url||target;ct=(gr.headers.get("content-type")||"").toLowerCase();
       const reader=gr.body?.getReader();
       if(reader){
         const chunk=await reader.read();
@@ -371,8 +371,21 @@ async function probeResponse(request,q){
       if(type==="http")type=detectMediaType(target,ct);
     }
   }
+  const status=r?.status||0;
+  const bodyLower=String(bodyText||"").toLowerCase();
+  // Return only a coarse category; never echo upstream body, URLs or credentials.
+  let errorHint="none";
+  if(status===401)errorHint="unauthorized";
+  else if(status===403){
+    if(/token.{0,24}(expired|invalid)|expired.{0,24}token|invalid.{0,24}token/.test(bodyLower))errorHint="token-rejected";
+    else if(/mac.{0,24}(invalid|blocked|not found)|device.{0,24}(not authorized|blocked)/.test(bodyLower))errorHint="device-or-session-rejected";
+    else errorHint="forbidden-unspecified";
+  }else if(status===404)errorHint="not-found";
+  else if(status===429)errorHint="rate-limited";
+  else if(status>=500)errorHint="upstream-server-error";
+  else if(status===0)errorHint="network-or-timeout";
   return new Response(JSON.stringify({
-    type,finalUrl,resolvedUrl:finalUrl,contentType:ct,status:r?.status||0,
+    type,contentType:ct,status,headStatus,getStatus,errorHint,
     serverType:r?.headers.get("server")||""
   }),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*"}});
 }

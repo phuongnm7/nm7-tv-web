@@ -381,3 +381,26 @@ Production diagnostic of the currently deployed Cloudflare Worker reproduced the
 - Added `scripts/test-sctv4k-proxy-preference.js`: confirms only `vietanhtv.id.vn` HLS is forced through proxy and unrelated HLS remains unchanged.
 - Validation: Web Browser Validation PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38025807061. Browser HLS E2E is still running; its CI browser has no H.264 decoder, so that job can verify resource delivery but not real H.264 decoding.
 - DAZN/foreign custom channel was not present in the three server-served playlists (default 1, default 2, sports). The local/custom source URL/entry is not exposed to server diagnostics, so its exact upstream failure cannot be reproduced without the exact M3U entry. No default source URLs were changed.
+
+## 2026-10-10 — HLS manifest sniffing and playback retry-state fix (isolated branch)
+
+Branch: `fix/sports-hls-startup-proxy-20261010`. This work has **not** been merged into the stable branch or deployed to the production Worker.
+
+### What the new video establishes
+
+- SCTV4K now opens but still has a noticeable startup delay. Earlier live diagnostics established that its direct manifest returns HTTP 200 while direct TS segment requests return HTTP 400; proxy segment requests return HTTP 200. Earlier stream inspection identified HEVC/H.265 3840×2160 media, which can add first-frame delay on devices with limited HEVC decoding or large initial segments. HTTP success does not prove playback starts quickly.
+- The latest video shows several user-added international sports entries reaching the “proxy” attempt but remaining black. These entries are from a local/custom playlist and were not found in the three server-served playlist presets, so the exact upstream response and codec/DRM cannot be concluded from the current video alone.
+
+### Code changes on the isolated branch
+
+- Worker `/api/stream` now inspects a small cloned response prefix before rewriting ambiguous manifest payloads. It can identify an HLS manifest at an extensionless `text/plain` URL and rewrite its relative segment URIs; it identifies common MPEG-TS/fMP4 payloads and passes their binary bytes through without treating them as playlist text.
+- The player entrypoints serialize candidate retries so HLS.js and the generic video-element error listener cannot race each other. If a provider is marked proxy-first and that proxy attempt fails, the player moves on rather than spending another full watchdog interval retrying the same proxy URL.
+- HLS.js enables fragment prefetch and its transmuxing worker on non-Tizen browsers; the worker remains disabled on older Tizen/SMART-TV user agents. The active script cache-buster was bumped.
+- Regression tests cover extensionless `text/plain` HLS manifests, correctly rewritten child URIs, custom User-Agent/Referer/other M3U headers, misleading HLS MIME on binary TS, byte-for-byte passthrough, retry serialization, and HLS prefetch configuration.
+
+### Validation and limits
+
+- Web Browser Validation #388: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027250808.
+- Browser remote + HLS E2E #419: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027250824. This uses a test HLS fixture; it does not verify the user's real sports URLs or decode SCTV4K HEVC on the target device.
+- No production deploy, playlist/default URL changes, or modifications to NM7 Mobile / NM7 TV Android were made.
+- To finish diagnosis for the user-added sports channels, inspect one failing entry including its `#EXTINF`, any `#EXTHTTP` / `#EXTVLCOPT` lines, and the stream URL (sensitive query tokens may be redacted after the host and URL shape). A source-specific 401/403, required header, DRM requirement, or unsupported codec must be confirmed from that entry before changing source handling.

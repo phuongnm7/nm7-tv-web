@@ -7,8 +7,7 @@ var PLAYLISTS={
  sport:'/api/playlist?source=sport'
 };
 
-// Detect the platform only for the initial home preset. Android uses preset 2;
-// iOS/iPadOS uses preset 1. Other devices keep the existing preset-1 behavior.
+// Initial TV preset: Android and Windows use preset 2; iOS/iPadOS and other platforms use preset 1.
 function detectDefaultTvPreset(){
  var ua='',platform='',uaDataPlatform='',touchPoints=0;
  try{
@@ -21,6 +20,7 @@ function detectDefaultTvPreset(){
  }catch(e){}
  if(/android/i.test(ua)||/^android$/i.test(platform)||/^android$/i.test(uaDataPlatform))return 2;
  if(/iphone|ipad|ipod/i.test(ua)||/iphone|ipad|ipod/i.test(platform)||(/macintel/i.test(platform)&&touchPoints>1))return 1;
+ if(/windows/i.test(ua)||/^win/i.test(platform)||/^windows$/i.test(uaDataPlatform))return 2;
  return 1;
 }
 var S={

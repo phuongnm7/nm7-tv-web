@@ -36,6 +36,7 @@ jobs:
           node scripts/test-playback-startup-fallback.js
           node scripts/test-worker-hls-segments.js
           node scripts/test-custom-m3u-headers-probe.js
+          node scripts/test-worker-dash-proxy.js
       - name: Check required web assets
         run: |
           test -s web-tv/index.html

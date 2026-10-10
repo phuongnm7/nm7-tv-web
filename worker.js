@@ -203,14 +203,16 @@ async function fetchPlaylistTarget(target,init={},env=null,ms=10000){
   }
   return fetchWithTimeout(target,init,ms);
 }
-async function playlistResponse(source,defaultChoice='',env=null){
+async function playlistResponse(source,defaultChoice='',env=null,forceRefresh=false){
   if(!SOURCES[source])return new Response(JSON.stringify({channels:[],source}),{status:400,headers:{'Content-Type':'application/json'}});
   const choice=String(defaultChoice||'');
   const isDefault=source==='tv'&&['1','2','android1069'].includes(choice);
   const preset=choice==='2'?2:1;
   const cacheKey=isDefault?'tv:default:'+preset:source;
   const now=Date.now(),hit=playlistCache.get(cacheKey);
-  if(hit&&now-hit.time<CACHE_TTL)return new Response(JSON.stringify({channels:hit.channels,source,cached:true,preset,upstream:hit.upstream}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+  // Manual/explicit sport refresh bypasses the isolate-local cache, while all
+  // other sources continue to use the existing 30-second cache.
+  if(!forceRefresh&&hit&&now-hit.time<CACHE_TTL)return new Response(JSON.stringify({channels:hit.channels,source,cached:true,preset,upstream:hit.upstream}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
   const errors=[];
   const targets=isDefault?(preset===2?[SOURCES.tv[1]]:[SOURCES.tv[0],SOURCES.tv[1]]):SOURCES[source];
   for(const target of targets){try{
@@ -221,7 +223,7 @@ async function playlistResponse(source,defaultChoice='',env=null){
       :await fetchPlaylistTarget(target,init,env,10000);if(!r.ok)throw new Error('HTTP '+r.status);const body=await r.text();let channels=parseM3U(body,target);if(!channels.length){try{const j=JSON.parse(body),arr=Array.isArray(j)?j:(Array.isArray(j.channels)?j.channels:Array.isArray(j.data)?j.data:[]);channels=arr.map(x=>({name:String(x.name||x.title||x.channel||'Kênh'),group:String(x.group||x.groupTitle||x.category||'Khác'),logo:String(x.logo||x.tvgLogo||''),id:String(x.id||x.tvgId||x.name||x.title||''),candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:x.url||x.stream||x.src,ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])}))}catch{}}if(!channels.length)throw new Error('playlist rỗng');
     enrichChannels(channels);
     playlistCache.set(cacheKey,{time:now,channels,upstream:target});
-    return new Response(JSON.stringify({channels,source,cached:false,preset:isDefault?preset:undefined,upstream:target}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch(e){errors.push(target+': '+e.message)}}
+    return new Response(JSON.stringify({channels,source,cached:false,preset:isDefault?preset:undefined,upstream:target,refreshed:forceRefresh}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch(e){errors.push(target+': '+e.message)}}
   if(hit&&hit.channels?.length)return new Response(JSON.stringify({channels:hit.channels,source,cached:true,stale:true,error:errors.join(' | ')}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
   return new Response(JSON.stringify({channels:[],source,error:errors.join(' | ')}),{status:504,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 }
@@ -774,4 +776,4 @@ async function probeResponse(request,q){
     retryAfter:r?.headers.get("retry-after")||""
   }),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*"}});
 }
-export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p.startsWith('/api/dash-resource/'))return dashResourceResponse(request,url);if(p==='/api/source')return sourceResponse(q,env);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};
+export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env,q.get('refresh')==='1');if(p.startsWith('/api/dash-resource/'))return dashResourceResponse(request,url);if(p==='/api/source')return sourceResponse(q,env);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};

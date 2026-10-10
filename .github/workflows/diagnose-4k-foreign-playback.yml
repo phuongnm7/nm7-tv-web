@@ -30,8 +30,6 @@ jobs:
           import json, re, os, tempfile, subprocess, shutil, time, urllib.parse, urllib.request, urllib.error
           from urllib.parse import urlparse, urljoin, parse_qs
           BASE = "https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
-          VERCEL_PROXY_BASE = "https://nm7-tv-web.vercel.app"
-          VERCEL_PREVIEW_BASE = "https://nm7-tv-web-git-fix-sports-hls-startup-proxy-20261010-phuongnm7.vercel.app"
           UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
 
           def request(url, headers=None, limit=12000, timeout=18):
@@ -68,16 +66,6 @@ jobs:
                   return {"error": type(e).__name__ + ": " + str(e)[:160],
                           "headerMs": None, "bodyReadMs": round((time.monotonic()-started)*1000),
                           "totalMs": round((time.monotonic()-started)*1000), "body": b"", "finalUrl": url}
-
-          def safe_error_class(body):
-              text = (body or b"")[:1200].decode("utf-8", "ignore").lower()
-              if "cf-ray" in text or "cloudflare" in text: return "cloudflare-waf"
-              if "access denied" in text or "forbidden" in text or "not allowed" in text: return "access-denied"
-              if "function_invocation_failed" in text or "serverless function" in text or "function has crashed" in text: return "vercel-function-runtime"
-              if "internal server error" in text or "internal error" in text: return "internal-server-error"
-              if text.lstrip().startswith(("{", "[")): return "json-error"
-              if text.lstrip().startswith(("<html", "<!doctype html")): return "html-error"
-              return "plain-text-error"
 
           def safe_url(url):
               # Signed CDN credentials can be encoded in path segments, not only query strings.
@@ -304,23 +292,41 @@ jobs:
                       "host": safe_url(browser_ua_result.get("finalUrl") or browser_ua_url),
                       "error": browser_ua_result.get("error")
                   }, ensure_ascii=False))
-                  # Compare a different proxy egress using the same source/header metadata.
-                  # Log status/host/container metadata only; never output the query URL or token.
-                  vercel_proxy_url = VERCEL_PROXY_BASE + "/api/stream?" + urllib.parse.urlencode(q)
-                  vercel_result = request(vercel_proxy_url, {"User-Agent": UA}, limit=12000, timeout=18)
-                  vercel_body = vercel_result.get("body", b"")
-                  ts_sync = bool(len(vercel_body) > 376 and vercel_body[0] == 0x47 and vercel_body[188] == 0x47 and vercel_body[376] == 0x47)
-                  print(name.replace(" ", "_") + "_VERCEL_EXISTING_PROXY", json.dumps({
-                      "status": vercel_result.get("status"), "contentType": vercel_result.get("contentType"),
-                      "server": vercel_result.get("server"), "cfRayPresent": vercel_result.get("cfRayPresent"),
-                      "acao": vercel_result.get("accessControlAllowOrigin"),
-                      "headerMs": vercel_result.get("headerMs"), "bodyReadMs": vercel_result.get("bodyReadMs"),
-                      "totalMs": vercel_result.get("totalMs"), "bytesRead": len(vercel_body),
-                      "host": safe_url(vercel_result.get("finalUrl") or vercel_proxy_url),
-                      "tsSync188": ts_sync, "bodyClass": ("json" if vercel_body.lstrip().startswith((b"{",b"[")) else "html" if vercel_body.lstrip().lower().startswith((b"<html",b"<!doctype html")) else "plain-text"),
-                      "safeErrorClass": safe_error_class(vercel_body) if int(vercel_result.get("status") or 0) >= 400 else "none",
-                      "error": vercel_result.get("error")
-                  }, ensure_ascii=False))
+                  # Same Cloudflare Worker, same source URL: test realistic header profiles.
+                  # Do not print target URLs, stream paths, query strings, or credentials.
+                  source_origin = urlparse(url).scheme + "://" + (urlparse(url).hostname or "")
+                  profiles = [
+                      ("CLOUDFLARE_PROXY_NATIVE_UA_REFERER", dict(q, r=ref or source_origin + "/")),
+                      ("CLOUDFLARE_PROXY_CHROME_UA_REFERER", dict(q, ua=UA, r=ref or source_origin + "/")),
+                      ("CLOUDFLARE_PROXY_CHROME_BROWSER_HEADERS", {
+                          **q, "ua": UA, "r": ref or source_origin + "/",
+                          "h": json.dumps({**(extra if isinstance(extra, dict) else {}),
+                              "Origin": source_origin, "Accept": "video/mp2t,application/octet-stream,*/*",
+                              "Accept-Language": "en-US,en;q=0.9",
+                              "Sec-Fetch-Dest": "video", "Sec-Fetch-Mode": "cors",
+                              "Sec-Fetch-Site": "cross-site"}, separators=(",", ":"))
+                      }),
+                      ("CLOUDFLARE_PROXY_EXOPLAYER_UA", {
+                          **q, "ua": "ExoPlayerLib/2.18.1 (Linux;Android 15)",
+                          "r": ref or source_origin + "/",
+                          "h": json.dumps({**(extra if isinstance(extra, dict) else {}),
+                              "Origin": source_origin, "Accept": "*/*"}, separators=(",", ":"))
+                      })
+                  ]
+                  for profile_name, profile_query in profiles:
+                      profile_url = BASE + "/api/stream?" + urllib.parse.urlencode(profile_query)
+                      profile_headers = {"User-Agent": UA}
+                      if profile_name.endswith("BROWSER_HEADERS"):
+                          profile_headers["Sec-Fetch-Dest"] = "video"
+                      result = request(profile_url, profile_headers, limit=12000, timeout=12)
+                      body = result.get("body", b"")
+                      ts_ok = bool(len(body) > 376 and body[0] == 0x47 and body[188] == 0x47 and body[376] == 0x47)
+                      print(name.replace(" ", "_") + "_" + profile_name, json.dumps({
+                          "status": result.get("status"), "contentType": result.get("contentType"),
+                          "bytesRead": len(body), "tsSync188": ts_ok, "totalMs": result.get("totalMs"),
+                          "server": result.get("server"), "cfRayPresent": result.get("cfRayPresent"),
+                          "error": result.get("error")
+                      }, ensure_ascii=False))
                   # Check whether the origin supports HTTPS directly, avoiding browser mixed-content restrictions.
                   parsed_http = urlparse(url)
                   https_url = urllib.parse.urlunsplit(("https", parsed_http.hostname or "", parsed_http.path, parsed_http.query, ""))
@@ -333,20 +339,6 @@ jobs:
                       "acao": https_result.get("accessControlAllowOrigin"), "bytesRead": len(https_body),
                       "totalMs": https_result.get("totalMs"), "host": safe_url(https_result.get("finalUrl") or https_url),
                       "tsSync188": https_ts, "error": https_result.get("error")
-                  }, ensure_ascii=False))
-                  # Test the branch-specific preview proxy independently; it must not be confused with production.
-                  preview_proxy_url = VERCEL_PREVIEW_BASE + "/api/stream?" + urllib.parse.urlencode(q)
-                  preview_result = request(preview_proxy_url, {"User-Agent": UA}, limit=12000, timeout=12)
-                  preview_body = preview_result.get("body", b"")
-                  preview_ts = bool(len(preview_body) > 376 and preview_body[0] == 0x47 and preview_body[188] == 0x47 and preview_body[376] == 0x47)
-                  print(name.replace(" ", "_") + "_VERCEL_PREVIEW_PROXY", json.dumps({
-                      "status": preview_result.get("status"), "contentType": preview_result.get("contentType"),
-                      "server": preview_result.get("server"), "cfRayPresent": preview_result.get("cfRayPresent"),
-                      "acao": preview_result.get("accessControlAllowOrigin"), "bytesRead": len(preview_body),
-                      "totalMs": preview_result.get("totalMs"), "host": safe_url(preview_result.get("finalUrl") or preview_proxy_url),
-                      "tsSync188": preview_ts, "bodyClass": ("json" if preview_body.lstrip().startswith((b"{",b"[")) else "html" if preview_body.lstrip().lower().startswith((b"<html",b"<!doctype html")) else "plain-text"),
-                      "safeErrorClass": safe_error_class(preview_body) if int(preview_result.get("status") or 0) >= 400 else "none",
-                      "error": preview_result.get("error")
                   }, ensure_ascii=False))
               is_stalker = (
                   urlparse(url).path.lower().endswith("/play/live.php")

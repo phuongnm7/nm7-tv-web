@@ -31,6 +31,7 @@ jobs:
           from urllib.parse import urlparse, urljoin, parse_qs
           BASE = "https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
           VERCEL_PROXY_BASE = "https://nm7-tv-web.vercel.app"
+          VERCEL_PREVIEW_BASE = "https://nm7-tv-web-git-fix-sports-hls-startup-proxy-20261010-phuongnm7.vercel.app"
           UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
 
           def request(url, headers=None, limit=12000, timeout=18):
@@ -332,6 +333,20 @@ jobs:
                       "acao": https_result.get("accessControlAllowOrigin"), "bytesRead": len(https_body),
                       "totalMs": https_result.get("totalMs"), "host": safe_url(https_result.get("finalUrl") or https_url),
                       "tsSync188": https_ts, "error": https_result.get("error")
+                  }, ensure_ascii=False))
+                  # Test the branch-specific preview proxy independently; it must not be confused with production.
+                  preview_proxy_url = VERCEL_PREVIEW_BASE + "/api/stream?" + urllib.parse.urlencode(q)
+                  preview_result = request(preview_proxy_url, {"User-Agent": UA}, limit=12000, timeout=12)
+                  preview_body = preview_result.get("body", b"")
+                  preview_ts = bool(len(preview_body) > 376 and preview_body[0] == 0x47 and preview_body[188] == 0x47 and preview_body[376] == 0x47)
+                  print(name.replace(" ", "_") + "_VERCEL_PREVIEW_PROXY", json.dumps({
+                      "status": preview_result.get("status"), "contentType": preview_result.get("contentType"),
+                      "server": preview_result.get("server"), "cfRayPresent": preview_result.get("cfRayPresent"),
+                      "acao": preview_result.get("accessControlAllowOrigin"), "bytesRead": len(preview_body),
+                      "totalMs": preview_result.get("totalMs"), "host": safe_url(preview_result.get("finalUrl") or preview_proxy_url),
+                      "tsSync188": preview_ts, "bodyClass": ("json" if preview_body.lstrip().startswith((b"{",b"[")) else "html" if preview_body.lstrip().lower().startswith((b"<html",b"<!doctype html")) else "plain-text"),
+                      "safeErrorClass": safe_error_class(preview_body) if int(preview_result.get("status") or 0) >= 400 else "none",
+                      "error": preview_result.get("error")
                   }, ensure_ascii=False))
               is_stalker = (
                   urlparse(url).path.lower().endswith("/play/live.php")

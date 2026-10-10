@@ -64,10 +64,10 @@ for (const file of files) {
   assert.ok(source.includes('enableWorker:!tizenLike'),
     file + ': HLS transmuxing worker is enabled except on older Tizen browsers');
   console.log('PASS', file);
-}
-
   assert.ok(source.includes("/[?&]extension=(?:ts|m2ts)(?:&|$)/i.test(u)"),
     file + ': classifies Stalker /play/live.php?extension=ts as MPEG-TS');
+  console.log('PASS', file);
+}
 
 console.log('PASS: startup fallback and status text checks');
 

@@ -1,0 +1,82 @@
+name: Deploy NM7 TV Web Custom Source Test to Cloudflare
+
+on:
+  push:
+    branches:
+      - test/custom-source-404-20261010
+
+concurrency:
+  group: nm7-cloudflare-source-test
+  cancel-in-progress: true
+
+jobs:
+  deploy-source-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout isolated source-test branch
+        uses: actions/checkout@v6
+
+      - name: Validate JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check worker.js
+          node --check web-tv/app.js
+          node --check web-tv/app-safari-policy.js
+          echo "NM7_TV_WEB_SOURCE_TEST_SYNTAX_OK"
+
+      - name: Deploy isolated Cloudflare Worker only
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.source-test.toml
+
+      - name: Smoke test isolated Worker and playlist imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web-source-test.phuongnm7-iptv.workers.dev"
+
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/" -o /tmp/nm7-source-test.html
+          grep -q "NM7 TV 1.0.69" /tmp/nm7-source-test.html
+          echo "SOURCE_TEST_WORKER_HTML_SMOKE_OK"
+
+          encode_url() {
+            python3 - "$1" <<'PY'
+          import sys
+          from urllib.parse import quote
+          print(quote(sys.argv[1], safe=""))
+          PY
+          }
+
+          KNOWN_URL="https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com"
+          KNOWN_ENCODED="$(encode_url "$KNOWN_URL")"
+          curl -sS --max-time 45 "$BASE/api/source?u=$KNOWN_ENCODED" -o /tmp/nm7-source-known.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-source-known.json', encoding='utf-8'))
+          channels=d.get('channels') or []
+          if not channels:
+              raise SystemExit('KNOWN_M3U_SOURCE_IMPORT_FAILED: '+str(d.get('error')))
+          print('KNOWN_M3U_SOURCE_IMPORT_OK channels='+str(len(channels)))
+          PY
+
+          TARGET_URL="https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"
+          TARGET_ENCODED="$(encode_url "$TARGET_URL")"
+          curl -sS --max-time 45 "$BASE/api/source?u=$TARGET_ENCODED" -o /tmp/nm7-source-target.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-source-target.json', encoding='utf-8'))
+          channels=d.get('channels') or []
+          print('TARGET_SOURCE_RESULT channels='+str(len(channels))+
+                ' fetchMode='+str(d.get('fetchMode'))+
+                ' error='+str(d.get('error')))
+          if not channels:
+              raise SystemExit('TARGET_SOURCE_IMPORT_FAILED: '+str(d.get('error')))
+          print('TARGET_SOURCE_IMPORT_OK channels='+str(len(channels))+
+                ' fetchMode='+str(d.get('fetchMode')))
+          PY

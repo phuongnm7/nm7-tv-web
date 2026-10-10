@@ -23,7 +23,7 @@ jobs:
       - name: Generate HLS fixture
         run: |
           mkdir -p e2e-site/assets
-          ffmpeg -hide_banner -loglevel error -f lavfi -i sine=frequency=440:sample_rate=44100 -t 8 -vn -c:a aac -b:a 128k -f hls -hls_segment_type mpegts -hls_time 2 -hls_list_size 0 e2e-site/test-hls.m3u8
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i sine=frequency=440:sample_rate=44100 -t 8 -vf format=yuv420p -c:v libx264 -profile:v baseline -level 3.0 -preset ultrafast -g 50 -keyint_min 50 -sc_threshold 0 -c:a aac -b:a 96k -ac 2 -ar 44100 -f hls -hls_segment_type mpegts -hls_time 2 -hls_list_size 0 e2e-site/test-hls.m3u8
           cp node_modules/hls.js/dist/hls.min.js e2e-site/hls.min.js
           cp web-tv/index.html e2e-site/index.html
           cp web-tv/app.js e2e-site/app.js

@@ -395,7 +395,7 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Phạm vi chỉ là repository `phuongnm7/nm7-tv-web`. Không sửa NM7 Mobile hoặc NM7 TV Android; không thay URL nguồn, API playlist, player hoặc DRM trong thay đổi preset này.
 
 
-## 2026-10-10 — Xử lý kênh 4K và kênh nước ngoài (feature branch, chưa deploy)
+## 2026-10-10 — Sửa lỗi proxy HLS SCTV4K và xử lý kênh quốc tế (đã deploy)
 
 ### Chẩn đoán SCTV4K
 
@@ -414,6 +414,9 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 ### Kết quả kiểm thử và phạm vi
 
 - Web Browser Validation #303: SUCCESS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021405853. Các bước JS syntax check, regression checks và required assets đều PASS.
-- Production diagnostic #9: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021315033. Đã kiểm tra cả manifest lẫn URI segment; workflow hiện chỉ ghi host và loại tài nguyên, không ghi path/query có thể chứa chữ ký stream.
-- DAZN PPV FHD không xuất hiện trong các playlist production được hỏi qua ba API (Mặc định 1, Mặc định 2, Thể thao). Chưa đủ dữ liệu để xử lý chính xác kênh DAZN trong ảnh; cần entry M3U hoặc URL nguồn thực tế.
-- Branch: feat/diagnose-4k-foreign-playback-20261010. Chưa merge stable, chưa deploy Cloudflare production. Không thay URL mặc định, không sửa NM7 Mobile/Android.
+- Đã merge PR #19 vào `stable/nm7-tv-web-2026-10-09`, commit `034de12128fba712cb51af388c491ed434c0ae33`.
+- Deploy #442: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021648048. Tất cả smoke test production đều PASS sau khi sửa bộ test để không giả định vị trí kênh động ở cuối nhóm Thể thao.
+- Chẩn đoán sau triển khai #10: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021737310. Hai segment SCTV4K qua Worker proxy trả HTTP 200 với `Content-Type: video/mp2t`; kết quả `SCTV4K_PROXY_SEGMENT_MIME_PASS`. Log đã che path/query có thể chứa chữ ký stream.
+- Playwright Browser remote + HLS E2E vẫn lỗi ở `hls.js bufferAddCodecError` với fixture HLS do runner CI; không đánh dấu E2E playback thành công. Các test cú pháp, regression player và test bảo toàn bytes của segment Worker đều PASS.
+- DAZN PPV FHD không xuất hiện trong playlist mặc định 1, mặc định 2 hoặc Thể thao. Cần entry M3U hoặc URL nguồn tùy chỉnh thực tế để chẩn đoán chính xác; không tự ý thay/chèn URL.
+- Phạm vi: chỉ NM7 TV Web. Không thay URL mặc định và không sửa NM7 Mobile/Android.

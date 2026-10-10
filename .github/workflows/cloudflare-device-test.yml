@@ -1,0 +1,57 @@
+name: Deploy NM7 TV Web Device Test to Cloudflare
+
+on:
+  push:
+    branches:
+      - test/cloudflare-device-preset-20261010
+
+concurrency:
+  group: nm7-cloudflare-device-test
+  cancel-in-progress: true
+
+jobs:
+  deploy-device-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout isolated test branch
+        uses: actions/checkout@v6
+
+      - name: Validate JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check web-tv/app-safari-policy.js
+          node --check web-tv/app.js
+          node scripts/test-device-default-preset.js
+
+      - name: Deploy isolated test Worker only
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.device-test.toml
+
+      - name: Smoke test isolated Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web-device-test.phuongnm7-iptv.workers.dev"
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/" -o /tmp/nm7-device-test.html
+          grep -q "NM7 TV 1.0.69" /tmp/nm7-device-test.html
+          grep -q "app-safari-policy.js?v=20261010-device-default-preset1" /tmp/nm7-device-test.html
+          echo "DEVICE_TEST_WORKER_HTML_SMOKE_OK"
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=1" -o /tmp/nm7-device-test-default1.json
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=2" -o /tmp/nm7-device-test-default2.json
+          python3 - <<'PY'
+          import json
+          for preset in (1, 2):
+              path = f"/tmp/nm7-device-test-default{preset}.json"
+              data = json.load(open(path, encoding="utf-8"))
+              channels = data.get("channels") or []
+              if not channels:
+                  raise SystemExit(f"TV default {preset} returned zero channels")
+              print(f"DEVICE_TEST_DEFAULT{preset}_API_OK channels={len(channels)}")
+          PY

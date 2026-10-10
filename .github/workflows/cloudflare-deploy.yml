@@ -7,6 +7,7 @@ on:
       - fix/ios-official-drm-fallback-20261006
       - fix/youtube-original-coccoc-adblock-20261006
       - fix/vtv1-single-source-hide-default-urls-20261009
+      - stable/nm7-tv-web-2026-10-09
   workflow_dispatch:
 
 concurrency:

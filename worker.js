@@ -112,8 +112,12 @@ async function streamResponse(request,q){
   // Some provider reverse proxies incorrectly label MPEG-TS/fMP4 media
   // segments as application/vnd.apple.mpegurl. Never parse binary media as
   // an HLS text manifest merely because the upstream Content-Type is wrong.
-  const path=(()=>{try{return new URL(finalUrl).pathname.toLowerCase()}catch{return String(finalUrl).toLowerCase().split(/[?#]/)[0]}})();
-  const ext=(path.match(/\.([a-z0-9]+)$/i)||[])[1]||'';
+  const paths=[finalUrl,target].map(value=>{
+    try{return new URL(value).pathname.toLowerCase()}catch{return String(value).toLowerCase().split(/[?#]/)[0]}
+  });
+  // Prefer the final redirected path when it keeps the extension, but fall back
+  // to the requested URL if a CDN redirects to an extensionless signed path.
+  const ext=paths.map(path=>(path.match(/\.([a-z0-9]+)$/i)||[])[1]||'').find(Boolean)||'';
   const mediaType={
     ts:'video/mp2t',m2ts:'video/mp2t',
     m4s:'video/mp4',cmfv:'video/mp4',cmfa:'audio/mp4',mp4:'video/mp4',

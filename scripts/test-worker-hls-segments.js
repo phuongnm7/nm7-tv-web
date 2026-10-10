@@ -13,10 +13,18 @@ async function main() {
 
   try {
     const segmentBytes = new Uint8Array([0x47, 0x00, 0x01, 0x02, 0x47, 0x03, 0x04, 0x05]);
-    global.fetch = async () => new Response(segmentBytes, {
-      status: 200,
-      headers: { 'Content-Type': 'application/vnd.apple.mpegurl' }
-    });
+    global.fetch = async () => {
+      const response = new Response(segmentBytes, {
+        status: 200,
+        headers: { 'Content-Type': 'application/vnd.apple.mpegurl' }
+      });
+      // Simulate a CDN redirect that hides the .ts suffix in the final URL.
+      Object.defineProperty(response, 'url', {
+        value: 'https://cdn.example.test/redirected/media?signature=test',
+        configurable: true
+      });
+      return response;
+    };
 
     const segmentUrl = 'https://cdn.example.test/live/segment.ts';
     const segmentRequest = new Request(

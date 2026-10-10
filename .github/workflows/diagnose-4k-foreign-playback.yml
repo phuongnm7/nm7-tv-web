@@ -30,7 +30,7 @@ jobs:
           import json, re, os, tempfile, subprocess, shutil, time, urllib.parse, urllib.request, urllib.error
           from urllib.parse import urlparse, urljoin, parse_qs
           BASE = "https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
-          VERCEL_TEST_BASE = "https://nm7-tv-web-git-fix-sports-hls-startup-proxy-20261010-phuongnm7.vercel.app"
+          VERCEL_TEST_BASE = "https://nm7-tv-web.vercel.app"
           UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
 
           def request(url, headers=None, limit=12000, timeout=18):
@@ -278,7 +278,7 @@ jobs:
                   vercel_result = request(vercel_proxy_url, {"User-Agent": UA}, limit=12000, timeout=18)
                   vercel_body = vercel_result.get("body", b"")
                   ts_sync = bool(len(vercel_body) > 376 and vercel_body[0] == 0x47 and vercel_body[188] == 0x47 and vercel_body[376] == 0x47)
-                  print(name.replace(" ", "_") + "_VERCEL_PREVIEW_PROXY", json.dumps({
+                  print(name.replace(" ", "_") + "_VERCEL_EXISTING_PROXY", json.dumps({
                       "status": vercel_result.get("status"), "contentType": vercel_result.get("contentType"),
                       "headerMs": vercel_result.get("headerMs"), "bodyReadMs": vercel_result.get("bodyReadMs"),
                       "totalMs": vercel_result.get("totalMs"), "bytesRead": len(vercel_body),

@@ -241,7 +241,7 @@ jobs:
               else 4
           ))
           print("TARGET_CANDIDATES", len(targets))
-          for name, i, cand, url in targets[:4]:
+          for name, i, cand, url in targets[:1]:
               typ = str(cand.get("type") or ("dash" if cand.get("dash") else "hls" if cand.get("hls") else "unknown"))
               p = urlparse(url)
               ref = str(cand.get("ref") or "")

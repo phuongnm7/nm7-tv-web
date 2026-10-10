@@ -873,7 +873,7 @@ function startByType(c,cand,url,kind,gen){
  else if(kind==='flv')startFlv(c,cand,url,gen);
  else if(kind==='mpegts')startMpegTs(c,cand,url,gen);
  else startDirect(c,cand,url,gen);
- var wait=15000;
+ var wait=kind==='hls'?8000:15000;
  if(isAppleTouchDevice()&&kind==='hls'&&c&&c.candidates&&c.candidates.length>1)wait=5000;
  if(isAppleTouchDevice()&&kind==='dash'&&cand&&cand.drm)wait=30000;
  S.watchdog=setTimeout(function(){
@@ -979,7 +979,9 @@ function tryHlsJs(c,cand,url,gen){
     nextCandidate('HLS HTTP '+httpStatus+' · '+(S.proxyAttempt?'proxy lỗi':'nguồn trực tiếp lỗi'));
     return;
    }
-   if(data&&data.fatal&&!S.proxyAttempt&&data.type===Hls.ErrorTypes.NETWORK_ERROR){
+   if(data&&!S.proxyAttempt&&data.type===Hls.ErrorTypes.NETWORK_ERROR){
+    // A direct HLS fetch that fails at network/CORS level should not spend
+    // several hls.js backoff rounds before using the same-origin proxy.
     nextCandidate('HLS trực tiếp lỗi · chuyển proxy');
     return;
    }

@@ -417,7 +417,7 @@ async function probeResponse(request,q){
   else if(status===403){
     if(/token.{0,24}(expired|invalid)|expired.{0,24}token|invalid.{0,24}token/.test(bodyLower))errorHint="token-rejected";
     else if(/mac.{0,24}(invalid|blocked|not found)|device.{0,24}(not authorized|blocked)/.test(bodyLower))errorHint="device-or-session-rejected";
-    else if(/cloudflare|cf-ray|attention required|checking your browser|web application firewall|request blocked by security/.test(bodyLower))errorHint="edge-or-waf-block";
+    else if(/cloudflare|cf-ray|attention required|checking your browser|web application firewall|request blocked by security/.test(bodyLower)||/cloudflare/i.test(String(r?.headers.get("server")||""))||!!r?.headers.get("cf-ray"))errorHint="edge-or-waf-block";
     else if(/ip address.{0,30}(blocked|blacklist|not allowed)|geo.?block|country.{0,20}(blocked|restricted)/.test(bodyLower))errorHint="ip-or-region-restricted";
     else if(/login|sign in|authentication required|session required/.test(bodyLower))errorHint="session-required";
     else if(/access denied|forbidden|not allowed/.test(bodyLower))errorHint="upstream-access-policy";

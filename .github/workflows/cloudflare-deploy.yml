@@ -273,8 +273,8 @@ jobs:
       - name: Publish Cloudflare production source smoke status
         if: always()
         env:
-          GH_TOKEN: \${{ github.token }}
-          JOB_STATUS: \${{ job.status }}
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
         shell: bash
         run: |
           set -euo pipefail
@@ -282,7 +282,7 @@ jobs:
           if [ "$JOB_STATUS" != "success" ]; then state="failure"; fi
           summary="$(cat /tmp/nm7-target-source-summary.txt 2>/dev/null || true)"
           if [ -z "$summary" ]; then summary="Cloudflare production deploy/smoke $state; inspect workflow logs"; fi
-          summary="\${summary:0:140}"
+          summary="${summary:0:140}"
           gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
             -f state="$state" \
             -f context="NM7 Cloudflare production source smoke" \

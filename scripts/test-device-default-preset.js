@@ -108,6 +108,6 @@ for (const file of appFiles) {
 }
 
 const indexHtml = fs.readFileSync('web-tv/index.html', 'utf8');
-assert.ok(indexHtml.includes('app-safari-policy.js?v=20261010-stalker-debug4'), 'index.html must bump the active app script cache-buster');
+assert.ok(indexHtml.includes('app-safari-policy.js?v=20261010-stalker-cookie1'), 'index.html must bump the active app script cache-buster');
 
 console.log('DEVICE_DEFAULT_TV_PRESET_TESTS_OK');

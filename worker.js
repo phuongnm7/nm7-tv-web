@@ -104,11 +104,41 @@ async function licenseResponse(request,q){const u=q.get('u');if(!isHttp(u))retur
 async function sourceResponse(q){
   const target=String(q.get('u')||'').trim();
   if(!isHttp(target))return new Response(JSON.stringify({channels:[],error:'bad url'}),{status:400,headers:cors(new Headers({'Content-Type':'application/json'}))});
-  try{
-    const r=await fetchWithTimeout(target,{headers:{'User-Agent':'NM7-TV-Web/1.0.69','Accept':'application/vnd.apple.mpegurl,application/json,text/plain,*/*'}},10000);
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const body=await r.text();
-    let channels=parseM3U(body,target);
+
+  // Retry source import with a browser UA if the default NM7 request is rejected.
+  // This is isolated to /api/source; TV playback/proxy routes are unchanged.
+  const attempts=[
+    {ua:'NM7-TV-Web/1.0.69',accept:'application/vnd.apple.mpegurl,application/json,text/plain,*/*'},
+    {ua:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',accept:'text/plain,application/vnd.apple.mpegurl,application/json,*/*'}
+  ];
+  let lastError='unknown error',lastStatus=0,lastContentType='',lastUrl=target;
+  for(let i=0;i<attempts.length;i++){
+    let r;
+    try{
+      r=await fetchWithTimeout(target,{headers:{'User-Agent':attempts[i].ua,'Accept':attempts[i].accept}},10000);
+    }catch(e){
+      lastError=String(e?.message||e||'fetch failed');
+      lastStatus=0;
+      if(i+1<attempts.length)continue;
+      break;
+    }
+    lastStatus=r.status;
+    lastContentType=r.headers.get('content-type')||'';
+    lastUrl=r.url||target;
+    if(!r.ok){
+      lastError='HTTP '+r.status;
+      try{await r.body?.cancel()}catch{}
+      if(i+1<attempts.length)continue;
+      break;
+    }
+    let body='';
+    try{body=await r.text()}catch(e){
+      lastError=String(e?.message||e||'failed to read response');
+      lastStatus=0;
+      if(i+1<attempts.length)continue;
+      break;
+    }
+    let channels=parseM3U(body,lastUrl);
     if(!channels.length){
       try{
         const j=JSON.parse(body);
@@ -118,16 +148,27 @@ async function sourceResponse(q){
           group:String(x.group||x.groupTitle||x.category||'Khác'),
           logo:String(x.logo||x.tvgLogo||''),
           id:String(x.id||x.tvgId||x.name||x.title||''),
-          candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:safeUrl(x.url||x.stream||x.src,target),ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])
+          candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:safeUrl(x.url||x.stream||x.src,lastUrl),ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])
         }));
       }catch{}
     }
-    if(!channels.length)throw new Error('playlist rỗng');
-    enrichChannels(channels);
-    return new Response(JSON.stringify({channels,source:'custom',upstream:r.url||target}),{headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
-  }catch(e){
-    return new Response(JSON.stringify({channels:[],source:'custom',error:String(e?.message||e)}),{status:502,headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
+    if(channels.length){
+      enrichChannels(channels);
+      return new Response(JSON.stringify({channels,source:'custom',upstream:lastUrl,fetchMode:i===0?'nm7-ua':'browser-ua'}),{headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
+    }
+    lastError='Nguồn không trả về playlist M3U/JSON';
+    if(i+1<attempts.length)continue;
+    break;
   }
+  const detail=lastStatus?'HTTP '+lastStatus:'không nhận được phản hồi HTTP';
+  const ct=lastContentType?' ('+lastContentType+')':'';
+  let upstreamHost='';
+  try{upstreamHost=new URL(lastUrl).host}catch{}
+  return new Response(JSON.stringify({
+    channels:[],source:'custom',
+    error:lastError+'; '+detail+ct+' sau '+attempts.length+' lần thử',
+    upstreamHost
+  }),{status:502,headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
 }
 async function probeResponse(q){const u=q.get('u');if(!isHttp(u))return new Response(JSON.stringify({type:'http',error:'bad url'}),{status:400,headers:{'Content-Type':'application/json'}});const h=new Headers({'User-Agent':q.get('ua')||'NM7-TV-Web/1.0.69'});if(q.get('r'))h.set('Referer',q.get('r'));try{const r=await fetch(u,{method:'HEAD',headers:h,redirect:'follow',cache:'no-store'}).catch(()=>null),finalUrl=r?.url||u,ct=(r?.headers.get('content-type')||'').toLowerCase();let type='http';if(ct.includes('dash+xml')||/\.mpd(?:$|[?#])/i.test(finalUrl))type='dash';else if(ct.includes('mpegurl')||/\.(m3u8|m3u)(?:$|[?#])/i.test(finalUrl))type='hls';else if(ct.includes('flv')||/\.flv(?:$|[?#])/i.test(finalUrl))type='flv';else if(ct.includes('mp2t')||/\.ts(?:$|[?#])/i.test(finalUrl))type='mpegts';else if(ct.includes('video/mp4')||/\.mp4(?:$|[?#])/i.test(finalUrl))type='mp4';return new Response(JSON.stringify({type,finalUrl,resolvedUrl:finalUrl,contentType:ct,serverType:r?.headers.get('server')||''}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch{return new Response(JSON.stringify({type:'http',finalUrl:u,resolvedUrl:u,error:'probe failed'}),{headers:{'Content-Type':'application/json'}})}}
 export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};

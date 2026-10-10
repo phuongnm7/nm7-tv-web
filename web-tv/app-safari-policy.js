@@ -1073,7 +1073,7 @@ function diagnoseMpegTs(c,cand,gen){
    });
    if(Object.keys(safeHeaders).length)params.set('h',JSON.stringify(safeHeaders));
   }
-  fetch('/api/probe?'+params.toString(),{cache:'no-store'}).then(function(r){return r.json().then(function(d){return {http:r.status,data:d}})}).then(function(x){if(gen!==S.generation)return;var d=x.data||{};dbg('MPEG-TS upstream diagnostic: probeHTTP='+x.http+' upstreamHTTP='+(d.status||0)+' type='+(d.type||'unknown')+' contentType='+(d.contentType||'unknown'))}).catch(function(){if(gen===S.generation)dbg('MPEG-TS upstream diagnostic: probe request failed (URL hidden)')})
+  fetch('/api/probe?'+params.toString(),{cache:'no-store'}).then(function(r){return r.json().then(function(d){return {http:r.status,data:d}})}).then(function(x){if(gen!==S.generation)return;var d=x.data||{};dbg('MPEG-TS upstream diagnostic: probeHTTP='+x.http+' upstreamHTTP='+(d.status||0)+' HEAD='+(d.headStatus||0)+' GET='+(d.getStatus||0)+' hint='+(d.errorHint||'unknown')+' type='+(d.type||'unknown')+' contentType='+(d.contentType||'unknown'))}).catch(function(){if(gen===S.generation)dbg('MPEG-TS upstream diagnostic: probe request failed (URL hidden)')})
  }catch(e){dbg('MPEG-TS upstream diagnostic: probe unavailable')}
 }
 function startMpegTs(c,cand,url,gen){

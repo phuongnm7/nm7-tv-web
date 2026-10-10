@@ -43,6 +43,9 @@ jobs:
                       finished = time.monotonic()
                       return {"status": r.status, "contentType": r.headers.get("Content-Type", ""),
                               "contentLength": r.headers.get("Content-Length"),
+                              "server": r.headers.get("Server", ""),
+                              "cfRayPresent": bool(r.headers.get("CF-Ray")),
+                              "accessControlAllowOrigin": r.headers.get("Access-Control-Allow-Origin", ""),
                               "headerMs": round((headers_at-started)*1000),
                               "bodyReadMs": round((finished-headers_at)*1000),
                               "totalMs": round((finished-started)*1000),
@@ -53,6 +56,9 @@ jobs:
                   finished = time.monotonic()
                   return {"status": e.code, "contentType": e.headers.get("Content-Type", ""),
                           "contentLength": e.headers.get("Content-Length"),
+                          "server": e.headers.get("Server", ""),
+                          "cfRayPresent": bool(e.headers.get("CF-Ray")),
+                          "accessControlAllowOrigin": e.headers.get("Access-Control-Allow-Origin", ""),
                           "headerMs": round((headers_at-started)*1000),
                           "bodyReadMs": round((finished-headers_at)*1000),
                           "totalMs": round((finished-started)*1000),
@@ -280,10 +286,26 @@ jobs:
                   ts_sync = bool(len(vercel_body) > 376 and vercel_body[0] == 0x47 and vercel_body[188] == 0x47 and vercel_body[376] == 0x47)
                   print(name.replace(" ", "_") + "_VERCEL_EXISTING_PROXY", json.dumps({
                       "status": vercel_result.get("status"), "contentType": vercel_result.get("contentType"),
+                      "server": vercel_result.get("server"), "cfRayPresent": vercel_result.get("cfRayPresent"),
+                      "acao": vercel_result.get("accessControlAllowOrigin"),
                       "headerMs": vercel_result.get("headerMs"), "bodyReadMs": vercel_result.get("bodyReadMs"),
                       "totalMs": vercel_result.get("totalMs"), "bytesRead": len(vercel_body),
                       "host": safe_url(vercel_result.get("finalUrl") or vercel_proxy_url),
-                      "tsSync188": ts_sync, "error": vercel_result.get("error")
+                      "tsSync188": ts_sync, "bodyClass": ("json" if vercel_body.lstrip().startswith((b"{",b"[")) else "html" if vercel_body.lstrip().lower().startswith((b"<html",b"<!doctype html")) else "plain-text"),
+                      "error": vercel_result.get("error")
+                  }, ensure_ascii=False))
+                  # Check whether the origin supports HTTPS directly, avoiding browser mixed-content restrictions.
+                  parsed_http = urlparse(url)
+                  https_url = urllib.parse.urlunsplit(("https", parsed_http.hostname or "", parsed_http.path, parsed_http.query, ""))
+                  https_result = request(https_url, upstream_headers, limit=12000, timeout=12)
+                  https_body = https_result.get("body", b"")
+                  https_ts = bool(len(https_body) > 376 and https_body[0] == 0x47 and https_body[188] == 0x47 and https_body[376] == 0x47)
+                  print(name.replace(" ", "_") + "_HTTPS_DIRECT", json.dumps({
+                      "status": https_result.get("status"), "contentType": https_result.get("contentType"),
+                      "server": https_result.get("server"), "cfRayPresent": https_result.get("cfRayPresent"),
+                      "acao": https_result.get("accessControlAllowOrigin"), "bytesRead": len(https_body),
+                      "totalMs": https_result.get("totalMs"), "host": safe_url(https_result.get("finalUrl") or https_url),
+                      "tsSync188": https_ts, "error": https_result.get("error")
                   }, ensure_ascii=False))
               is_stalker = (
                   urlparse(url).path.lower().endswith("/play/live.php")

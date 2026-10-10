@@ -6,7 +6,8 @@ const fs = require('node:fs');
 
 async function main() {
   const source = fs.readFileSync('worker.js', 'utf8');
-  const dataUrl = 'data:text/javascript;base64,' + Buffer.from(source, 'utf8').toString('base64');
+  const nodeSafeSource = source.replace('import { connect } from "cloudflare:sockets";', 'const connect = () => { throw new Error("TCP sockets are unavailable in Node regression tests"); };');
+  const dataUrl = 'data:text/javascript;base64,' + Buffer.from(nodeSafeSource, 'utf8').toString('base64');
   const mod = await import(dataUrl);
   const worker = mod.default;
   const originalFetch = global.fetch;
@@ -63,6 +64,99 @@ async function main() {
     assert.match(rewritten, /segment\.ts/,
       'manifest still references its segment');
     console.log('PASS: HLS manifest rewriting remains enabled');
+
+    // Regression: a custom sports stream can return an HLS manifest at an
+    // extensionless endpoint with text/plain, so MIME/URL-only detection misses
+    // it and relative segment URLs would bypass the proxy rewrite.
+    const opaqueManifestUrl = 'https://cdn.example.test/edge/live?id=token';
+    const opaqueManifestBody = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:4.0,\nsegments/chunk.ts?sig=child\n#EXT-X-ENDLIST\n';
+    const customHeaders = {
+      'Accept-Language': 'vi-VN',
+      'X-M3U-Token': 'header-value'
+    };
+    global.fetch = async (input, init = {}) => {
+      assert.equal(String(input), opaqueManifestUrl, 'opaque manifest upstream URL is preserved');
+      const sent = new Headers(init.headers || {});
+      assert.equal(sent.get('user-agent'), 'NM7-Regression-Agent/1.0', 'custom user-agent reaches upstream');
+      assert.equal(sent.get('referer'), 'https://referer.example/live', 'custom referer reaches upstream');
+      assert.equal(sent.get('accept-language'), 'vi-VN', 'custom M3U headers reach upstream');
+      assert.equal(sent.get('x-m3u-token'), 'header-value', 'arbitrary custom header reaches upstream');
+      const response = new Response(opaqueManifestBody, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+      Object.defineProperty(response, 'url', { value: opaqueManifestUrl, configurable: true });
+      return response;
+    };
+    const opaqueQuery = new URLSearchParams({
+      u: opaqueManifestUrl,
+      ua: 'NM7-Regression-Agent/1.0',
+      r: 'https://referer.example/live',
+      h: JSON.stringify(customHeaders)
+    });
+    const opaqueManifestResponse = await worker.fetch(
+      new Request('https://nm7-test.example/api/stream?' + opaqueQuery.toString()), {}
+    );
+    const opaqueRewritten = await opaqueManifestResponse.text();
+    assert.match(opaqueManifestResponse.headers.get('content-type') || '', /mpegurl/i,
+      'extensionless HLS manifest is correctly typed');
+    assert.match(opaqueRewritten, /\/api\/stream\?u=/,
+      'extensionless manifest segment is rewritten through the Worker proxy');
+    assert.match(opaqueRewritten, /segments%2Fchunk\.ts|segments\/chunk\.ts/,
+      'relative segment path is retained after rewrite');
+    assert.match(opaqueRewritten, /X-M3U-Token|X-M3U-Token%22%3A%22header-value/,
+      'custom header context is propagated to child segment requests');
+    console.log('PASS: extensionless text/plain HLS manifests are sniffed and rewritten');
+    console.log('PASS: User-Agent, Referer and custom headers are preserved by the proxy');
+
+    // Regression: Stalker/Xtream live.php declares MPEG-TS through extension=ts.
+    const stalkerUrl = 'http://mag.example.test:80/play/live.php?mac=masked&stream=1314077&extension=ts&play_token=masked';
+    const stalkerBytes = new Uint8Array(564);
+    stalkerBytes[0] = 0x47;
+    stalkerBytes[188] = 0x47;
+    stalkerBytes[376] = 0x47;
+    global.fetch = async (input) => {
+      assert.equal(String(input), stalkerUrl, 'Stalker live.php URL is preserved');
+      return new Response(stalkerBytes, {
+        status: 200,
+        headers: { 'Content-Type': 'application/octet-stream' }
+      });
+    };
+    const stalkerResponse = await worker.fetch(new Request(
+      'https://nm7-test.example/api/stream?u=' + encodeURIComponent(stalkerUrl)
+    ), {});
+    assert.equal(stalkerResponse.status, 200, 'Stalker stream is proxied');
+    assert.equal(stalkerResponse.headers.get('content-type'), 'video/mp2t',
+      'extension=ts query selects MPEG-TS MIME');
+    assert.deepEqual(new Uint8Array(await stalkerResponse.arrayBuffer()), stalkerBytes,
+      'Stalker TS payload is passed through byte-for-byte');
+    console.log('PASS: Stalker live.php?extension=ts is served as MPEG-TS');
+
+    // Regression: some CDNs give an opaque binary TS child the same misleading
+    // mpegurl MIME as its manifest. It must remain byte-for-byte media.
+    const opaqueSegmentUrl = 'https://cdn.example.test/opaque/segment?sig=segment';
+    const opaqueSegmentBytes = new Uint8Array(564);
+    opaqueSegmentBytes[0] = 0x47;
+    opaqueSegmentBytes[188] = 0x47;
+    opaqueSegmentBytes[376] = 0x47;
+    global.fetch = async (input) => {
+      assert.equal(String(input), opaqueSegmentUrl, 'opaque segment upstream URL is preserved');
+      const response = new Response(opaqueSegmentBytes, {
+        status: 200,
+        headers: { 'Content-Type': 'application/vnd.apple.mpegurl' }
+      });
+      Object.defineProperty(response, 'url', { value: opaqueSegmentUrl, configurable: true });
+      return response;
+    };
+    const opaqueSegmentResponse = await worker.fetch(new Request(
+      'https://nm7-test.example/api/stream?u=' + encodeURIComponent(opaqueSegmentUrl)
+    ), {});
+    assert.equal(opaqueSegmentResponse.headers.get('content-type'), 'video/mp2t',
+      'opaque binary TS is detected despite misleading mpegurl MIME');
+    assert.deepEqual(new Uint8Array(await opaqueSegmentResponse.arrayBuffer()), opaqueSegmentBytes,
+      'opaque TS payload is not decoded/re-written as text');
+    console.log('PASS: extensionless binary TS mislabeled as HLS is passed through unchanged');
+
   } finally {
     global.fetch = originalFetch;
   }

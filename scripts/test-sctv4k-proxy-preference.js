@@ -6,7 +6,8 @@ const assert = require('node:assert/strict');
 async function main() {
   const fs = require('node:fs');
   const src = fs.readFileSync('worker.js', 'utf8');
-  const url = 'data:text/javascript;base64,' + Buffer.from(src, 'utf8').toString('base64');
+  const nodeSafeSource = src.replace('import { connect } from "cloudflare:sockets";', 'const connect = () => { throw new Error("TCP sockets are unavailable in Node regression tests"); };');
+  const url = 'data:text/javascript;base64,' + Buffer.from(nodeSafeSource, 'utf8').toString('base64');
   const { default: worker } = await import(url);
   const originalFetch = global.fetch;
   const playlist = [

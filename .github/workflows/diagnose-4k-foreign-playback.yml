@@ -3,11 +3,13 @@ on:
   push:
     branches:
       - fix/sctv4k-proxy-retry-state-20261010
+      - fix/sports-hls-startup-proxy-20261010
     paths:
       - ".github/workflows/diagnose-4k-foreign-playback.yml"
       - "web-tv/app-safari-policy.js"
       - "web-tv/app.js"
       - "worker.js"
+      - "wrangler.toml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,23 +27,48 @@ jobs:
       - name: Inspect production playlist candidates and nested HLS resources
         shell: bash
         run: |
+          # Deploy workflow runs in parallel on branch pushes; let the test Worker publish this exact commit first.
+          sleep 30
           python3 - <<'PY'
-          import json, re, os, tempfile, subprocess, shutil, urllib.parse, urllib.request, urllib.error
+          import json, re, os, tempfile, subprocess, shutil, time, urllib.parse, urllib.request, urllib.error
           from urllib.parse import urlparse, urljoin, parse_qs
-          BASE = "https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          BASE = "https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
           UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
 
           def request(url, headers=None, limit=12000, timeout=18):
+              started = time.monotonic()
               req = urllib.request.Request(url, headers=headers or {"User-Agent": UA}, method="GET")
               try:
                   with urllib.request.urlopen(req, timeout=timeout) as r:
+                      headers_at = time.monotonic()
+                      body = r.read(limit)
+                      finished = time.monotonic()
                       return {"status": r.status, "contentType": r.headers.get("Content-Type", ""),
-                              "body": r.read(limit), "finalUrl": r.geturl()}
+                              "contentLength": r.headers.get("Content-Length"),
+                              "server": r.headers.get("Server", ""),
+                              "cfRayPresent": bool(r.headers.get("CF-Ray")),
+                              "accessControlAllowOrigin": r.headers.get("Access-Control-Allow-Origin", ""),
+                              "headerMs": round((headers_at-started)*1000),
+                              "bodyReadMs": round((finished-headers_at)*1000),
+                              "totalMs": round((finished-started)*1000),
+                              "body": body, "finalUrl": r.geturl()}
               except urllib.error.HTTPError as e:
+                  headers_at = time.monotonic()
+                  body = e.read(min(limit, 1200))
+                  finished = time.monotonic()
                   return {"status": e.code, "contentType": e.headers.get("Content-Type", ""),
-                          "body": e.read(min(limit, 1200)), "finalUrl": e.geturl()}
+                          "contentLength": e.headers.get("Content-Length"),
+                          "server": e.headers.get("Server", ""),
+                          "cfRayPresent": bool(e.headers.get("CF-Ray")),
+                          "accessControlAllowOrigin": e.headers.get("Access-Control-Allow-Origin", ""),
+                          "headerMs": round((headers_at-started)*1000),
+                          "bodyReadMs": round((finished-headers_at)*1000),
+                          "totalMs": round((finished-started)*1000),
+                          "body": body, "finalUrl": e.geturl()}
               except Exception as e:
-                  return {"error": type(e).__name__ + ": " + str(e)[:160], "body": b"", "finalUrl": url}
+                  return {"error": type(e).__name__ + ": " + str(e)[:160],
+                          "headerMs": None, "bodyReadMs": round((time.monotonic()-started)*1000),
+                          "totalMs": round((time.monotonic()-started)*1000), "body": b"", "finalUrl": url}
 
           def safe_url(url):
               # Signed CDN credentials can be encoded in path segments, not only query strings.
@@ -66,9 +93,22 @@ jobs:
               is_hls = body.lstrip().startswith(b"#EXTM3U")
               is_dash = b"<MPD" in body[:5000]
               is_html = b"<html" in body[:500].lower() or b"<!doctype html" in body[:500].lower()
+              durations = [float(x) for x in re.findall(r'#EXTINF:([0-9.]+)', text, re.I)]
+              target_duration = re.search(r'#EXT-X-TARGETDURATION:(\d+)', text, re.I)
+              media_sequence = re.search(r'#EXT-X-MEDIA-SEQUENCE:(\d+)', text, re.I)
+              hls_meta = ({
+                  "targetDurationSec": int(target_duration.group(1)) if target_duration else None,
+                  "mediaSequence": int(media_sequence.group(1)) if media_sequence else None,
+                  "endList": bool(re.search(r'#EXT-X-ENDLIST', text, re.I)),
+                  "segmentCount": len(durations),
+                  "segmentDurationsSec": durations[:8]
+              } if is_hls else None)
               print(label, json.dumps({
                   "status": result.get("status"), "contentType": result.get("contentType"),
+                  "contentLength": result.get("contentLength"), "headerMs": result.get("headerMs"),
+                  "bodyReadMs": result.get("bodyReadMs"), "totalMs": result.get("totalMs"),
                   "bytesRead": len(body), "isHLS": is_hls, "isDASH": is_dash, "isHTML": is_html,
+                  "hlsMeta": hls_meta,
                   "resolutions": list(dict.fromkeys(resolutions))[:12],
                   "codecs": list(dict.fromkeys(codecs))[:8], "error": result.get("error")
               }, ensure_ascii=False))
@@ -172,12 +212,28 @@ jobs:
 
           channels = fetch_playlist("tv", "1") + fetch_playlist("tv", "2") + fetch_playlist("sport")
           dazn_names = sorted(set(str(c.get("name") or "") for c in channels if "dazn" in str(c.get("name") or "").lower()))
-          print("PRODUCTION_DAZN_CHANNEL_NAMES", json.dumps(dazn_names[:30], ensure_ascii=False))
+          print("TEST_DAZN_CHANNEL_NAMES", json.dumps(dazn_names[:30], ensure_ascii=False))
+          # List matching names and safe host summaries, never stream paths or query/token values.
+          bournemouth_catalog = []
+          for channel in channels:
+              channel_name = str(channel.get("name") or "")
+              name_flat = re.sub(r"[^a-z0-9]+", "", channel_name.lower())
+              if "bournemouth" not in name_flat and "matchtime" not in name_flat:
+                  continue
+              candidates = channel.get("candidates") or []
+              hosts = sorted(set(urlparse(str(item.get("url") or "")).hostname or "" for item in candidates))
+              stalker_candidate = any(
+                  urlparse(str(item.get("url") or "")).path.lower().endswith("/play/live.php")
+                  and all(key in parse_qs(urlparse(str(item.get("url") or "")).query) for key in ("mac", "stream", "extension"))
+                  for item in candidates
+              )
+              bournemouth_catalog.append({"channel": channel_name, "candidateCount": len(candidates), "hosts": [h for h in hosts if h], "hasStalkerLiveCandidate": stalker_candidate})
+          print("BOURNEMOUTH_CHANNEL_CATALOG", json.dumps(bournemouth_catalog[:80], ensure_ascii=False))
           targets, seen = [], set()
           for c in channels:
               name = str(c.get("name") or "")
               flat = re.sub(r"[^a-z0-9]+", "", name.lower())
-              if not ("sctv4k" in flat or "dazn" in flat):
+              if not ("sctv4k" in flat or "dazn" in flat or "bournemouth" in flat or "matchtime" in flat):
                   continue
               for i, cand in enumerate(c.get("candidates") or []):
                   url = str(cand.get("url") or cand.get("resolvedUrl") or "")
@@ -185,8 +241,15 @@ jobs:
                   if not url.startswith(("http://", "https://")) or key in seen: continue
                   seen.add(key)
                   targets.append((name, i, cand, url))
+          targets.sort(key=lambda item: (
+              0 if "bournemouth" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) and "matchtime" in re.sub(r"[^a-z0-9]+", "", item[0].lower())
+              else 1 if "afc" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) and "bournemouth" in re.sub(r"[^a-z0-9]+", "", item[0].lower())
+              else 2 if "bournemouth" in re.sub(r"[^a-z0-9]+", "", item[0].lower())
+              else 3 if "sctv4k" in re.sub(r"[^a-z0-9]+", "", item[0].lower())
+              else 4
+          ))
           print("TARGET_CANDIDATES", len(targets))
-          for name, i, cand, url in targets[:18]:
+          for name, i, cand, url in targets[:1]:
               typ = str(cand.get("type") or ("dash" if cand.get("dash") else "hls" if cand.get("hls") else "unknown"))
               p = urlparse(url)
               ref = str(cand.get("ref") or "")
@@ -201,7 +264,7 @@ jobs:
               upstream_headers = {"User-Agent": str(cand.get("ua") or UA)}
               if ref: upstream_headers["Referer"] = ref
               for k, v in extra.items():
-                  if str(k).lower() not in ("host", "connection", "content-length", "cookie", "user-agent", "referer") and isinstance(v, str):
+                  if str(k).lower() not in ("host", "connection", "content-length", "user-agent", "referer") and isinstance(v, str):
                       upstream_headers[str(k)] = v
               inspect_path(name.replace(" ", "_") + "_DIRECT", url, upstream_headers)
               q = {"u": url}
@@ -209,7 +272,221 @@ jobs:
               if cand.get("ua"): q["ua"] = str(cand["ua"])
               if extra: q["h"] = json.dumps(extra, separators=(",", ":"))
               proxy_url = BASE + "/api/stream?" + urllib.parse.urlencode(q)
-              inspect_path(name.replace(" ", "_") + "_PROXY", proxy_url, {"User-Agent": UA})
+              inspect_path(name.replace(" ", "_") + "_CLOUDFLARE_PROXY", proxy_url, {"User-Agent": UA})
+              query_fields = parse_qs(urlparse(url).query)
+              is_stalker = (
+                  urlparse(url).path.lower().endswith("/play/live.php")
+                  and all(key in query_fields for key in ("mac", "stream", "extension"))
+                  and ("play_token" in query_fields or "token" in query_fields)
+              )
+              if is_stalker:
+                  # Inspect the first response before redirects, without printing any token-bearing URL.
+                  manual_q = dict(q, manualRedirect="1", rewriteHost="1")
+                  manual_url = BASE + "/api/probe?" + urllib.parse.urlencode(manual_q)
+                  manual_result = request(manual_url, {"User-Agent": UA}, limit=2000, timeout=10)
+                  try:
+                      manual_data = json.loads(manual_result.get("body", b"{}").decode("utf-8", "ignore"))
+                  except Exception:
+                      manual_data = {}
+                  print(name.replace(" ", "_") + "_CLOUDFLARE_MANUAL_REDIRECT", json.dumps({
+                      "probeHTTP": manual_result.get("status"), "upstreamHTTP": manual_data.get("status"),
+                      "requestedHost": manual_data.get("requestedHost"), "requestedPort": manual_data.get("requestedPort"),
+                      "redirectPresent": manual_data.get("redirectPresent"), "redirectHost": manual_data.get("redirectHost"),
+                      "redirectScheme": manual_data.get("redirectScheme"), "redirectPort": manual_data.get("redirectPort"),
+                      "redirectPathSame": manual_data.get("redirectPathSame"), "server": manual_data.get("server"),
+                      "cfRayPresent": manual_data.get("cfRayPresent"), "contentType": manual_data.get("contentType"),
+                      "rewriteHostTest": manual_data.get("rewriteHostTest"),
+                      "rewriteOriginalPortTest": manual_data.get("rewriteOriginalPortTest"),
+                      "errorClass": manual_data.get("errorClass")
+                  }, ensure_ascii=False))
+                  # Test the official Cloudflare TCP Sockets API for the allowlisted raw-IP redirect.
+                  for socket_mode, no_range in (("redirect-ip", False), ("origin", False), ("origin", True)):
+                      socket_q = dict(q, socketProbe="1", socketHostMode=socket_mode)
+                      if no_range: socket_q["socketNoRange"] = "1"
+                      socket_url = BASE + "/api/probe?" + urllib.parse.urlencode(socket_q)
+                      socket_result = request(socket_url, {"User-Agent": UA}, limit=2000, timeout=12)
+                      try:
+                          socket_data = json.loads(socket_result.get("body", b"{}").decode("utf-8", "ignore"))
+                      except Exception:
+                          socket_data = {}
+                      suffix = socket_mode.upper().replace("-", "_") + ("_NO_RANGE" if no_range else "")
+                      print(name.replace(" ", "_") + "_CLOUDFLARE_TCP_SOCKET_" + suffix, json.dumps({
+                          "probeHTTP": socket_result.get("status"), "firstStatus": socket_data.get("firstStatus"),
+                          "redirectHost": socket_data.get("redirectHost"), "redirectPort": socket_data.get("redirectPort"),
+                          "socketHttpStatus": socket_data.get("socketHttpStatus"), "hostMode": socket_data.get("hostMode"),
+                          "rangeSent": socket_data.get("rangeSent"), "contentType": socket_data.get("contentType"),
+                          "transferEncoding": socket_data.get("transferEncoding"),
+                          "contentLength": socket_data.get("contentLength"), "bytesRead": socket_data.get("bytesRead"),
+                          "tsSync188": socket_data.get("tsSync188"), "server": socket_data.get("server"),
+                          "errorClass": socket_data.get("errorClass"), "errorMessage": socket_data.get("errorMessage")
+                      }, ensure_ascii=False))
+                  # Hold source URL and Worker fixed; change only UA to isolate the cause of HTTP 403.
+                  q_browser = dict(q)
+                  q_browser["ua"] = UA
+                  browser_ua_url = BASE + "/api/stream?" + urllib.parse.urlencode(q_browser)
+                  browser_ua_result = request(browser_ua_url, {"User-Agent": UA}, limit=12000, timeout=12)
+                  browser_ua_body = browser_ua_result.get("body", b"")
+                  browser_ua_ts = bool(len(browser_ua_body) > 376 and browser_ua_body[0] == 0x47 and browser_ua_body[188] == 0x47 and browser_ua_body[376] == 0x47)
+                  print(name.replace(" ", "_") + "_CLOUDFLARE_PROXY_CHROME_UA", json.dumps({
+                      "status": browser_ua_result.get("status"), "contentType": browser_ua_result.get("contentType"),
+                      "bytesRead": len(browser_ua_body), "tsSync188": browser_ua_ts,
+                      "totalMs": browser_ua_result.get("totalMs"), "server": browser_ua_result.get("server"),
+                      "cfRayPresent": browser_ua_result.get("cfRayPresent"),
+                      "host": safe_url(browser_ua_result.get("finalUrl") or browser_ua_url),
+                      "error": browser_ua_result.get("error")
+                  }, ensure_ascii=False))
+                  # Same Cloudflare Worker, same source URL: test realistic header profiles.
+                  # Do not print target URLs, stream paths, query strings, or credentials.
+                  source_origin = urlparse(url).scheme + "://" + (urlparse(url).hostname or "")
+                  profiles = [
+                      ("CLOUDFLARE_PROXY_NATIVE_UA_REFERER", dict(q, r=ref or source_origin + "/")),
+                      ("CLOUDFLARE_PROXY_CHROME_UA_REFERER", dict(q, ua=UA, r=ref or source_origin + "/")),
+                      ("CLOUDFLARE_PROXY_CHROME_BROWSER_HEADERS", {
+                          **q, "ua": UA, "r": ref or source_origin + "/",
+                          "h": json.dumps({**(extra if isinstance(extra, dict) else {}),
+                              "Origin": source_origin, "Accept": "video/mp2t,application/octet-stream,*/*",
+                              "Accept-Language": "en-US,en;q=0.9",
+                              "Sec-Fetch-Dest": "video", "Sec-Fetch-Mode": "cors",
+                              "Sec-Fetch-Site": "cross-site"}, separators=(",", ":"))
+                      }),
+                      ("CLOUDFLARE_PROXY_EXOPLAYER_UA", {
+                          **q, "ua": "ExoPlayerLib/2.18.1 (Linux;Android 15)",
+                          "r": ref or source_origin + "/",
+                          "h": json.dumps({**(extra if isinstance(extra, dict) else {}),
+                              "Origin": source_origin, "Accept": "*/*"}, separators=(",", ":"))
+                      })
+                  ]
+                  for profile_name, profile_query in profiles:
+                      profile_url = BASE + "/api/stream?" + urllib.parse.urlencode(profile_query)
+                      profile_headers = {"User-Agent": UA}
+                      if profile_name.endswith("BROWSER_HEADERS"):
+                          profile_headers["Sec-Fetch-Dest"] = "video"
+                      result = request(profile_url, profile_headers, limit=12000, timeout=12)
+                      body = result.get("body", b"")
+                      ts_ok = bool(len(body) > 376 and body[0] == 0x47 and body[188] == 0x47 and body[376] == 0x47)
+                      print(name.replace(" ", "_") + "_" + profile_name, json.dumps({
+                          "status": result.get("status"), "contentType": result.get("contentType"),
+                          "bytesRead": len(body), "tsSync188": ts_ok, "totalMs": result.get("totalMs"),
+                          "server": result.get("server"), "cfRayPresent": result.get("cfRayPresent"),
+                          "error": result.get("error")
+                      }, ensure_ascii=False))
+                  # Check whether the origin supports HTTPS directly, avoiding browser mixed-content restrictions.
+                  parsed_http = urlparse(url)
+                  https_url = urllib.parse.urlunsplit(("https", parsed_http.hostname or "", parsed_http.path, parsed_http.query, ""))
+                  https_result = request(https_url, upstream_headers, limit=12000, timeout=12)
+                  https_body = https_result.get("body", b"")
+                  https_ts = bool(len(https_body) > 376 and https_body[0] == 0x47 and https_body[188] == 0x47 and https_body[376] == 0x47)
+                  print(name.replace(" ", "_") + "_HTTPS_DIRECT", json.dumps({
+                      "status": https_result.get("status"), "contentType": https_result.get("contentType"),
+                      "server": https_result.get("server"), "cfRayPresent": https_result.get("cfRayPresent"),
+                      "acao": https_result.get("accessControlAllowOrigin"), "bytesRead": len(https_body),
+                      "totalMs": https_result.get("totalMs"), "host": safe_url(https_result.get("finalUrl") or https_url),
+                      "tsSync188": https_ts, "error": https_result.get("error")
+                  }, ensure_ascii=False))
+              is_stalker = (
+                  urlparse(url).path.lower().endswith("/play/live.php")
+                  and all(key in query_fields for key in ("mac", "stream", "extension"))
+                  and ("play_token" in query_fields or "token" in query_fields)
+              )
+              if is_stalker:
+                  probe_url = BASE + "/api/probe?" + urllib.parse.urlencode(q)
+                  diagnostic = request(probe_url, {"User-Agent": UA}, 12000, 25)
+                  try:
+                      d = json.loads(diagnostic.get("body", b"{}").decode("utf-8", "ignore"))
+                  except Exception:
+                      d = {}
+                  print("STALKER_PROBE", json.dumps({
+                      "channel": name, "candidateIndex": i, "probeHTTP": diagnostic.get("status"),
+                      "upstreamHTTP": d.get("status"), "HEAD": d.get("headStatus"), "GET": d.get("getStatus"),
+                      "hint": d.get("errorHint"), "type": d.get("type"), "contentType": d.get("contentType"),
+                      "bodyClass": d.get("bodyClass"), "bodyBytes": d.get("bodyBytes"),
+                      "finalHost": d.get("finalHost"), "server": d.get("serverType"),
+                      "cfRay": d.get("cfRayPresent"), "via": d.get("viaPresent"),
+                      "authHeader": d.get("wwwAuthenticatePresent")
+                  }, ensure_ascii=False))
           if not targets:
               print("NO_MATCHING_TARGETS — the tested channels are not in the three currently served production playlists; likely a local/custom playlist or another source.")
+          PY
+
+      - name: Probe a representative saved custom sports M3U entry (redacted)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, time, urllib.parse, urllib.request, urllib.error
+          from urllib.parse import urlparse, urljoin
+          BASE = "https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
+          STREAM = "https://film4k.net/api/tv/ants/3/index.m3u8"
+          REFERER = "https://film4k.net/"
+          ORIGIN = "https://film4k.net"
+          FULL_UA = "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36"
+          RUNNER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36"
+
+          def safe_host(url):
+              try: return urlparse(url).hostname
+              except Exception: return "[unknown]"
+
+          def probe(label, url, headers, limit=12000, timeout=12):
+              start = time.monotonic()
+              req = urllib.request.Request(url, headers=headers, method="GET")
+              try:
+                  with urllib.request.urlopen(req, timeout=timeout) as r:
+                      header_at = time.monotonic()
+                      body = r.read(limit)
+                      end = time.monotonic()
+                      final = r.geturl()
+                      result = {
+                          "status": r.status, "contentType": r.headers.get("Content-Type", ""),
+                          "headerMs": round((header_at-start)*1000),
+                          "readMs": round((end-header_at)*1000), "totalMs": round((end-start)*1000),
+                          "bytesRead": len(body), "host": safe_host(final),
+                          "isHLS": body.lstrip().startswith(b"#EXTM3U"),
+                          "isHTML": body[:500].lstrip().lower().startswith((b"<html", b"<!doctype html")),
+                          "errorType": None
+                      }
+                      print(label, json.dumps(result, ensure_ascii=False))
+                      return {"result": result, "body": body, "finalUrl": final}
+              except urllib.error.HTTPError as e:
+                  end = time.monotonic()
+                  body = e.read(min(limit, 1200))
+                  result = {
+                      "status": e.code, "contentType": e.headers.get("Content-Type", ""),
+                      "headerMs": round((end-start)*1000), "readMs": 0,
+                      "totalMs": round((end-start)*1000), "bytesRead": len(body),
+                      "host": safe_host(e.geturl()), "isHLS": body.lstrip().startswith(b"#EXTM3U"),
+                      "isHTML": body[:500].lstrip().lower().startswith((b"<html", b"<!doctype html")),
+                      "errorType": None
+                  }
+                  print(label, json.dumps(result, ensure_ascii=False))
+                  return {"result": result, "body": body, "finalUrl": e.geturl()}
+              except Exception as e:
+                  result = {
+                      "status": None, "contentType": None, "headerMs": None, "readMs": None,
+                      "totalMs": round((time.monotonic()-start)*1000), "bytesRead": 0,
+                      "host": safe_host(url), "isHLS": False, "isHTML": False,
+                      "errorType": type(e).__name__
+                  }
+                  print(label, json.dumps(result, ensure_ascii=False))
+                  return {"result": result, "body": b"", "finalUrl": url}
+
+          def children(response):
+              text = response["body"].decode("utf-8", "ignore")
+              return [x.strip() for x in text.splitlines() if x.strip() and not x.lstrip().startswith("#")]
+
+          ref_headers = {"User-Agent": FULL_UA, "Referer": REFERER, "Origin": ORIGIN}
+          full = probe("SAVED_SPORT_DIRECT_FULL_UA", STREAM, ref_headers)
+          short = probe("SAVED_SPORT_DIRECT_TRUNCATED_UA", STREAM,
+                        {"User-Agent": "Mozilla/5.0", "Referer": REFERER, "Origin": ORIGIN})
+          q = {"u": STREAM, "r": REFERER, "ua": FULL_UA,
+               "h": json.dumps({"Origin": ORIGIN}, separators=(",", ":"))}
+          proxy_url = BASE + "/api/stream?" + urllib.parse.urlencode(q)
+          proxy = probe("SAVED_SPORT_PROXY_FULL_UA", proxy_url, {"User-Agent": RUNNER_UA})
+          # Inspect only one child. Never print a URI/path/query because it can contain a token.
+          direct_children = children(full)
+          if full["result"]["isHLS"] and direct_children:
+              child = urljoin(full["finalUrl"], direct_children[0])
+              probe("SAVED_SPORT_DIRECT_SEGMENT1", child, ref_headers, limit=2048, timeout=10)
+          proxy_children = children(proxy)
+          if proxy["result"]["isHLS"] and proxy_children:
+              child = urljoin(proxy["finalUrl"], proxy_children[0])
+              probe("SAVED_SPORT_PROXY_SEGMENT1", child, {"User-Agent": RUNNER_UA}, limit=2048, timeout=10)
           PY

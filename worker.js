@@ -780,7 +780,7 @@ async function probeResponse(request,q){
 const NEWS_SOURCES = {
   highlights: {url:'https://www.24h.com.vn/video-highlight-c953.html', label:'Highlights 24h'},
   onplus: {url:'https://onplus.com.vn/', label:'ON Plus'},
-  replay: {url:'https://bongtv.com.vn/match-search?tab=live', label:'BongTV'}
+  replay: {url:'https://www.bongtv.com/gateway-api/sp/sports/anon/getReplay?pageNo=1&pageSize=30', label:'BongTV Xem lại'}
 };
 const newsCache = new Map();
 async function newsResponse(url) {
@@ -793,6 +793,42 @@ async function newsResponse(url) {
   try {
     const upstream = await fetch(cfg.url,{headers:{'User-Agent':'Mozilla/5.0 (compatible; NM7TV/1.0)','Accept':'text/html,application/xhtml+xml'},redirect:'follow', signal:AbortSignal.timeout(9000)});
     if (!upstream.ok) throw new Error('upstream-'+upstream.status);
+    if (source === 'replay') {
+      const payload = await upstream.json();
+      const candidates = [];
+      function collect(value, depth) {
+        if (!value || depth > 7) return;
+        if (Array.isArray(value)) { for (const item of value) collect(item, depth + 1); return; }
+        if (typeof value !== 'object') return;
+        const keys = Object.keys(value);
+        if (keys.some(k => /homeTeam|awayTeam|videos|roomId/i.test(k))) candidates.push(value);
+        for (const key of keys) if (value[key] && typeof value[key] === 'object') collect(value[key], depth + 1);
+      }
+      collect(payload, 0);
+      const items = [], seen = new Set();
+      for (const rec of candidates) {
+        const home = rec.homeTeam || rec.home || rec.homeName || rec.homeTeamName || {};
+        const away = rec.awayTeam || rec.away || rec.awayName || rec.awayTeamName || {};
+        const homeName = typeof home === 'string' ? home : (home.name || home.teamName || '');
+        const awayName = typeof away === 'string' ? away : (away.name || away.teamName || '');
+        const title = String(rec.title || rec.matchName || rec.name || (homeName && awayName ? homeName + ' - ' + awayName : '') || 'Video xem lại trận đấu').trim();
+        const videos = Array.isArray(rec.videos) ? rec.videos : [];
+        const rawHref = rec.url || rec.detailUrl || rec.webUrl || rec.link || (videos[0] && (videos[0].url || videos[0].link)) || '';
+        let href = '';
+        try { if (/^https?:\\/\\//i.test(String(rawHref))) href = new URL(rawHref).href; } catch {}
+        if (!href || seen.has(href)) continue;
+        seen.add(href);
+        const homeLogo = typeof home === 'object' ? (home.logo || home.logoUrl || home.image || '') : '';
+        const awayLogo = typeof away === 'object' ? (away.logo || away.logoUrl || away.image || '') : '';
+        let image = '';
+        try { image = new URL(homeLogo || awayLogo, 'https://www.bongtv.com/').href; } catch {}
+        items.push({title, href, image, source: 'BongTV Xem lại', matchTime: rec.matchTime || rec.time || rec.startTime || ''});
+        if (items.length >= 40) break;
+      }
+      const data = {source, sourceUrl:'https://www.bongtv.com/', updatedAt:new Date().toISOString(), items};
+      newsCache.set(source,{at:now,data});
+      return new Response(JSON.stringify(data),{headers:{...headersOut,'Cache-Control':'public, max-age=60'}});
+    }
     const html = await upstream.text();
     const items=[], seen=new Set();
     const anchors=html.match(/<a\b[^>]*>[\s\S]*?<\/a>/gi)||[];

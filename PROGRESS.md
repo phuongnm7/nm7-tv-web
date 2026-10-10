@@ -4,7 +4,7 @@
 
 - Ngày: **10/10/2026**
 - Nhánh ổn định: `stable/nm7-tv-web-2026-10-09` (nhận bản TCP socket fix đã được người dùng xác nhận trên test Cloudflare)
-- Tính năng mới nhất: **sửa nhập nguồn thể thao bằng Service Binding Cloudflare Worker-to-Worker**, đồng thời giữ lại TCP socket Stalker/Xtream đã xác nhận
+- Tính năng mới nhất: **tải lại nguồn Thể thao bỏ qua cache 30 giây của Worker**, đồng thời giữ lại Service Binding nguồn thể thao và TCP socket Stalker/Xtream
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
 - Nền tảng triển khai: **Cloudflare Workers**
@@ -594,3 +594,21 @@ Phạm vi: chỉ NM7 TV Web/Cloudflare Worker. Không sửa NM7 Mobile hoặc NM
 - Production Cloudflare, kiểm tra read-only từ runner: API `/api/source` trả **1.010 kênh**. Workflow kiểm tra: [#38061701828](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38061701828) (**SUCCESS**).
 - Người dùng đã xác nhận thao tác thêm nguồn trên NM7 TV Web hoạt động sau sửa.
 - Phạm vi chỉ `phuongnm7/nm7-tv-web` và Cloudflare Worker. Không sửa NM7 TV Android hoặc NM7 Mobile; không chuyển dự án sang Vercel.
+
+
+## 2026-10-10 — Sửa nút “Tải lại nguồn” cho Thể thao
+
+### Nguyên nhân
+- Nút tải lại đã gọi `loadSource('sport', true)`, bỏ qua cache ở giao diện.
+- Tuy nhiên, URL mặc định gọi `/api/playlist?source=sport`; Worker có `playlistCache` TTL 30 giây và route cũ không nhận biết yêu cầu làm mới. Vì vậy, API vẫn trả danh sách cũ dù người dùng bấm tải lại.
+- Nhập URL trực tiếp dùng `/api/source`, là route khác không dùng `playlistCache`; điều này giải thích vì sao tải lại URL thủ công cập nhật được còn nguồn Thể thao mặc định thì chưa.
+
+### Bản sửa
+- `web-tv/app.js` và `web-tv/app-safari-policy.js`: mỗi lần mở hoặc tải lại nguồn Thể thao đều thêm `refresh=1` vào API.
+- `worker.js`: route `/api/playlist` chuyển cờ `refresh=1` vào `playlistResponse()`; cờ này bỏ qua cache 30 giây chỉ cho yêu cầu được đánh dấu. Nguồn khác giữ nguyên chính sách cache.
+- Phản hồi thành công từ lượt làm mới có trường `refreshed:true` để smoke test xác minh API đã nhận đúng yêu cầu.
+- `web-tv/index.html`: tăng cache-buster của `app-safari-policy.js` để tránh dùng script cũ từ cache trình duyệt.
+- Thêm `scripts/test-sport-playlist-refresh.js` và thêm bước kiểm tra trong workflow Cloudflare production.
+
+### Phạm vi
+Chỉ sửa luồng nguồn Thể thao của NM7 TV Web/Cloudflare. Không sửa NM7 TV Android hoặc NM7 Mobile; không thay đổi nguồn URL, playlist mặc định khác, giao diện hay logic phát video.

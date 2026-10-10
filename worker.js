@@ -407,7 +407,8 @@ async function probeResponse(request,q){
         try{
           const redirected=new URL(location,target);
           const isIp=(host)=>/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)||host.includes(':');
-          if(isIp(redirected.hostname)&&!isIp(requestedUrl.hostname)){
+          const redirectWasIp=isIp(redirected.hostname)&&!isIp(requestedUrl.hostname);
+          if(redirectWasIp){
             redirected.hostname=requestedUrl.hostname;
             const rr=await fetchWithTimeout(redirected.href,{method:"GET",headers,redirect:"manual"},7000);
             const prefix=await readResponsePrefix(rr,4096);
@@ -425,9 +426,9 @@ async function probeResponse(request,q){
           }else out.rewriteHostTest={applied:false,reason:"redirect-is-not-ip"};
           // Second safe experiment: re-host the redirected path on the original host AND original port.
           // This distinguishes an upstream proxy-port redirect from an IP/WAF restriction.
-          if(isIp(redirected.hostname)&&!isIp(requestedUrl.hostname)){
+          if(redirectWasIp){
             try{
-              const originalPortTarget=new URL(redirected.href);
+              const originalPortTarget=new URL(location,target);
               originalPortTarget.protocol=requestedUrl.protocol;
               originalPortTarget.hostname=requestedUrl.hostname;
               originalPortTarget.port=requestedUrl.port;

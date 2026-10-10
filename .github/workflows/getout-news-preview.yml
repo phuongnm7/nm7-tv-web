@@ -31,8 +31,10 @@ jobs:
           set -euo pipefail
           node --input-type=module --check < worker.js
           node --check web-tv/app.js
+          node --check web-tv/app-safari-policy.js
           node scripts/test-sport-playlist-refresh.js
           node scripts/test-ipad-landscape-menu.js
+          node scripts/test-getout-news-entry.js
           test -f web-tv/ban-tin.html
           grep -q "/api/news" worker.js
           grep -q "Bản tin" web-tv/index.html
@@ -55,10 +57,11 @@ jobs:
           grep -q "NM7 TV 1.0.69" /tmp/news-preview-home.html
           grep -q "Bản tin" /tmp/news-preview-home.html
           grep -q "Highlights" /tmp/news-preview-page.html
-          curl -fsSL --retry 3 --retry-delay 2 --max-time 30 "$BASE/app-safari-policy.js?v=20261010-news1" -o /tmp/news-preview-app.js
+          curl -fsSL --retry 3 --retry-delay 2 --max-time 30 "$BASE/app-safari-policy.js?v=20261010-ipad-landscape-menu1&news=20261010" -o /tmp/news-preview-app.js
           grep -q "btnNewsTab.*addEventListener" /tmp/news-preview-app.js
           grep -q "Bản tin · Highlights / Xem lại" /tmp/news-preview-app.js
           grep -q "location.href=.*/ban-tin.html" /tmp/news-preview-app.js
+          grep -q "btnNewsTab" /tmp/news-preview-home.html
           curl -fsSL --retry 2 --retry-delay 2 --max-time 30 "$BASE/api/news?source=highlights" -o /tmp/news-preview-api.json
           python3 - <<'PY'
           import json
@@ -73,4 +76,4 @@ jobs:
               raise SystemExit('News upstream failed: '+str(data['error']))
           print('NEWS_PREVIEW_API_OK items=',len(data['items']),'source=',data.get('sourceUrl'))
           PY
-          echo "NEWS_PREVIEW_SMOKE_TEST_OK URL=$BASE/web-tv/ban-tin.html"
+          echo "NEWS_PREVIEW_SMOKE_TEST_OK URL=$BASE/ban-tin.html"

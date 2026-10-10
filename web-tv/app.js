@@ -1058,11 +1058,23 @@ function startFlv(c,cand,url,gen){
  }
  startMpegTsFallback()
 }
+function diagnoseMpegTs(c,cand,gen){
+ // Query the source status without ever printing the URL, MAC, credentials or play_token.
+ var source=String((cand&&(cand.resolvedUrl||cand.url))||'');
+ if(!isHttp(source))return;
+ try{
+  fetch('/api/probe?u='+encodeURIComponent(source),{cache:'no-store'}).then(function(r){return r.json().then(function(d){return {http:r.status,data:d}})}).then(function(x){
+   if(gen!==S.generation)return;
+   var d=x.data||{};
+   dbg('MPEG-TS upstream diagnostic: probeHTTP='+x.http+' upstreamHTTP='+(d.status||0)+' type='+(d.type||'unknown')+' contentType='+(d.contentType||'unknown'));
+  }).catch(function(){if(gen===S.generation)dbg('MPEG-TS upstream diagnostic: probe request failed (URL hidden)')});
+ }catch(e){dbg('MPEG-TS upstream diagnostic: probe unavailable')}
+}
 function startMpegTs(c,cand,url,gen){
  if(!window.mpegts||!mpegts.isSupported()){nextCandidate('MPEG-TS/MSE không được hỗ trợ');return}
  try{
   var p=mpegts.createPlayer({type:'mpegts',isLive:true,url:url});
-  S.mpegts=p;p.on(mpegts.Events.ERROR,function(t,d,i){if(gen===S.generation)nextCandidate('MPEG-TS '+(d||t||'lỗi'))});
+  S.mpegts=p;p.on(mpegts.Events.ERROR,function(t,d,i){if(gen===S.generation){dbg('MPEG-TS player error: '+String(d||t||'lỗi'));diagnoseMpegTs(c,cand,gen);nextCandidate('MPEG-TS '+(d||t||'lỗi'))}});
   p.attachMediaElement($('video'));p.load();var x=$('video').play();if(x&&x.catch)x.catch(function(){})
  }catch(e){nextCandidate('MPEG-TS khởi tạo lỗi')}
 }

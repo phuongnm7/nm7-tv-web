@@ -370,3 +370,26 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Test branch: `test/cloudflare-device-preset-20261010`. Production app source and production deployment workflow are unchanged by this test-specific commit.
 
 - 2026-10-10: Updated isolated device detection so Windows desktop browsers open TV preset 2; added regression coverage and cache-buster update. Android remains preset 2; iOS/iPadOS remains preset 1. Production Worker unchanged.
+
+## 2026-10-10 — Cập nhật device preset và triển khai production
+
+### Quy tắc preset theo thiết bị
+
+- **Android:** tự mở Nguồn mặc định 2.
+- **Windows:** tự mở Nguồn mặc định 2.
+- **iPhone/iPad/iPod:** tự mở Nguồn mặc định 1; nhận diện cả iPadOS bật chế độ desktop bằng `MacIntel` và `maxTouchPoints > 1`.
+- **macOS, Samsung Tizen TV và thiết bị khác/không nhận diện:** giữ Nguồn mặc định 1.
+- Người dùng vẫn được đổi preset thủ công; lựa chọn hiện tại được giữ khi chuyển giữa Truyền hình và Thể thao.
+- Nhận diện preset xảy ra trước khi đọc cache. Nếu preset 2 lỗi và không có cache phù hợp, báo lỗi rõ ràng thay vì âm thầm dùng playlist preset 1.
+- Đồng bộ logic ở `web-tv/app.js` và `web-tv/app-safari-policy.js`; cập nhật cache-buster ở `web-tv/index.html`.
+- Regression test bao phủ Android UA/Client Hints, Windows, iPhone, iPad, iPadOS desktop mode, macOS/desktop và Samsung Tizen.
+
+### Merge và production deploy
+
+- Đã merge thay đổi tính năng vào nhánh ổn định `stable/nm7-tv-web-2026-10-09` qua [PR #18](https://github.com/phuongnm7/nm7-tv-web/pull/18).
+- Đã cập nhật `README.md` ghi rõ quy tắc theo thiết bị, phạm vi thay đổi và kết quả deploy.
+- Đã thêm nhánh stable vào trigger push của `.github/workflows/cloudflare-deploy.yml` để cập nhật production từ nhánh ổn định.
+- Commit kích hoạt deploy: `b018f28dd163d75f2c8a46ff990532bdcdea05ec`.
+- **Cloudflare Deploy #438: SUCCESS** — [GitHub Actions run](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38010319718).
+- Các bước đều PASS: JavaScript syntax check, deploy Cloudflare Worker, deploy dedicated YouTube reverse proxy, YouTube redirect/ad-guard smoke test và production Worker smoke test.
+- Phạm vi chỉ là repository `phuongnm7/nm7-tv-web`. Không sửa NM7 Mobile hoặc NM7 TV Android; không thay URL nguồn, API playlist, player hoặc DRM trong thay đổi preset này.

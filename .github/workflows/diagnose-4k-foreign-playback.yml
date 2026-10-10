@@ -84,11 +84,22 @@ jobs:
               is_hls = body.lstrip().startswith(b"#EXTM3U")
               is_dash = b"<MPD" in body[:5000]
               is_html = b"<html" in body[:500].lower() or b"<!doctype html" in body[:500].lower()
+              durations = [float(x) for x in re.findall(r'#EXTINF:([0-9.]+)', text, re.I)]
+              target_duration = re.search(r'#EXT-X-TARGETDURATION:(\d+)', text, re.I)
+              media_sequence = re.search(r'#EXT-X-MEDIA-SEQUENCE:(\d+)', text, re.I)
+              hls_meta = ({
+                  "targetDurationSec": int(target_duration.group(1)) if target_duration else None,
+                  "mediaSequence": int(media_sequence.group(1)) if media_sequence else None,
+                  "endList": bool(re.search(r'#EXT-X-ENDLIST', text, re.I)),
+                  "segmentCount": len(durations),
+                  "segmentDurationsSec": durations[:8]
+              } if is_hls else None)
               print(label, json.dumps({
                   "status": result.get("status"), "contentType": result.get("contentType"),
                   "contentLength": result.get("contentLength"), "headerMs": result.get("headerMs"),
                   "bodyReadMs": result.get("bodyReadMs"), "totalMs": result.get("totalMs"),
                   "bytesRead": len(body), "isHLS": is_hls, "isDASH": is_dash, "isHTML": is_html,
+                  "hlsMeta": hls_meta,
                   "resolutions": list(dict.fromkeys(resolutions))[:12],
                   "codecs": list(dict.fromkeys(codecs))[:8], "error": result.get("error")
               }, ensure_ascii=False))

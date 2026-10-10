@@ -98,7 +98,7 @@ for (const file of files) {
   const proxyFactory = new Function('S','location','isHttp','normalizeCandidate','isStalkerTsCandidate',
     source.slice(proxyStart, proxyEnd) + '; return makeProxy;');
   const testLocation = {origin:'https://nm7-test.example'};
-  const isHttpTest = value => /^https?:\\/\\//i.test(String(value||''));
+  const isHttpTest = value => String(value||'').startsWith('http://') || String(value||'').startsWith('https://');
   const normalizeTest = value => value;
   const makeProxy = (state) => proxyFactory(state,testLocation,isHttpTest,normalizeTest,isStalkerTsCandidate);
   const signedStalkerUrl = 'http://mag.example.test/play/live.php?mac=SAFE&stream=1&extension=ts&play_token=SAFE';
@@ -108,7 +108,7 @@ for (const file of files) {
     file + ': Stalker MPEG-TS is sent through tested Vercel preview egress');
   assert.equal(stalkerProxy.pathname,'/api/stream',file + ': Vercel proxy path is correct');
   assert.equal(stalkerProxy.searchParams.get('u'),signedStalkerUrl,file + ': source URL is encoded as the upstream parameter');
-  assert.match(stalkerProxy.searchParams.get('ua')||'',/Android 15.*Chrome\\/130/,
+  assert.ok((stalkerProxy.searchParams.get('ua')||'').includes('Android 15') && (stalkerProxy.searchParams.get('ua')||'').includes('Chrome/130'),
     file + ': Stalker source gets the browser UA proven to return TS');
   const regularProxy = makeProxy({proxyAttempt:true})('https://media.example.test/live.ts',{url:'https://media.example.test/live.ts'});
   assert.equal(regularProxy.startsWith('/api/stream?u='),true,

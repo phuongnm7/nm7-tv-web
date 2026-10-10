@@ -481,3 +481,14 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Web Browser Validation #38024369674: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369674.
 - Browser E2E #38024369686: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369686. Runner xác nhận các lượt tải manifest và segment cho fixture, nhưng không có decoder H.264; chưa thể dùng CI để xác nhận playback thật của HEVC 4K.
 - Code trên nhánh `fix/sctv4k-proxy-retry-state-20261010`, chưa deploy lúc ghi nhận. Không thay đổi playlist mặc định, NM7 Mobile hoặc NM7 TV Android.
+
+## 2026-10-10 — SCTV4K: sửa proxy-first và thời gian buffer HEVC 4K (đã deploy)
+
+- Video mới cho thấy app đổi direct → proxy rồi vẫn fail tại watchdog 8 giây.
+- Live diagnostic #38024197006 xác nhận direct child TS là HTTP 400, Worker-proxied TS là HTTP 200 `video/mp2t`; ffprobe xác nhận video HEVC/H.265 Main 3840×2160 25 fps, segment multi-megabyte.
+- PR #21 đã merge; commit stable `d97ed0286dd02cbe2bc94ffffb9cfe3cec87c8d5`.
+- **Deploy #448 PASS:** https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024535545. Production smoke test hoàn tất thành công.
+- Worker đặt `forceProxy: true` chỉ cho candidate SCTV4K trên host đã xác minh. Hai entrypoint player kiểm tra HLS instance identity để late errors từ instance cũ không hủy proxy attempt; watchdog riêng của SCTV4K nâng lên 45 giây; cache-buster được bump.
+- Web Browser Validation #38024485612 PASS; Browser E2E #38024485476 PASS trên fixture (manifest và segment trả 200, remote navigation hoạt động). Fixture/CI không xác nhận giải mã HEVC của stream thật.
+- **Cần người dùng thử lại trên thiết bị sau Deploy #448** tại `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`; 45 giây là timeout dự phòng chứ không phải trì hoãn chủ động.
+- Không thay playlist mặc định, không chỉnh NM7 Mobile hoặc NM7 TV Android.

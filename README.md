@@ -367,3 +367,13 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Web Browser Validation #38024369674: PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369674.
 - Browser E2E #38024369686: PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369686. Bài test kiểm tra remote navigation và manifest/segment của fixture; runner không có decoder H.264 nên không thể thay thế test giải mã thực tế SCTV4K.
 - Nhánh `fix/sctv4k-proxy-retry-state-20261010`; chưa deploy sản phẩm tại thời điểm ghi nhận này. Không đổi URL playlist mặc định, không chỉnh NM7 Mobile hoặc NM7 TV Android.
+
+## 2026-10-10 — Vòng sửa SCTV4K đã triển khai lên Cloudflare
+
+- PR #21 đã merge vào nhánh ổn định. Commit: `d97ed0286dd02cbe2bc94ffffb9cfe3cec87c8d5`.
+- **Cloudflare Deploy #448: SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024535545. Deploy Worker, deploy YouTube reverse proxy, YouTube smoke test và Cloudflare Worker smoke test đều PASS.
+- Chẩn đoán production đã nhận diện SCTV4K là HLS dùng **HEVC/H.265 Main, 3840×2160, 25 fps**. Manifest trực tiếp trả HTTP 200 nhưng segment trực tiếp trả HTTP 400; segment qua Worker proxy trả HTTP 200 với MIME `video/mp2t`. Xem log đã khử URL/token: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024197006.
+- Worker hiện đánh dấu candidate SCTV4K từ host đã xác minh `vietanhtv.id.vn` dùng proxy trước tiên. Player bỏ qua late callback từ HLS instance đã hủy, timeout khởi động riêng cho 4K tăng lên 45 giây và cache-buster đã đổi để thiết bị nạp JavaScript mới.
+- Web Browser Validation PASS: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024485612. Browser E2E PASS: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024485476. E2E xác minh UI/remote và tải manifest/segment của fixture; môi trường CI không có decoder H.264 nên không xác nhận giải mã HEVC của kênh thật.
+- **Chưa có xác nhận phát thành công trên thiết bị người dùng sau Deploy #448.** Hãy thử lại tại `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`; timeout 45 giây là giới hạn dự phòng, không phải thời gian chờ bắt buộc. Khi video phát được, watchdog sẽ bị hủy ngay.
+- Chỉ thay đổi NM7 TV Web. Không thay URL playlist mặc định, không sửa NM7 Mobile/Android.

@@ -55,6 +55,10 @@ jobs:
           grep -q "NM7 TV 1.0.69" /tmp/news-preview-home.html
           grep -q "Bản tin" /tmp/news-preview-home.html
           grep -q "Highlights" /tmp/news-preview-page.html
+          curl -fsSL --retry 3 --retry-delay 2 --max-time 30 "$BASE/app-safari-policy.js?v=20261010-news1" -o /tmp/news-preview-app.js
+          grep -q "btnNewsTab.*addEventListener" /tmp/news-preview-app.js
+          grep -q "Bản tin · Highlights / Xem lại" /tmp/news-preview-app.js
+          grep -q "location.href=.*/ban-tin.html" /tmp/news-preview-app.js
           curl -fsSL --retry 2 --retry-delay 2 --max-time 30 "$BASE/api/news?source=highlights" -o /tmp/news-preview-api.json
           python3 - <<'PY'
           import json

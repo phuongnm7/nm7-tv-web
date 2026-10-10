@@ -5,7 +5,8 @@ const assert = require('node:assert/strict');
 
 async function main() {
   const workerSource = require('node:fs').readFileSync('worker.js', 'utf8');
-  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(workerSource, 'utf8').toString('base64');
+  const nodeSafeSource = workerSource.replace(/^import \\{ connect \} from [\"']cloudflare:sockets[\"'];\\s*/, 'const connect = () => { throw new Error(\"TCP sockets are unavailable in Node regression tests\"); };\\n');
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(nodeSafeSource, 'utf8').toString('base64');
   const { default: worker } = await import(moduleUrl);
   const originalFetch = global.fetch;
 

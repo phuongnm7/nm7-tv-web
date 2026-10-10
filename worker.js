@@ -247,9 +247,106 @@ async function readResponsePrefix(response,limit=4096){
     return result;
   }catch{return new Uint8Array(0)}
 }
+function isStalkerSocketCandidate(target){
+  try{
+    const u=new URL(target);
+    return u.protocol==="http:"&&u.hostname==="mag.tivi-one-iptv.net"&&
+      u.pathname.toLowerCase()==="/play/live.php"&&
+      /^(ts|m2ts)$/i.test(u.searchParams.get("extension")||"")&&
+      u.searchParams.has("mac")&&u.searchParams.has("stream")&&
+      (u.searchParams.has("play_token")||u.searchParams.has("token"));
+  }catch{return false}
+}
+async function stalkerSocketStreamResponse(request,q,target){
+  const h=headersFromQuery(request,q);
+  let first;
+  try{first=await fetchWithTimeout(target,{method:"GET",headers:h,redirect:"manual"},6000)}
+  catch{return new Response("Stalker redirect request failed",{status:502,headers:cors(new Headers({"Content-Type":"text/plain","Cache-Control":"no-store"}))})}
+  const location=first.headers.get("location")||"";
+  if(first.status<300||first.status>=400||!location){
+    // If provider did not redirect, preserve the normal fetch result.
+    const outHeaders=cors(new Headers(first.headers));outHeaders.set("Content-Type","video/mp2t");outHeaders.set("Cache-Control","no-store");
+    return new Response(first.body,{status:first.status,headers:outHeaders});
+  }
+  try{await first.body?.cancel()}catch{}
+  let dest;
+  try{dest=new URL(location,target)}catch{return new Response("Invalid Stalker redirect",{status:502})}
+  // Strict allowlist: only the exact Stalker origin and the exact IP it redirects to.
+  if(dest.protocol!=="http:"||dest.hostname!=="192.142.25.161"||(dest.port&&dest.port!=="80")){
+    return new Response("Stalker redirect destination not allowed",{status:502,headers:cors(new Headers({"Content-Type":"text/plain","Cache-Control":"no-store"}))});
+  }
+  let socket,reader,writer,cleaned=false;
+  const cleanup=async()=>{
+    if(cleaned)return;cleaned=true;
+    try{await reader?.cancel()}catch{}
+    try{await writer?.close()}catch{}
+    try{socket?.close()}catch{}
+  };
+  try{
+    socket=connect({hostname:dest.hostname,port:80});
+    reader=socket.readable.getReader();writer=socket.writable.getWriter();
+    const pathAndQuery=dest.pathname+dest.search;
+    const requestHeaders=[
+      "GET "+pathAndQuery+" HTTP/1.1",
+      "Host: "+dest.host,
+      "User-Agent: "+(h.get("User-Agent")||"NM7-TV/1.0.36 Android-TV"),
+      "Accept: "+(h.get("Accept")||"*/*"),
+      "Accept-Encoding: identity",
+      "Connection: close"
+    ];
+    const referer=h.get("Referer");if(referer)requestHeaders.push("Referer: "+referer.replace(/[\\r\\n]/g,""));
+    const range=h.get("Range");if(range)requestHeaders.push("Range: "+range.replace(/[\\r\\n]/g,""));
+    await writer.write(new TextEncoder().encode(requestHeaders.join("\\r\\n")+"\\r\\n\\r\\n"));
+    let raw=new Uint8Array(0),headerEnd=-1;
+    const deadline=Date.now()+10000;
+    while(headerEnd<0&&raw.byteLength<65536&&Date.now()<deadline){
+      const item=await Promise.race([
+        reader.read(),
+        new Promise(resolve=>setTimeout(()=>resolve({timeout:true}),Math.max(1,deadline-Date.now())))
+      ]);
+      if(item?.timeout)break;
+      if(item.done||!item.value)break;
+      const next=new Uint8Array(raw.byteLength+item.value.byteLength);next.set(raw);next.set(item.value,raw.byteLength);raw=next;
+      for(let i=0;i+3<raw.length;i++)if(raw[i]===13&&raw[i+1]===10&&raw[i+2]===13&&raw[i+3]===10){headerEnd=i+4;break}
+    }
+    if(headerEnd<0){await cleanup();return new Response("No HTTP response from Stalker stream socket",{status:502,headers:cors(new Headers({"Content-Type":"text/plain","Cache-Control":"no-store"}))})}
+    const headerText=new TextDecoder().decode(raw.subarray(0,headerEnd-4));
+    const statusMatch=(headerText.split("\\r\\n")[0]||"").match(/^HTTP\\/\\d(?:\\.\\d)?\\s+(\\d{3})/i);
+    const upstreamStatus=statusMatch?Number(statusMatch[1]):0;
+    const upstreamHeaders={};
+    for(const line of headerText.split("\\r\\n").slice(1)){const i=line.indexOf(":");if(i>0)upstreamHeaders[line.slice(0,i).trim().toLowerCase()]=line.slice(i+1).trim()}
+    if(upstreamStatus<200||upstreamStatus>=300){
+      await cleanup();
+      return new Response("Stalker stream upstream HTTP "+upstreamStatus,{status:502,headers:cors(new Headers({"Content-Type":"text/plain","Cache-Control":"no-store"}))});
+    }
+    const outHeaders=cors(new Headers());
+    outHeaders.set("Content-Type","video/mp2t");outHeaders.set("Cache-Control","no-store");
+    outHeaders.set("Accept-Ranges",upstreamHeaders["accept-ranges"]||"bytes");
+    if(upstreamHeaders["content-length"])outHeaders.set("Content-Length",upstreamHeaders["content-length"]);
+    if(upstreamHeaders["content-range"])outHeaders.set("Content-Range",upstreamHeaders["content-range"]);
+    outHeaders.set("Access-Control-Expose-Headers","Content-Length,Content-Range,Accept-Ranges");
+    const initialBody=raw.subarray(headerEnd);
+    const body=new ReadableStream({
+      start(controller){if(initialBody.byteLength)controller.enqueue(initialBody)},
+      async pull(controller){
+        try{
+          const item=await reader.read();
+          if(item.done){controller.close();await cleanup();return}
+          if(item.value?.byteLength)controller.enqueue(item.value);
+        }catch{controller.error(new Error("Stalker TCP stream read failed"));await cleanup()}
+      },
+      async cancel(){await cleanup()}
+    });
+    return new Response(body,{status:upstreamStatus===206?206:200,headers:outHeaders});
+  }catch(e){
+    await cleanup();
+    return new Response("Stalker TCP socket failed: "+String(e?.name||"Error"),{status:502,headers:cors(new Headers({"Content-Type":"text/plain","Cache-Control":"no-store"}))});
+  }
+}
 async function streamResponse(request,q){
   const target=q.get('u');
   if(!isHttp(target))return new Response('bad url',{status:400});
+  if(request.method!=="HEAD"&&isStalkerSocketCandidate(target))return stalkerSocketStreamResponse(request,q,target);
   const r=await fetch(target,{
     method:request.method==='HEAD'?'HEAD':'GET',
     headers:headersFromQuery(request,q),

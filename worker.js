@@ -61,16 +61,91 @@ function parseM3U(t,base=''){
 function headersFromQuery(req,q){const h=new Headers();h.set('User-Agent',q.get('ua')||req.headers.get('user-agent')||'NM7-TV-Web/1.0.69');if(q.get('r'))h.set('Referer',q.get('r'));for(const k of ['range','accept','accept-language','origin','if-none-match','if-modified-since']){const v=req.headers.get(k);if(v)h.set(k,v)}try{const extra=JSON.parse(q.get('h')||'{}');for(const [k,v] of Object.entries(extra||{})){const lk=k.toLowerCase();if(['host','connection','content-length','cookie','user-agent','referer'].includes(lk))continue;if(typeof v==='string'&&v.length<4000)h.set(k,v)}}catch{}return h}
 function apiUrl(path,u,q){let x=path+'?u='+encodeURIComponent(u);for(const k of ['r','ua','h']){const v=q.get(k)||'';if(v)x+='&'+k+'='+encodeURIComponent(v)}return x}
 function rewriteHls(text,finalUrl,q){const px=u=>{try{const abs=safeUrl(u,finalUrl);if(/^data:|^blob:/i.test(abs))return u;return apiUrl('/api/stream',abs,q)}catch{return u}};text=String(text||'').replace(/URI\s*=\s*"([^"]+)"/gi,(m,u)=>'URI="'+px(u)+'"');const lines=text.split(/\r?\n/);for(let i=0;i<lines.length;i++){const z=lines[i].trim();if(z&&!z.startsWith('#')&&!/^data:|^blob:/i.test(z))lines[i]=px(z)}return lines.join('\n')}
-function rewriteDash(text,finalUrl){
+function encodeDashContext(value){
+  const bytes=new TextEncoder().encode(JSON.stringify(value));
+  let binary='';
+  for(let i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decodeDashContext(token){
+  const s=String(token||'').replace(/-/g,'+').replace(/_/g,'/');
+  const binary=atob(s+'='.repeat((4-s.length%4)%4));
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function dashProxyBase(base,q,origin){
+  const payload={
+    base:String(base||''),
+    r:q.get('r')||'',
+    ua:q.get('ua')||'',
+    h:q.get('h')||''
+  };
+  return origin+'/api/dash-resource/'+encodeDashContext(payload)+'/';
+}
+function proxyAbsoluteDashUri(value,base,q,origin){
+  // Protect DASH template tokens (for example $Number%05d$) while resolving URLs.
+  const tokens=[];
+  const protectedValue=String(value||'').replace(/\$[^$]+\$/g,function(token){
+    const marker='NM7DASHTEMPLATE'+tokens.length+'X';
+    tokens.push(token);return marker;
+  });
+  let resolved;
+  try{resolved=new URL(protectedValue,base)}catch{return value}
+  const path=resolved.pathname||'/';
+  const slash=path.lastIndexOf('/');
+  const directory=resolved.origin+path.slice(0,slash+1);
+  let leaf=path.slice(slash+1)+(resolved.search||'')+(resolved.hash||'');
+  leaf=leaf.replace(/NM7DASHTEMPLATE(\d+)X/g,function(_,n){return tokens[Number(n)]||''});
+  return dashProxyBase(directory,q,origin)+leaf;
+}
+function rewriteDash(text,finalUrl,q,origin){
   text=String(text||'');
-  const base=safeUrl('./',finalUrl);
+  q=q||new URLSearchParams();
+  origin=origin||'https://nm7-tv-web.phuongnm7-iptv.workers.dev';
+  let sourceBase=safeUrl('./',finalUrl);
+  const baseMatch=/<BaseURL\b[^>]*>([\s\S]*?)<\/BaseURL>/i.exec(text);
+  if(baseMatch&&baseMatch[1].trim()){
+    sourceBase=safeUrl(baseMatch[1].trim(),finalUrl);
+    if(!sourceBase.endsWith('/'))sourceBase+='/';
+  }
+  const proxyBase=dashProxyBase(sourceBase,q,origin);
+  // Absolute or root-relative SegmentTemplate/SegmentURL resources need their own
+  // upstream base context; relative resources inherit the proxied BaseURL above.
+  text=text.replace(/\b(media|initialization|sourceURL|href)\s*=\s*"([^"]+)"/gi,function(m,attr,value){
+    const v=String(value||'').trim();
+    if(/^https?:\/\//i.test(v)||v.startsWith('/')){
+      return attr+'="'+proxyAbsoluteDashUri(v,sourceBase,q,origin)+'"';
+    }
+    return m;
+  });
   if(/<BaseURL\b[^>]*\/\s*>/i.test(text)){
-    return text.replace(/<BaseURL\b[^>]*\/\s*>/i,'<BaseURL>'+base+'</BaseURL>');
+    return text.replace(/<BaseURL\b[^>]*\/\s*>/i,'<BaseURL>'+proxyBase+'</BaseURL>');
   }
   if(/<BaseURL\b[^>]*>[\s\S]*?<\/BaseURL>/i.test(text)){
-    return text.replace(/<BaseURL\b[^>]*>[\s\S]*?<\/BaseURL>/i,'<BaseURL>'+base+'</BaseURL>');
+    return text.replace(/<BaseURL\b[^>]*>[\s\S]*?<\/BaseURL>/i,'<BaseURL>'+proxyBase+'</BaseURL>');
   }
-  return text.replace(/(<MPD\b[^>]*>)/i,'$1<BaseURL>'+base+'</BaseURL>');
+  return text.replace(/(<MPD\b[^>]*>)/i,'$1<BaseURL>'+proxyBase+'</BaseURL>');
+}
+async function dashResourceResponse(request,url){
+  const prefix='/api/dash-resource/';
+  if(!url.pathname.startsWith(prefix))return new Response('bad url',{status:400});
+  const rest=url.pathname.slice(prefix.length);
+  const slash=rest.indexOf('/');
+  if(slash<1)return new Response('bad dash resource path',{status:400});
+  const token=rest.slice(0,slash),resourcePath=rest.slice(slash+1);
+  let context;
+  try{context=decodeDashContext(token)}catch{return new Response('bad dash context',{status:400})}
+  if(!context||!isHttp(context.base))return new Response('bad dash base',{status:400});
+  let target;
+  try{target=new URL(resourcePath,context.base)}
+  catch{return new Response('bad dash resource',{status:400})}
+  url.searchParams.forEach((value,key)=>target.searchParams.append(key,value));
+  const q=new URLSearchParams({u:target.toString()});
+  if(context.r)q.set('r',context.r);
+  if(context.ua)q.set('ua',context.ua);
+  if(context.h)q.set('h',context.h);
+  return streamResponse(request,q);
 }
 function cors(h){h.set('Access-Control-Allow-Origin','*');h.set('Access-Control-Allow-Methods','GET,HEAD,POST,OPTIONS');h.set('Access-Control-Allow-Headers','Range,Accept,Content-Type,Origin,Referer,User-Agent,X-Requested-With');h.set('Access-Control-Expose-Headers','Content-Length,Content-Range,Accept-Ranges,Content-Type,ETag');return h}
 async function fetchWithTimeout(url,init={},ms=9000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{return await fetch(url,{...init,signal:c.signal,redirect:'follow',cache:'no-store'})}finally{clearTimeout(t)}}
@@ -140,7 +215,7 @@ async function streamResponse(request,q){
   if(looksDash&&r.ok){
     const body=await r.text();
     h.set('Content-Type','application/dash+xml; charset=utf-8');
-    return new Response(rewriteDash(body,finalUrl),{status:r.status,headers:h});
+    return new Response(rewriteDash(body,finalUrl,q,new URL(request.url).origin),{status:r.status,headers:h});
   }
   if(!h.get('Content-Type')){
     const low=finalUrl.toLowerCase();
@@ -220,4 +295,4 @@ async function probeResponse(request,q){
     serverType:r?.headers.get("server")||""
   }),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*"}});
 }
-export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};
+export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p.startsWith('/api/dash-resource/'))return dashResourceResponse(request,url);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};

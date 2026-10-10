@@ -292,6 +292,7 @@ jobs:
                       "requestedHost": manual_data.get("requestedHost"), "redirectPresent": manual_data.get("redirectPresent"),
                       "redirectHost": manual_data.get("redirectHost"), "server": manual_data.get("server"),
                       "cfRayPresent": manual_data.get("cfRayPresent"), "contentType": manual_data.get("contentType"),
+                      "rewriteHostTest": manual_data.get("rewriteHostTest"),
                       "errorClass": manual_data.get("errorClass")
                   }, ensure_ascii=False))
                   # Hold source URL and Worker fixed; change only UA to isolate the cause of HTTP 403.

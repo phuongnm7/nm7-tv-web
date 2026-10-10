@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import json, re, urllib.parse, urllib.request, urllib.error
+          import json, re, os, tempfile, subprocess, shutil, urllib.parse, urllib.request, urllib.error
           from urllib.parse import urlparse, urljoin, parse_qs
           BASE = "https://nm7-tv-web.phuongnm7-iptv.workers.dev"
           UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
@@ -117,8 +117,36 @@ jobs:
                   if is_manifest:
                       inspect_path(label + "_CHILD" + str(index+1), child, headers if not child.startswith(BASE) else {"User-Agent": UA}, depth+1)
                   else:
-                      seg = request(child, headers if not child.startswith(BASE) else {"User-Agent": UA}, 2048, 12)
+                      seg = request(child, headers if not child.startswith(BASE) else {"User-Agent": UA}, 8_000_000, 12)
                       output_summary(label + "_SEGMENT" + str(index+1), seg)
+                      body = seg.get("body", b"")
+                      if seg.get("status") == 200 and body:
+                          # Inspect real media bytes/codecs without logging upstream URLs or tokens.
+                          ts_sync = bool(len(body) > 376 and body[0] == 0x47 and body[188] == 0x47 and body[376] == 0x47)
+                          probe_result = {"tsSync188": ts_sync, "bytesRead": len(body), "ffprobeAvailable": bool(shutil.which("ffprobe"))}
+                          if shutil.which("ffprobe"):
+                              fd, temp_path = tempfile.mkstemp(suffix=".ts")
+                              try:
+                                  with os.fdopen(fd, "wb") as stream: stream.write(body)
+                                  run = subprocess.run([
+                                      "ffprobe", "-v", "error", "-select_streams", "v:0",
+                                      "-show_entries", "stream=codec_name,profile,width,height,pix_fmt,level,avg_frame_rate",
+                                      "-of", "json", temp_path
+                                  ], capture_output=True, text=True, timeout=12)
+                                  try:
+                                      meta = json.loads(run.stdout or "{}")
+                                      streams = meta.get("streams") or []
+                                  except Exception:
+                                      streams = []
+                                  probe_result.update({"ffprobeExit": run.returncode, "videoStreams": streams[:2]})
+                                  if run.returncode != 0:
+                                      probe_result["ffprobeHasError"] = bool((run.stderr or "").strip())
+                              except Exception as e:
+                                  probe_result["ffprobeErrorType"] = type(e).__name__
+                              finally:
+                                  try: os.unlink(temp_path)
+                                  except Exception: pass
+                          print(label + "_MEDIA_PROBE", json.dumps(probe_result, ensure_ascii=False))
 
           def fetch_playlist(source, default=None):
               q = {"source": source}

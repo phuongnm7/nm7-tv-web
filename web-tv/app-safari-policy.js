@@ -41,6 +41,7 @@ var S={
  current:null,
  candidateIndex:0,
  proxyAttempt:false,
+ retryPending:false,
  watchdog:null,
  drmRecoveryCount:0,
  drmHardRecoveryCount:0,
@@ -816,7 +817,7 @@ function openPlayer(c){
  if(!singleDefaultVtv1)c=addAppleHlsAlternatives(c);
  c=sanitizeAppleCandidates(c);
  if(!c||!c.candidates||!c.candidates.length){toast('Kênh chưa có URL phát');return}
- S.current=c;S.candidateIndex=startupCandidateIndex(c);S.attemptStep=0;S.proxyAttempt=false;S.player=true;S.drmRecoveryCount=0;S.drmHardRecoveryCount=0;S.drmStallAnchor=0;S.drmStallSince=0;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;
+ S.current=c;S.candidateIndex=startupCandidateIndex(c);S.attemptStep=0;S.proxyAttempt=false;S.retryPending=false;S.player=true;S.drmRecoveryCount=0;S.drmHardRecoveryCount=0;S.drmStallAnchor=0;S.drmStallSince=0;S.audioMutedByPolicy=false;S.ctrl=false;S.quick=false;S.generation++;
  S.zone='player';$('player').className='';$('ctrl').className='hidden';$('quick').className='hidden';
  $('playerTitle').textContent=c.name;$('playerMeta').textContent=c.url||'';
  S.recent=[c.id].concat(S.recent.filter(function(x){return x!==c.id})).slice(0,80);saveUser();tryCandidate()
@@ -824,10 +825,20 @@ function openPlayer(c){
 function closePlayer(){
  clearPlayers();var v=$('video');v.pause();v.removeAttribute('src');try{v.load()}catch(e){}
  $('player').className='hidden';$('ctrl').className='hidden';$('quick').className='hidden';
- S.player=false;S.current=null;S.ctrl=false;S.quick=false;S.generation++;S.zone='home';renderHome();focusHome(true)
+ S.player=false;S.current=null;S.ctrl=false;S.quick=false;S.retryPending=false;S.generation++;S.zone='home';renderHome();focusHome(true)
+}
+function scheduleCandidateRetry(){
+ if(S.retryPending)return;
+ S.retryPending=true;
+ var gen=S.generation;
+ setTimeout(function(){
+  if(gen!==S.generation||!S.player)return;
+  S.retryPending=false;
+  tryCandidate();
+ },120)
 }
 function nextCandidate(reason){
- if(!S.player)return;
+ if(!S.player||S.retryPending)return;
  if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}
  var c=S.current;if(!c)return;
  var cand=getCandidate();
@@ -837,20 +848,24 @@ function nextCandidate(reason){
    if(classify(c.candidates[n])==='hls'&&!c.candidates[n].drm){
     S.candidateIndex=n;S.attemptStep=0;S.proxyAttempt=false;
     toast('DRM lỗi · chuyển sang HLS nguồn '+(n+1));
-    setTimeout(tryCandidate,120);return;
+    scheduleCandidateRetry();return;
    }
   }
   setStatus('Không thể ổn định DRM trên Safari\n'+c.name);dbg(String(reason||'Apple DRM failure'));return;
  }
- if(S.attemptStep<1){
+ var kind=cand?classify(cand):'http';
+ var proxyFirst=!!cand&&shouldProxyFirst(cand,kind);
+ // Avoid retrying the same proxy-first URL for another full watchdog cycle.
+ if(S.attemptStep<1&&!(proxyFirst&&S.proxyAttempt)){
   S.attemptStep++;
-  var nextViaProxy=attemptUsesProxy(cand,classify(cand));
+  var nextViaProxy=attemptUsesProxy(cand,kind);
   toast((reason||'Nguồn lỗi')+' · thử '+(nextViaProxy?'proxy':'trực tiếp'));
-  setTimeout(tryCandidate,120);return;
+  scheduleCandidateRetry();return;
  }
  S.attemptStep=0;S.proxyAttempt=false;S.candidateIndex++;
- if(S.candidateIndex<c.candidates.length){
-  toast((reason||'Nguồn lỗi')+' · chuyển nguồn '+(S.candidateIndex+1));setTimeout(tryCandidate,120);return;
+ if(S.candidateIndex<(c.candidates||[]).length){
+  toast((reason||'Nguồn lỗi')+' · chuyển nguồn '+(S.candidateIndex+1));
+  scheduleCandidateRetry();return;
  }
  if(isAppleTouchDevice()&&safariOfficialUrl(c)){
   showSafariOfficialFallback(c,S.generation);
@@ -860,6 +875,7 @@ function nextCandidate(reason){
 }
 
 function tryCandidate(){
+ S.retryPending=false;
  var c=S.current,cand=getCandidate(),v=$('video'),kind,generation=S.generation;
  if(!cand){setStatus('Kênh chưa có URL phát');return}
  clearPlayers();kind=classify(cand);
@@ -962,9 +978,9 @@ function startHls(c,cand,url,gen){
 function tryHlsJs(c,cand,url,gen){
  if(!window.Hls||!Hls.isSupported()){nextCandidate('Trình duyệt không hỗ trợ HLS/MSE');return}
  try{
-  var v=$('video'),networkRecoveries=0,mediaRecoveries=0;
+  var v=$('video'),networkRecoveries=0,mediaRecoveries=0,tizenLike=/SMART-TV|Tizen/i.test(navigator.userAgent||'');
   v.muted=false;v.defaultMuted=false;
-  var h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:60,maxBufferHole:.5,startPosition:-1,manifestLoadingMaxRetry:4,fragLoadingMaxRetry:5,levelLoadingMaxRetry:5,backBufferLength:30,liveSyncDurationCount:3,liveMaxLatencyDurationCount:6});
+  var h=new Hls({enableWorker:!tizenLike,startFragPrefetch:true,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:60,maxBufferHole:.5,startPosition:-1,manifestLoadingMaxRetry:4,fragLoadingMaxRetry:5,levelLoadingMaxRetry:5,backBufferLength:30,liveSyncDurationCount:3,liveMaxLatencyDurationCount:6});
   S.hls=h;
   h.on(Hls.Events.MEDIA_ATTACHED,function(){
    if(gen!==S.generation||!S.player||S.hls!==h)return;
@@ -1879,7 +1895,9 @@ $('video').addEventListener('error',function(){
   // only path allowed to perform a hard restart.
   return;
  }
- if(!S.proxyAttempt)nextCandidate('Video error');
+ // hls.js reports HTTP/network/codec failures with more precise details.
+ if(S.hls)return;
+ if(!S.proxyAttempt)nextCandidate('Video error code='+(ve&&ve.code||0));
 });
 $('video').addEventListener('ended',function(){if(S.player)nextCandidate('Luồng kết thúc')});
 

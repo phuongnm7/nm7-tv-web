@@ -18,6 +18,10 @@ for (const file of files) {
     file + ': reads HTTP status from HLS manifest/segment errors');
   assert.match(source, /if\(httpStatus>=400&&httpStatus<=599\)\{\s*nextCandidate\('HLS HTTP '/,
     file + ': does not wait for the 15-second watchdog on explicit HTTP failures');
+  assert.match(source, /if\(data&&!S\.proxyAttempt&&data\.type===Hls\.ErrorTypes\.NETWORK_ERROR\)/,
+    file + ': direct HLS CORS/network failures switch to proxy before retry backoff');
+  assert.match(source, /var wait=kind===\'hls\'?8000:15000/,
+    file + ': HLS startup watchdog is shorter than the generic 15-second timeout');
   assert.match(source, /thử '\+\(nextViaProxy\?'proxy':'trực tiếp'\)/,
     file + ': retry toast reflects whether next attempt is direct or proxied');
   assert.match(source, /if\(l\.indexOf\('#EXTHTTP:'\)===0\)/,

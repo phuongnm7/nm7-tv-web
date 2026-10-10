@@ -12,9 +12,9 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 
 ## Mốc hiện tại
 
-- Ngày cập nhật: **09/10/2026**
-- Nhánh sửa mới nhất: `fix/vtv1-single-source-hide-default-urls-20261009`
-- Tính năng mới nhất: **VTV1 dùng nguồn từ playlist mặc định 1; loại bỏ nguồn VTV1 hardcode và ép chọn VTVGo**
+- Ngày cập nhật: **10/10/2026**
+- Nhánh ổn định: `stable/nm7-tv-web-2026-10-09`
+- Cập nhật mới nhất: **tự chọn Nguồn mặc định theo hệ điều hành trình duyệt; production Cloudflare Deploy #438 đã PASS**
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Nơi triển khai: **Cloudflare Workers**
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
@@ -24,12 +24,16 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 ## Tự chọn nguồn mặc định theo thiết bị — 10/10/2026
 
 - Trình duyệt trên Android tự mở trang chủ bằng **Nguồn mặc định 2**.
+- Trình duyệt trên Windows tự mở bằng **Nguồn mặc định 2**.
 - Trình duyệt trên iPhone/iPad/iPod tự mở bằng **Nguồn mặc định 1**; iPadOS bật chế độ “Yêu cầu trang web cho máy tính” cũng được nhận diện qua `MacIntel` + cảm ứng đa điểm.
-- Thiết bị khác hoặc không nhận diện được tiếp tục dùng mặc định 1, giữ hành vi cũ cho desktop và TV.
+- macOS, Samsung Tizen TV và thiết bị khác/không nhận diện được tiếp tục dùng **Nguồn mặc định 1**.
 - Việc nhận diện diễn ra trước khi đọc cache để tránh hiển thị tạm danh sách của preset 1 trên Android. Người dùng vẫn có thể đổi preset thủ công trong hộp thoại **Nguồn mặc định**; khi quay lại Truyền hình từ nhóm Thể thao, lựa chọn hiện tại được giữ nguyên.
 - Nếu API của preset 2 lỗi và không có cache preset 2 để dùng, trang báo lỗi nguồn mặc định 2 thay vì âm thầm nạp preset 1; tránh lưu nhầm dữ liệu vào cache của preset khác.
 - Logic được áp dụng cho cả `web-tv/app-safari-policy.js` (entrypoint của trang hiện tại) và `web-tv/app.js`. Đã tăng cache-buster trong `index.html` để trình duyệt lấy script mới. Regression tests bao gồm Android UA/Client Hints, iPhone, iPad, iPadOS desktop mode, desktop, Samsung Tizen, preset khi điều hướng và trạng thái lỗi.
-- Nhánh triển khai riêng: `feat/auto-device-tv-preset-android-ios-20261010`, tạo từ nhánh stable. Không sửa Worker, API playlist, URL nguồn, NM7 Mobile/Android hay Cloudflare deploy workflow. Nhánh tính năng không được thêm vào danh sách nhánh deploy production.
+- Đã gộp vào nhánh ổn định qua [PR #18](https://github.com/phuongnm7/nm7-tv-web/pull/18); commit tính năng ban đầu `f95e80d3b8c759116d3700de5daa1a6f5f5b2d04`.
+- Cập nhật `.github/workflows/cloudflare-deploy.yml` để nhánh stable kích hoạt triển khai production. Commit kích hoạt deploy: `b018f28dd163d75f2c8a46ff990532bdcdea05ec`.
+- **Production Cloudflare Deploy #438: SUCCESS** — [workflow run](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38010319718). Syntax check, deploy Worker, deploy YouTube reverse proxy, YouTube smoke test và production Worker smoke test đều PASS.
+- Phạm vi chỉ là `phuongnm7/nm7-tv-web`; không sửa NM7 Mobile hoặc NM7 TV Android.
 
 
 ## YouTube gốc + AdBlock kiểu trình duyệt

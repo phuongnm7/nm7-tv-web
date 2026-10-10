@@ -20,10 +20,10 @@ for (const file of files) {
     file + ': does not wait for the 15-second watchdog on explicit HTTP failures');
   assert.match(source, /if\(data&&!S\.proxyAttempt&&data\.type===Hls\.ErrorTypes\.NETWORK_ERROR\)/,
     file + ': direct HLS CORS/network failures switch to proxy before retry backoff');
-  assert.match(source, /var wait=kind===\'hls\'\?\(isKnownSlow4k\?45000:8000\):15000/,
-    file + ': regular HLS remains short while known 4K uses a longer timeout');
-  assert.match(source, /if\(isKnownSlow4k\)wait=45000/,
-    file + ': SCTV4K receives enough buffering time for multi-megabyte TS chunks');
+  assert.match(source, /var wait=kind===\'hls\'?8000:15000/,
+    file + ': HLS startup timeout is capped at 8 seconds');
+  assert.doesNotMatch(source, /if\(isKnownSlow4k\)wait=45000/,
+    file + ': SCTV4K does not wait 45 seconds before fallback');
   assert.match(source, /S\.hls!==h/,
     file + ': late events from destroyed HLS instances cannot cancel the current attempt');
   assert.match(source, /thử '\+\(nextViaProxy\?'proxy':'trực tiếp'\)/,

@@ -93,7 +93,7 @@ function headersFromQuery(req,q){
     const extra=JSON.parse(q.get('h')||'{}');
     for(const [k,v] of Object.entries(extra||{})){
       const lk=k.toLowerCase();
-      if(['host','connection','content-length','cookie','user-agent','referer'].includes(lk))continue;
+      if(['host','connection','content-length','user-agent','referer'].includes(lk))continue;
       if(typeof v==='string'&&v.length<4000)h.set(k,v)
     }
   }catch{}

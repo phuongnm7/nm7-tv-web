@@ -2,7 +2,7 @@ name: Diagnose NM7 4K and foreign channel playback
 on:
   push:
     branches:
-      - feat/diagnose-4k-foreign-playback-20261010
+      - fix/sctv4k-proxy-retry-state-20261010
     paths:
       - ".github/workflows/diagnose-4k-foreign-playback.yml"
       - "web-tv/app-safari-policy.js"

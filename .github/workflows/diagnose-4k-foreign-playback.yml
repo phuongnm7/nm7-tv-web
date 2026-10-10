@@ -203,7 +203,23 @@ jobs:
 
           channels = fetch_playlist("tv", "1") + fetch_playlist("tv", "2") + fetch_playlist("sport")
           dazn_names = sorted(set(str(c.get("name") or "") for c in channels if "dazn" in str(c.get("name") or "").lower()))
-          print("PRODUCTION_DAZN_CHANNEL_NAMES", json.dumps(dazn_names[:30], ensure_ascii=False))
+          print("TEST_DAZN_CHANNEL_NAMES", json.dumps(dazn_names[:30], ensure_ascii=False))
+          # List matching names and safe host summaries, never stream paths or query/token values.
+          bournemouth_catalog = []
+          for channel in channels:
+              channel_name = str(channel.get("name") or "")
+              name_flat = re.sub(r"[^a-z0-9]+", "", channel_name.lower())
+              if "bournemouth" not in name_flat and "matchtime" not in name_flat:
+                  continue
+              candidates = channel.get("candidates") or []
+              hosts = sorted(set(urlparse(str(item.get("url") or "")).hostname or "" for item in candidates))
+              stalker_candidate = any(
+                  urlparse(str(item.get("url") or "")).path.lower().endswith("/play/live.php")
+                  and all(key in parse_qs(urlparse(str(item.get("url") or "")).query) for key in ("mac", "stream", "extension"))
+                  for item in candidates
+              )
+              bournemouth_catalog.append({"channel": channel_name, "candidateCount": len(candidates), "hosts": [h for h in hosts if h], "hasStalkerLiveCandidate": stalker_candidate})
+          print("BOURNEMOUTH_CHANNEL_CATALOG", json.dumps(bournemouth_catalog[:80], ensure_ascii=False))
           targets, seen = [], set()
           for c in channels:
               name = str(c.get("name") or "")
@@ -216,7 +232,13 @@ jobs:
                   if not url.startswith(("http://", "https://")) or key in seen: continue
                   seen.add(key)
                   targets.append((name, i, cand, url))
-          targets.sort(key=lambda item: (0 if "bournemouth" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) else 1 if "sctv4k" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) else 2))
+          targets.sort(key=lambda item: (
+              0 if "bournemouth" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) and "matchtime" in re.sub(r"[^a-z0-9]+", "", item[0].lower())
+              else 1 if "afc" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) and "bournemouth" in re.sub(r"[^a-z0-9]+", "", item[0].lower())
+              else 2 if "bournemouth" in re.sub(r"[^a-z0-9]+", "", item[0].lower())
+              else 3 if "sctv4k" in re.sub(r"[^a-z0-9]+", "", item[0].lower())
+              else 4
+          ))
           print("TARGET_CANDIDATES", len(targets))
           for name, i, cand, url in targets[:4]:
               typ = str(cand.get("type") or ("dash" if cand.get("dash") else "hls" if cand.get("hls") else "unknown"))

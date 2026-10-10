@@ -62,9 +62,16 @@ for (const file of files) {
     source.includes('||allowStalkerDirectFallback'),
     file + ': Stalker MPEG-TS tries the direct endpoint once after proxy failure');
   const helperStart = source.indexOf('function isStalkerTsCandidate(cand,kind){');
-  const helperEnd = source.indexOf('\n}', helperStart);
+  let helperEnd = -1, braceDepth = 0, helperStarted = false;
+  for (let k = helperStart; helperStart >= 0 && k < source.length; k++) {
+    if (source[k] === '{') { braceDepth++; helperStarted = true; }
+    else if (source[k] === '}' && helperStarted) {
+      braceDepth--;
+      if (braceDepth === 0) { helperEnd = k + 1; break; }
+    }
+  }
   assert.ok(helperStart >= 0 && helperEnd > helperStart, file + ': Stalker fallback classifier is extractable for behavior tests');
-  const isStalkerTsCandidate = new Function(source.slice(helperStart, helperEnd + 2) + '; return isStalkerTsCandidate;')();
+  const isStalkerTsCandidate = new Function(source.slice(helperStart, helperEnd) + '; return isStalkerTsCandidate;')();
   assert.equal(isStalkerTsCandidate({url:'http://mag.example.test/play/live.php?mac=M&stream=1&extension=ts&play_token=T'}, 'mpegts'), true,
     file + ': identifies a tokenized Stalker MPEG-TS stream');
   assert.equal(isStalkerTsCandidate({url:'http://example.test/live.ts'}, 'mpegts'), false,

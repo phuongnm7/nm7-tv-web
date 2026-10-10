@@ -372,3 +372,12 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 ### Follow-up fix — SCTV4K direct TS returns HTTP 400 (10/10/2026)
 
 Production diagnostic of the currently deployed Cloudflare Worker reproduced the new recording: the SCTV4K M3U8 manifest returns HTTP 200, but direct child MPEG-TS segment requests return HTTP 400. The same manifest through `/api/stream` and its proxied TS segments return HTTP 200 (`video/mp2t`). The prior player still attempted direct first and had a special 45-second startup watchdog for this channel, which explains the black screen and long wait. The new follow-up change in `fix/sctv4k-proxy-retry-state-20261010` starts the known SCTV4K/VietAnhTV HLS candidate through the Worker proxy first, removes the 45-second exception, and caps the HLS startup watchdog at 8 seconds. Both `app.js` and `app-safari-policy.js` are updated; cache-buster is bumped. Do not claim the final result until browser regression and Cloudflare production smoke tests pass.
+
+### 2026-10-10 — SCTV4K proxy-first follow-up
+
+- Live Cloudflare diagnostic verified the SCTV4K manifest at `vietanhtv.id.vn` responds HTTP 200 directly, but direct child TS segment requests respond HTTP 400. This is a provider-specific failure pattern: a successful manifest does not mean direct segment delivery works.
+- The Worker playlist parser now marks this provider as `forceProxy: true`. Both player entrypoints also recognize the provider hostname as proxy-first, so the first playback attempt goes through the Cloudflare Worker instead of waiting for a direct-source failure.
+- Known SCTV4K startup watchdog is bounded at 15 seconds (not 45 seconds); normal HLS remains 8 seconds. Cache-buster updated so the client loads the new player code.
+- Added `scripts/test-sctv4k-proxy-preference.js`: confirms only `vietanhtv.id.vn` HLS is forced through proxy and unrelated HLS remains unchanged.
+- Validation: Web Browser Validation PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38025807061. Browser HLS E2E is still running; its CI browser has no H.264 decoder, so that job can verify resource delivery but not real H.264 decoding.
+- DAZN/foreign custom channel was not present in the three server-served playlists (default 1, default 2, sports). The local/custom source URL/entry is not exposed to server diagnostics, so its exact upstream failure cannot be reproduced without the exact M3U entry. No default source URLs were changed.

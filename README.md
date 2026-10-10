@@ -343,3 +343,27 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - **Browser E2E: PASS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023401145. Navigation và tải HLS manifest/segment trả HTTP 200. CI không có decoder H.264, vì vậy bài test xác nhận đường tải tài nguyên và không tuyên bố đã xác nhận giải mã/phát video H.264 thực tế.
 - SCTV4K chuyển từ nguồn trực tiếp sang proxy ngay khi có lỗi mạng/HTTP, không chờ hết watchdog mặc định 15 giây; HLS watchdog giảm xuống 8 giây. Header tùy chỉnh từ M3U được giữ trong probe, manifest và các request segment HLS/DASH.
 - Phạm vi vẫn chỉ là NM7 TV Web; không đổi URL playlist mặc định, không sửa NM7 Mobile hoặc NM7 TV Android.
+
+## 2026-10-10 — Điều tra lần lỗi SCTV4K mới và sửa theo codec thực tế
+
+### Nguyên nhân đã xác nhận từ production
+
+- Video mới cho thấy player chuyển sang proxy nhưng vẫn kết thúc do watchdog HLS 8 giây.
+- Chẩn đoán playlist đang chạy xác nhận URL manifest SCTV4K tại `vietanhtv.id.vn` trả HTTP 200, trong khi URL phân đoạn TS tải trực tiếp trả HTTP 400.
+- Qua Worker proxy, các phân đoạn được trả HTTP 200 với MIME `video/mp2t`; hai mẫu lần lượt có kích thước khoảng 3.9 MB và 8 MB (mẫu thứ hai bị giới hạn đọc ở 8 MB). Bytes có sync MPEG-TS ở các nhịp 188 byte.
+- `ffprobe` nhận diện video thật là **HEVC/H.265 Main, 3840×2160, 25 fps**. Đây là luồng 4K HEVC, các phân đoạn lớn hơn nhiều so với HLS kênh thường.
+
+### Sửa ở nhánh đang kiểm thử
+
+- Worker đánh dấu riêng candidate SCTV4K trên host đã xác minh là `forceProxy: true`; player thử proxy ngay từ đầu thay vì đi qua URL phân đoạn trực tiếp đã trả 400.
+- Hai player entrypoint bảo vệ HLS callbacks bằng identity của player instance (`S.hls === h`). Sự kiện lỗi đến muộn từ instance trực tiếp đã bị destroy không được phép huỷ lượt proxy mới.
+- Watchdog thường của HLS vẫn ngắn, nhưng SCTV4K/vietanhtv được cấp 45 giây để buffer các segment 4K nhiều MB; lỗi mạng/HTTP rõ ràng vẫn chuyển đường ngay.
+- Đổi cache-buster ở `index.html` để thiết bị tải player mới.
+- Thêm `scripts/test-sctv4k-proxy-preference.js`; mở rộng regression checks về timeout 4K và stale HLS callbacks.
+
+### Kiểm thử
+
+- Live diagnostic #38024197006: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024197006 — nguồn trực tiếp segment HTTP 400, qua proxy HTTP 200; codec đã được nhận diện mà không log đường dẫn có thể chứa token.
+- Web Browser Validation #38024369674: PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369674.
+- Browser E2E #38024369686: PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369686. Bài test kiểm tra remote navigation và manifest/segment của fixture; runner không có decoder H.264 nên không thể thay thế test giải mã thực tế SCTV4K.
+- Nhánh `fix/sctv4k-proxy-retry-state-20261010`; chưa deploy sản phẩm tại thời điểm ghi nhận này. Không đổi URL playlist mặc định, không chỉnh NM7 Mobile hoặc NM7 TV Android.

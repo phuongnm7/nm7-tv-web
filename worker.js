@@ -69,7 +69,36 @@ function parseM3U(t,base=''){
   for(const c of merged){addBuiltin(c);c.candidates.sort((a,b)=>score(b.url)-score(a.url))}
   return merged;
 }
-function headersFromQuery(req,q){const h=new Headers();h.set('User-Agent',q.get('ua')||req.headers.get('user-agent')||'NM7-TV-Web/1.0.69');if(q.get('r'))h.set('Referer',q.get('r'));for(const k of ['range','accept','accept-language','origin','if-none-match','if-modified-since']){const v=req.headers.get(k);if(v)h.set(k,v)}try{const extra=JSON.parse(q.get('h')||'{}');for(const [k,v] of Object.entries(extra||{})){const lk=k.toLowerCase();if(['host','connection','content-length','cookie','user-agent','referer'].includes(lk))continue;if(typeof v==='string'&&v.length<4000)h.set(k,v)}}catch{}return h}
+function isStalkerPlaybackUrl(value){
+  try{
+    const u=new URL(String(value||''));
+    const q=u.searchParams;
+    return /\\/play\\/live\\.php$/i.test(u.pathname)&&q.has('mac')&&q.has('stream')&&q.has('extension')&&(q.has('play_token')||q.has('token'));
+  }catch{return false}
+}
+function headersFromQuery(req,q){
+  const h=new Headers();
+  const target=q.get('u')||'';
+  // Native NM7 TV uses this User-Agent by default for Media3/ExoPlayer requests.
+  // Match it only for Stalker live.php playback URLs; explicit per-channel UA always wins.
+  const fallbackUA=isStalkerPlaybackUrl(target)
+    ?'NM7-TV/1.0.36 Android-TV'
+    :(req.headers.get('user-agent')||'NM7-TV-Web/1.0.69');
+  h.set('User-Agent',q.get('ua')||fallbackUA);
+  if(q.get('r'))h.set('Referer',q.get('r'));
+  for(const k of ['range','accept','accept-language','origin','if-none-match','if-modified-since']){
+    const v=req.headers.get(k);if(v)h.set(k,v);
+  }
+  try{
+    const extra=JSON.parse(q.get('h')||'{}');
+    for(const [k,v] of Object.entries(extra||{})){
+      const lk=k.toLowerCase();
+      if(['host','connection','content-length','cookie','user-agent','referer'].includes(lk))continue;
+      if(typeof v==='string'&&v.length<4000)h.set(k,v)
+    }
+  }catch{}
+  return h
+}
 function apiUrl(path,u,q){let x=path+'?u='+encodeURIComponent(u);for(const k of ['r','ua','h']){const v=q.get(k)||'';if(v)x+='&'+k+'='+encodeURIComponent(v)}return x}
 function rewriteHls(text,finalUrl,q){const px=u=>{try{const abs=safeUrl(u,finalUrl);if(/^data:|^blob:/i.test(abs))return u;return apiUrl('/api/stream',abs,q)}catch{return u}};text=String(text||'').replace(/URI\s*=\s*"([^"]+)"/gi,(m,u)=>'URI="'+px(u)+'"');const lines=text.split(/\r?\n/);for(let i=0;i<lines.length;i++){const z=lines[i].trim();if(z&&!z.startsWith('#')&&!/^data:|^blob:/i.test(z))lines[i]=px(z)}return lines.join('\n')}
 function encodeDashContext(value){

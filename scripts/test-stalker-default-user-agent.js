@@ -13,6 +13,7 @@ async function main() {
   const customUa = 'Stalker-Custom-Test/2.0';
   const browserUa = 'Mozilla/5.0 (Android) Chrome/140.0 Test';
   let acceptedUa = nativeNm7Ua;
+  let acceptedCookie = '';
   const seen = [];
 
   global.fetch = async (input, init = {}) => {
@@ -22,8 +23,8 @@ async function main() {
     const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
 
     if (url.hostname === 'mag.example.test' || url.hostname === 'media.example.test') {
-      seen.push({ host: url.hostname, method, ua: headers.get('user-agent') || '' });
-      if ((headers.get('user-agent') || '') !== acceptedUa) {
+      seen.push({ host: url.hostname, method, ua: headers.get('user-agent') || '', cookie: headers.get('cookie') || '' });
+      if ((headers.get('user-agent') || '') !== acceptedUa || (acceptedCookie && headers.get('cookie') !== acceptedCookie)) {
         return new Response('Forbidden', { status: 403, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       }
       if (method === 'HEAD') {
@@ -71,6 +72,17 @@ async function main() {
     assert(seen.some(x => x.host === 'mag.example.test' && x.ua === customUa),
       'explicit channel User-Agent wins over Stalker fallback');
 
+    // Explicit Cookie headers from playlist metadata must reach the upstream.
+    acceptedUa = nativeNm7Ua;
+    acceptedCookie = 'session=SAFE_TEST_COOKIE';
+    seen.length = 0;
+    q = new URLSearchParams({ u: stalkerUrl, h: JSON.stringify({ Cookie: acceptedCookie }) });
+    response = await worker.fetch(makeWorkerRequest('/api/stream?' + q.toString()), {});
+    assert.equal(response.status, 200, 'explicit Stalker Cookie header is preserved');
+    assert(seen.some(x => x.host === 'mag.example.test' && x.cookie === acceptedCookie),
+      'explicit playlist Cookie reaches upstream');
+    acceptedCookie = '';
+
     // Non-Stalker media must retain the existing browser/request UA behavior.
     acceptedUa = browserUa;
     seen.length = 0;
@@ -83,6 +95,7 @@ async function main() {
 
     console.log('PASS: Stalker default UA matches native NM7 TV');
     console.log('PASS: explicit per-channel UA overrides default');
+    console.log('PASS: explicit playlist Cookie reaches upstream');
     console.log('PASS: non-Stalker UA behavior unchanged');
   } finally {
     global.fetch = originalFetch;

@@ -15,6 +15,8 @@ assert.match(worker, /q\.get\('refresh'\)==='1'/,
   '/api/playlist must pass refresh=1 to playlistResponse');
 assert.match(worker, /refreshed:forceRefresh/,
   'successful API response must report whether it bypassed cache');
+assert.match(worker, /sport:\s*\[\s*'https:\/\/thethaonm7\.phuongnm7-iptv\.workers\.dev\/playlist\.m3u',\s*'https:\/\/raw\.githubusercontent\.com\/phuongnm7\/Iptv-phuongnm7\/main\/sports-auto\.m3u\?utm_source=chatgpt\.com'/,
+  'default sport source must prefer the live Worker and keep GitHub as fallback');
 
 for (const file of appFiles) {
   const source = fs.readFileSync(file, 'utf8');

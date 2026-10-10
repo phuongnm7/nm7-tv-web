@@ -188,7 +188,7 @@ async function dashResourceResponse(request,url){
   return streamResponse(request,q);
 }
 function cors(h){h.set('Access-Control-Allow-Origin','*');h.set('Access-Control-Allow-Methods','GET,HEAD,POST,OPTIONS');h.set('Access-Control-Allow-Headers','Range,Accept,Content-Type,Origin,Referer,User-Agent,X-Requested-With');h.set('Access-Control-Expose-Headers','Content-Length,Content-Range,Accept-Ranges,Content-Type,ETag');return h}
-async function fetchWithTimeout(url,init={},ms=9000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{return await fetch(url,{...init,signal:c.signal,redirect:'follow',cache:'no-store'})}finally{clearTimeout(t)}}
+async function fetchWithTimeout(url,init={},ms=9000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{return await fetch(url,{...init,signal:c.signal,redirect:init.redirect||'follow',cache:'no-store'})}finally{clearTimeout(t)}}
 async function playlistResponse(source,defaultChoice='',env=null){
   if(!SOURCES[source])return new Response(JSON.stringify({channels:[],source}),{status:400,headers:{'Content-Type':'application/json'}});
   const choice=String(defaultChoice||'');
@@ -377,6 +377,29 @@ async function probeResponse(request,q){
   const requestedReferer=q.get("r")||"";
   if(requestedUA)headers.set("User-Agent",requestedUA);
   if(requestedReferer)headers.set("Referer",requestedReferer);
+  // Test-only safe redirect fingerprint: reveal only status and destination host,
+  // never query/path because Stalker URLs carry MACs and short-lived play tokens.
+  if(q.get("manualRedirect")==="1"){
+    try{
+      const mr=await fetchWithTimeout(target,{method:"GET",headers,redirect:"manual"},5000);
+      const location=mr.headers.get("location")||"";
+      let locationHost="";
+      try{locationHost=new URL(location,target).hostname}catch{}
+      const out={
+        status:mr.status,
+        contentType:mr.headers.get("content-type")||"",
+        server:mr.headers.get("server")||"",
+        cfRayPresent:!!mr.headers.get("cf-ray"),
+        redirectPresent:!!location,
+        redirectHost:locationHost,
+        requestedHost:(()=>{try{return new URL(target).hostname}catch{return ""}})()
+      };
+      try{await mr.body?.cancel()}catch{}
+      return new Response(JSON.stringify(out),{headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Cache-Control":"no-store"}});
+    }catch(e){
+      return new Response(JSON.stringify({status:0,errorClass:String(e?.name||"Error")} ),{headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Cache-Control":"no-store"}});
+    }
+  }
   let r=null,bodyText="",bodyBytes=0,headStatus=0,getStatus=0;
   try{r=await fetchWithTimeout(target,{method:"HEAD",headers},5000);headStatus=r.status}catch{}
   let finalUrl=r?.url||target,ct=(r?.headers.get("content-type")||"").toLowerCase();

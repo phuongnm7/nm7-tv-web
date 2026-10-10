@@ -410,7 +410,8 @@ async function stalkerSocketProbe(target,q){
     ];
     if(ref)lines.push("Referer: "+ref.replace(/[\\r\\n]/g,""));
     await writer.write(new TextEncoder().encode(lines.join("\r\n")+"\r\n\r\n"));
-    try{await writer.close()}catch{}
+    // Keep the writable side open while reading; some live origins do not answer
+    // until they finish parsing the request on the socket.
     let raw=new Uint8Array(0),deadline=Date.now()+6500,headerEnd=-1,needed=12000;
     while(raw.byteLength<50000&&Date.now()<deadline){
       const remaining=deadline-Date.now();
@@ -467,6 +468,7 @@ async function stalkerSocketProbe(target,q){
     return new Response(JSON.stringify({firstStatus:first.status,redirectHost:dest.hostname,redirectPort:dest.port||"80",errorClass:"socket-"+String(e?.name||"Error"),errorMessage:String(e?.message||"").slice(0,120)}),{status:502,headers:cors(new Headers({"Content-Type":"application/json","Cache-Control":"no-store"}))});
   }finally{
     try{await reader?.cancel()}catch{}
+    try{await writer?.close()}catch{}
     try{socket?.close()}catch{}
   }
 }

@@ -48,6 +48,7 @@ jobs:
           echo "SPORT_REFRESH_WORKER_HTML_OK"
 
           curl -fsSL --max-time 45 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport-before.json
+          echo "TESTING_EXPLICIT_REFRESH_PARAM=1"
           curl -fsSL --max-time 45 "$BASE/api/playlist?source=sport&refresh=1" -o /tmp/nm7-sport-after.json
           python3 - <<'PY'
           import json

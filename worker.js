@@ -401,7 +401,7 @@ async function probeResponse(request,q){
       if(q.get("rewriteHost")==="1"&&location){
         try{
           const redirected=new URL(location,target);
-          const isIp=(host)=>/^\\d{1,3}(?:\\.\\d{1,3}){3}$/.test(host)||host.includes(":");
+          const isIp=(host)=>/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)||host.includes(':');
           if(isIp(redirected.hostname)&&!isIp(requestedUrl.hostname)){
             redirected.hostname=requestedUrl.hostname;
             const rr=await fetchWithTimeout(redirected.href,{method:"GET",headers,redirect:"manual"},7000);

@@ -147,11 +147,11 @@ Native host dùng các API EWK request interception và script injection tương
 
 ### Nguồn Thể thao
 
-Worker ưu tiên:
-`https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com`
-
-Nếu nguồn chính lỗi, Worker dùng:
+Nguồn chính — danh sách động, cập nhật khi tải lại:
 `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u`
+
+Nguồn dự phòng nếu Worker trên lỗi:
+`https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com`
 
 ### Thêm nguồn IPTV bằng URL
 

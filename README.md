@@ -278,7 +278,7 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - This change is deployed only to the isolated Worker `nm7-tv-web-device-test`; it does not change the production Worker.
 
 
-## 2026-10-10 — Điều tra lỗi phát SCTV4K và kênh quốc tế (đang cô lập, chưa deploy production)
+## 2026-10-10 — Sửa lỗi proxy HLS của SCTV4K và chẩn đoán kênh quốc tế (đã deploy)
 
 ### Kết quả chẩn đoán SCTV4K
 
@@ -303,5 +303,9 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 ### Kiểm thử và phạm vi
 
 - GitHub Actions Web Browser Validation #303 PASS, gồm kiểm tra cú pháp, test chọn preset, fallback player và kiểm tra proxy bảo toàn bytes của segment.
-- Chẩn đoán production: workflow run #9 (https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021315033). Workflow hiện chỉ ghi host và loại tài nguyên, không ghi path/query có thể chứa thông tin ký của stream.
-- Code đang ở nhánh feat/diagnose-4k-foreign-playback-20261010, chưa merge vào stable/nm7-tv-web-2026-10-09 và chưa deploy lên Worker production. Không sửa NM7 Mobile/Android hay thay đổi URL playlist.
+- Đã merge PR #19 vào nhánh `stable/nm7-tv-web-2026-10-09`, commit `034de12128fba712cb51af388c491ed434c0ae33`.
+- Cloudflare Deploy #442: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021648048. JavaScript syntax, deploy Worker, deploy YouTube reverse proxy, YouTube smoke test và production Worker smoke test đều PASS.
+- Chẩn đoán sau triển khai #10: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021737310. Hai segment SCTV4K trả HTTP 200 với `Content-Type: video/mp2t`; workflow ghi `SCTV4K_PROXY_SEGMENT_MIME_PASS` và che toàn bộ path stream.
+- Phạm vi chỉ NM7 TV Web. Không sửa NM7 Mobile/Android hoặc đổi URL playlist.
+- Giới hạn kiểm thử: Playwright browser E2E cho HLS fixture vẫn fail ở `hls.js bufferAddCodecError` trên runner CI; regression test proxy nhị phân và syntax/regression suite đều PASS. Cần tiếp tục xác minh phát trực tiếp trên trình duyệt/thiết bị người dùng.
+- Kênh `|UK| DAZN PPV FHD` chưa có trong playlist mặc định 1, mặc định 2 hoặc playlist Thể thao; cần entry M3U/URL của nguồn tùy chỉnh để xác định đúng kênh này.

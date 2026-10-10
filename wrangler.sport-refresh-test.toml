@@ -1,0 +1,16 @@
+name = "nm7-tv-web-sport-refresh-test"
+main = "worker.js"
+compatibility_date = "2026-10-04"
+
+[assets]
+directory = "./web-tv"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[[services]]
+binding = "PLAYLIST_SOURCE"
+service = "phuongnm7-playlist"
+
+[[services]]
+binding = "THETHAO_SOURCE"
+service = "thethaonm7"

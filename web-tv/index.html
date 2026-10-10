@@ -17,7 +17,7 @@ button{cursor:pointer}
 #home{position:absolute;inset:0;padding:0 18px 0 72px;overflow:hidden;background:transparent;scrollbar-width:none;display:flex;flex-direction:column}
 #homeTabs{display:none;position:relative;flex:0 0 64px;height:64px;align-items:center;padding:6px 0;z-index:4}
 #homeTitle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c8d2dd;font-size:18px;font-weight:700;pointer-events:none}
-#btnYouTubeTab{width:180px;height:52px;border:0;border-radius:10px;background:transparent;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;outline:none;font-size:17px;font-weight:700}
+#btnNewsTab{height:52px;margin-left:4px;padding:0 14px;border:0;border-radius:10px;background:transparent;color:#fff;outline:none;font-size:16px;font-weight:700;white-space:nowrap}#btnNewsTab:focus{outline:3px solid #37d6a6;background:#ffffff18}#btnYouTubeTab{width:180px;height:52px;border:0;border-radius:10px;background:transparent;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;outline:none;font-size:17px;font-weight:700}
 #btnYouTubeTab:focus,#appShortcut:focus{outline:3px solid #37d6a6;background:#ffffff18}
 .youtubeMark{width:32px;height:22px;border-radius:6px;background:#ff0000;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:12px;line-height:1}
 #appShortcut{width:84px;height:52px;margin-left:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;outline:none}
@@ -232,7 +232,7 @@ body.mobile-mode #debug{font-synthesis:none}
 </head>
 <body id="nm7-body" tabindex="-1">
 <div id="app">
-  <main id="home"><div id="homeTabs"><button id="mobileMenuBtn" type="button" tabindex="-1" aria-label="Mở menu">☰</button><button id="btnYouTubeTab" type="button" tabindex="-1"><span class="youtubeMark">▶</span><span>YouTube</span></button><button id="appShortcut" type="button" tabindex="-1"><img id="shortcutIcon" src="/assets/nm7-main-logo.png" alt=""><span id="shortcutLabel">Chọn ứng dụng</span></button><div id="homeTitle">Danh sách kênh TV</div></div><div id="homeRows"><div class="empty">Đang tải danh sách kênh…</div></div></main>
+  <main id="home"><div id="homeTabs"><button id="mobileMenuBtn" type="button" tabindex="-1" aria-label="Mở menu">☰</button><button id="btnYouTubeTab" type="button" tabindex="-1"><span class="youtubeMark">▶</span><span>YouTube</span></button><button id="btnNewsTab" type="button" tabindex="-1" aria-label="Mở Bản tin">▣ Bản tin</button><button id="appShortcut" type="button" tabindex="-1"><img id="shortcutIcon" src="/assets/nm7-main-logo.png" alt=""><span id="shortcutLabel">Chọn ứng dụng</span></button><div id="homeTitle">Danh sách kênh TV</div></div><div id="homeRows"><div class="empty">Đang tải danh sách kênh…</div></div></main>
   <section id="player" class="hidden">
     <div id="playerTop"><div id="playerTitle"></div><div id="playerMeta"></div></div>
     <video id="video" playsinline preload="auto"></video>

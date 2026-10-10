@@ -1059,9 +1059,22 @@ function startFlv(c,cand,url,gen){
  startMpegTsFallback()
 }
 function diagnoseMpegTs(c,cand,gen){
- // Log only status and media type; never print source URL or credentials.
+ // Send the same candidate headers used by playback; never print URLs or credentials.
  var source=String((cand&&(cand.resolvedUrl||cand.url))||'');if(!isHttp(source))return;
- try{fetch('/api/probe?u='+encodeURIComponent(source),{cache:'no-store'}).then(function(r){return r.json().then(function(d){return {http:r.status,data:d}})}).then(function(x){if(gen!==S.generation)return;var d=x.data||{};dbg('MPEG-TS upstream diagnostic: probeHTTP='+x.http+' upstreamHTTP='+(d.status||0)+' type='+(d.type||'unknown')+' contentType='+(d.contentType||'unknown'))}).catch(function(){if(gen===S.generation)dbg('MPEG-TS upstream diagnostic: probe request failed (URL hidden)')})}catch(e){dbg('MPEG-TS upstream diagnostic: probe unavailable')}
+ try{
+  var params=new URLSearchParams();params.set('u',source);
+  if(cand&&cand.ua)params.set('ua',String(cand.ua));
+  if(cand&&cand.ref)params.set('r',String(cand.ref));
+  if(cand&&cand.headers&&typeof cand.headers==='object'){
+   var safeHeaders={};
+   Object.keys(cand.headers).forEach(function(k){
+    if(/^(host|connection|content-length|cookie|user-agent|referer)$/i.test(k))return;
+    var v=cand.headers[k];if(typeof v==='string'&&v.length<4000)safeHeaders[k]=v;
+   });
+   if(Object.keys(safeHeaders).length)params.set('h',JSON.stringify(safeHeaders));
+  }
+  fetch('/api/probe?'+params.toString(),{cache:'no-store'}).then(function(r){return r.json().then(function(d){return {http:r.status,data:d}})}).then(function(x){if(gen!==S.generation)return;var d=x.data||{};dbg('MPEG-TS upstream diagnostic: probeHTTP='+x.http+' upstreamHTTP='+(d.status||0)+' type='+(d.type||'unknown')+' contentType='+(d.contentType||'unknown'))}).catch(function(){if(gen===S.generation)dbg('MPEG-TS upstream diagnostic: probe request failed (URL hidden)')})
+ }catch(e){dbg('MPEG-TS upstream diagnostic: probe unavailable')}
 }
 function startMpegTs(c,cand,url,gen){
  if(!window.mpegts||!mpegts.isSupported()){nextCandidate('MPEG-TS/MSE không được hỗ trợ');return}

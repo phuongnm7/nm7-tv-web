@@ -300,19 +300,22 @@ jobs:
                       "errorClass": manual_data.get("errorClass")
                   }, ensure_ascii=False))
                   # Test the official Cloudflare TCP Sockets API for the allowlisted raw-IP redirect.
-                  for socket_mode in ("redirect-ip", "origin"):
+                  for socket_mode, no_range in (("redirect-ip", False), ("origin", False), ("origin", True)):
                       socket_q = dict(q, socketProbe="1", socketHostMode=socket_mode)
+                      if no_range: socket_q["socketNoRange"] = "1"
                       socket_url = BASE + "/api/probe?" + urllib.parse.urlencode(socket_q)
                       socket_result = request(socket_url, {"User-Agent": UA}, limit=2000, timeout=12)
                       try:
                           socket_data = json.loads(socket_result.get("body", b"{}").decode("utf-8", "ignore"))
                       except Exception:
                           socket_data = {}
-                      print(name.replace(" ", "_") + "_CLOUDFLARE_TCP_SOCKET_" + socket_mode.upper().replace("-", "_"), json.dumps({
+                      suffix = socket_mode.upper().replace("-", "_") + ("_NO_RANGE" if no_range else "")
+                      print(name.replace(" ", "_") + "_CLOUDFLARE_TCP_SOCKET_" + suffix, json.dumps({
                           "probeHTTP": socket_result.get("status"), "firstStatus": socket_data.get("firstStatus"),
                           "redirectHost": socket_data.get("redirectHost"), "redirectPort": socket_data.get("redirectPort"),
                           "socketHttpStatus": socket_data.get("socketHttpStatus"), "hostMode": socket_data.get("hostMode"),
-                          "contentType": socket_data.get("contentType"), "transferEncoding": socket_data.get("transferEncoding"),
+                          "rangeSent": socket_data.get("rangeSent"), "contentType": socket_data.get("contentType"),
+                          "transferEncoding": socket_data.get("transferEncoding"),
                           "contentLength": socket_data.get("contentLength"), "bytesRead": socket_data.get("bytesRead"),
                           "tsSync188": socket_data.get("tsSync188"), "server": socket_data.get("server"),
                           "errorClass": socket_data.get("errorClass"), "errorMessage": socket_data.get("errorMessage")

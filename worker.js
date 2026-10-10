@@ -795,19 +795,19 @@ async function newsResponse(url) {
     if (!upstream.ok) throw new Error('upstream-'+upstream.status);
     const html = await upstream.text();
     const items=[], seen=new Set();
-    const anchors=html.match(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)||[];
+    const anchors=html.match(/<a\b[^>]*>[\s\S]*?<\/a>/gi)||[];
     for (const block of anchors) {
-      const hm=/<a\\b[^>]*href\\s*=\\s*["']([^"']+)["'][^>]*>/i.exec(block);
+      const hm=/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/i.exec(block);
       if(!hm) continue;
       let href; try{href=new URL(hm[1],cfg.url).href}catch{continue}
       if(!/^https?:$/.test(new URL(href).protocol)||seen.has(href)||href===cfg.url)continue;
-      const im=/<img\\b[^>]*>/i.exec(block);
+      const im=/<img\b[^>]*>/i.exec(block);
       let image='';
-      if(im){const sm=/(?:src|data-src|data-original)\\s*=\\s*["']([^"']+)["']/i.exec(im[0]);if(sm){try{image=new URL(sm[1],cfg.url).href}catch{}}}
+      if(im){const sm=/(?:src|data-src|data-original)\s*=\s*["']([^"']+)["']/i.exec(im[0]);if(sm){try{image=new URL(sm[1],cfg.url).href}catch{}}}
       let title='';
-      const tm=/\\btitle\\s*=\\s*["']([^"']+)["']/i.exec(hm[0]);
+      const tm=/\btitle\s*=\s*["']([^"']+)["']/i.exec(hm[0]);
       if(tm) title=tm[1];
-      if(!title) title=block.replace(/<script\\b[\\s\\S]*?<\\/script>/gi,' ').replace(/<style\\b[\\s\\S]*?<\\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'").replace(/\\s+/g,' ').trim();
+      if(!title) title=block.replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'").replace(/\s+/g,' ').trim();
       if(title.length<8||title.length>220)continue;
       if(source==='highlights'&&!/video|highlight|bàn thắng|bong da|bóng đá|trận/i.test(href+' '+title))continue;
       if(!image && !/video|highlight|match|tran|clip/i.test(href+' '+title))continue;

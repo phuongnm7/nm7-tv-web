@@ -393,3 +393,27 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - **Cloudflare Deploy #438: SUCCESS** — [GitHub Actions run](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38010319718).
 - Các bước đều PASS: JavaScript syntax check, deploy Cloudflare Worker, deploy dedicated YouTube reverse proxy, YouTube redirect/ad-guard smoke test và production Worker smoke test.
 - Phạm vi chỉ là repository `phuongnm7/nm7-tv-web`. Không sửa NM7 Mobile hoặc NM7 TV Android; không thay URL nguồn, API playlist, player hoặc DRM trong thay đổi preset này.
+
+
+## 2026-10-10 — Xử lý kênh 4K và kênh nước ngoài (feature branch, chưa deploy)
+
+### Chẩn đoán SCTV4K
+
+- API Worker production trả SCTV4K với một ứng viên HLS từ vietanhtv.id.vn. Manifest gốc trả HTTP 200 và có nội dung HLS.
+- Các segment .ts con tải trực tiếp trả HTTP 400; khi tải qua Worker proxy, upstream có lúc trả 200 nhưng khai báo MIME application/vnd.apple.mpegurl dù nội dung là segment nhị phân.
+- Nguyên nhân code xác định: worker.js cũ quyết định rewrite manifest dựa trên Content-Type, nên segment MPEG-TS bị đọc/ghi lại như văn bản HLS. Đây là nguyên nhân cụ thể có thể tạo màn hình đen ở SCTV4K.
+
+### Code đã sửa ở nhánh cô lập
+
+- worker.js: nhận diện phần mở rộng media trước khi xử lý manifest; giữ nguyên bytes cho .ts, .m2ts, .m4s, .mp4 và một số định dạng audio/video khác, đặt MIME phù hợp; chỉ rewrite HLS/DASH manifest thật.
+- web-tv/app.js và web-tv/app-safari-policy.js: chỉ đánh dấu player chạy sau khi có bằng chứng playback thực tế; tăng độ tin cậy watchdog/fallback direct → proxy; ghi nguyên nhân lỗi cuối trong status; sửa chuỗi xuống dòng bị escape hai lần.
+- Thêm scripts/test-worker-hls-segments.js: giả lập upstream gửi bytes TS nhưng khai báo sai application/vnd.apple.mpegurl; xác nhận Worker trả video/mp2t và byte-for-byte không đổi; xác nhận HLS manifest thật vẫn được rewrite.
+- Thêm scripts/test-playback-startup-fallback.js: regression checks cho cả hai file player.
+- Cập nhật .github/workflows/web-browser-validation.yml để chạy test mới và kiểm tra cú pháp Worker dạng ES module.
+
+### Kết quả kiểm thử và phạm vi
+
+- Web Browser Validation #303: SUCCESS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38020920789. Các bước JS syntax check, regression checks và required assets đều PASS.
+- Production diagnostic #5: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38020872169. Đã kiểm tra cả manifest lẫn URI segment; không đưa URL có token vào tài liệu.
+- DAZN PPV FHD không xuất hiện trong các playlist production được hỏi qua ba API (Mặc định 1, Mặc định 2, Thể thao). Chưa đủ dữ liệu để xử lý chính xác kênh DAZN trong ảnh; cần entry M3U hoặc URL nguồn thực tế.
+- Branch: feat/diagnose-4k-foreign-playback-20261010. Chưa merge stable, chưa deploy Cloudflare production. Không thay URL mặc định, không sửa NM7 Mobile/Android.

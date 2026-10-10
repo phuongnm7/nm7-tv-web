@@ -1545,13 +1545,18 @@ function isTvLikeDevice(){
 function detectMobileDevice(){
  if(isNativeTvMode())return false;
  var ua=String(navigator.userAgent||'');
+ var platform=String(navigator.platform||'');
+ var maxTouchPoints=Number(navigator.maxTouchPoints||0);
  var mobileUA=/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua);
- var touch=('ontouchstart' in window)||((navigator.maxTouchPoints||0)>0);
+ // iPadOS Safari in "Request Desktop Website" mode reports Macintosh/MacIntel.
+ // More than one touch point distinguishes iPad hardware from a regular Mac.
+ var ipadDesktop=/Macintosh|MacIntel/i.test(ua+' '+platform)&&maxTouchPoints>1;
+ var touch=('ontouchstart' in window)||(maxTouchPoints>0);
  var small=false;
  try{small=Math.max(Number(screen.width||0),Number(screen.height||0))<=1024}catch(e){}
  var coarse=false;
  try{coarse=!!(window.matchMedia&&window.matchMedia('(pointer: coarse)').matches)}catch(e){}
- return !!(mobileUA||(touch&&small&&(coarse||!ua)));
+ return !!(mobileUA||ipadDesktop||(touch&&small&&(coarse||!ua)));
 }
 function applyDeviceMode(){
  var m=detectMobileDevice();

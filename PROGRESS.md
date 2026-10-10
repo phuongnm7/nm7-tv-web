@@ -631,3 +631,20 @@ Chỉ sửa luồng nguồn Thể thao của NM7 TV Web/Cloudflare. Không sửa
 - Kiểm thử regression `SPORT_PLAYLIST_REFRESH_TESTS_OK`; các smoke test playlist và nhập nguồn tùy chỉnh cũng PASS.
 
 Phạm vi chỉ NM7 TV Web/Cloudflare; không thay đổi NM7 TV Android hoặc NM7 Mobile.
+
+
+## 2026-10-10 — Sửa nút menu ba gạch khi iPad nằm ngang
+
+### Nguyên nhân
+- Khi bật “Yêu cầu trang web cho máy tính”, Safari trên iPadOS có thể dùng User-Agent/navigator.platform mang giá trị Macintosh/MacIntel.
+- Bộ nhận diện thiết bị trước đây chỉ coi thiết bị cảm ứng là thiết bị di động khi kích thước màn hình tối đa không vượt quá 1024 px. Ở chế độ ngang rộng, body.mobile-mode không được bật; nút ☰ vốn dựa vào trạng thái này để hiện nên bị ẩn.
+- Ở chế độ dọc, media query theo chiều rộng vẫn có thể hiện nút, khiến lỗi chỉ xuất hiện khi xoay ngang.
+
+### Bản sửa
+- Cả web-tv/app.js và web-tv/app-safari-policy.js nhận diện thêm iPadOS chạy desktop mode bằng Macintosh/MacIntel kết hợp với navigator.maxTouchPoints > 1, không phụ thuộc độ rộng màn hình.
+- Giữ xử lý resize và orientationchange để cập nhật bố cục sau khi xoay thiết bị.
+- Tăng cache-buster của script đang được index.html sử dụng để trình duyệt tải mã mới.
+- Thêm scripts/test-ipad-landscape-menu.js và đưa vào workflow Cloudflare; smoke test production kiểm tra script hiện hành có chứa nhận diện iPad desktop mode.
+
+### Phạm vi
+Chỉ sửa NM7 TV Web và triển khai qua Cloudflare Worker. Không thay đổi NM7 TV Android, NM7 Mobile, logic phát video hoặc cấu hình Vercel.

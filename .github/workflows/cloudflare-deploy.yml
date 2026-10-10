@@ -32,7 +32,8 @@ jobs:
           node --check web-tv/app.js
           node --check web-tv/youtube.js
           node scripts/test-sport-playlist-refresh.js
-          echo "NM7_TV_JS_SYNTAX_AND_SPORT_REFRESH_TESTS_OK"
+          node scripts/test-ipad-landscape-menu.js
+          echo "NM7_TV_JS_SYNTAX_AND_SPORT_REFRESH_AND_IPAD_MENU_TESTS_OK"
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4
@@ -86,7 +87,7 @@ jobs:
           echo "$BG_META" | grep -q "3840x2160"
           test "$(sha256sum /tmp/nm7-bg.webp | cut -d' ' -f1)" = "d8af6ac8ba532db465dcb8c44e00b71865e6c9a712c8cc21cd0a2118400bd00d"
           grep -q "NM7 TV 1.0.69" /tmp/nm7-home.html
-          grep -q "app-safari-policy.js?v=20261010-sport-refresh1" /tmp/nm7-home.html
+          grep -q "app-safari-policy.js?v=20261010-ipad-landscape-menu1" /tmp/nm7-home.html
           grep -Fq "body.mobile-mode #mobileMenuBtn{display:flex;align-items:center;justify-content:center;flex:0 0 46px}" /tmp/nm7-home.html
           ! grep -Fq 'id="playerBackBtn"' /tmp/nm7-home.html
           grep -Fq 'data-a="back"' /tmp/nm7-home.html
@@ -171,7 +172,7 @@ jobs:
                   raise SystemExit("YouTube UI marker missing: "+needle)
           print("YOUTUBE_UI_SMOKE_OK")
           PY
-          APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app-safari-policy.js?v=20261009-ipad-player-controls1")"
+          APP="$(curl -fsSL --max-redirs 3 --max-time 30 "$BASE/app-safari-policy.js?v=20261010-ipad-landscape-menu1")"
           python3 - "$APP" <<'PY'
           import sys
           app=sys.argv[1]
@@ -192,6 +193,7 @@ jobs:
               "Safari prefers non-DRM HLS":"for(var j=0;j<a.length;j++)if(classify(a[j])==='hls'&&!a[j].drm)return j;",
               "Touch player controls binding":"function bindPlayerControls()",
               "Touch control click dispatch":"ctrl.addEventListener('click'",
+              "Desktop-mode iPad detection":"var ipadDesktop=/Macintosh|MacIntel/i.test(ua+' '+platform)&&maxTouchPoints>1;",
               "Back button closes player":"if(a==='back'){closePlayer();return}",
               "TV default 1 API route":"tv:'/api/playlist?source=tv&default=1'",
               "TV default 2 API route":"tv2:'/api/playlist?source=tv&default=2'",

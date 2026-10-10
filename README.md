@@ -502,3 +502,11 @@ Branch: `fix/sports-hls-startup-proxy-20261010`. The following remains isolated 
 - Người dùng đã xác nhận bản test Cloudflare này hoạt động và yêu cầu đưa mã cùng tài liệu sang nhánh ổn định.
 
 Phạm vi thay đổi: chỉ NM7 TV Web và Cloudflare Worker; không đổi NM7 Mobile hoặc NM7 TV Android. Việc triển khai production được xác minh riêng qua workflow Cloudflare của nhánh stable.
+
+
+## Sửa menu trên iPad nằm ngang (10/10/2026)
+
+- Sửa nhận diện iPadOS Safari khi bật “Yêu cầu trang web cho máy tính”: Safari có thể báo Macintosh/MacIntel dù thiết bị là iPad.
+- Dùng thêm navigator.maxTouchPoints > 1 để bật mobile-mode trên iPad màn hình rộng, nhờ đó nút ☰ ở góc trên bên trái tiếp tục hiển thị khi xoay ngang.
+- Tăng cache-buster của script Safari đang hoạt động và thêm regression test cho cả hai tệp JS; workflow Cloudflare kiểm tra script mới sau triển khai.
+- Phạm vi chỉ gồm NM7 TV Web/Cloudflare; không thay đổi NM7 Android hoặc NM7 Mobile.

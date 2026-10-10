@@ -96,7 +96,52 @@ async function playlistResponse(source,defaultChoice='',env=null){
   return new Response(JSON.stringify({channels:[],source,error:errors.join(' | ')}),{status:504,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 }
 async function streamResponse(request,q){
-  const target=q.get('u');if(!isHttp(target))return new Response('bad url',{status:400});const r=await fetch(target,{method:request.method==='HEAD'?'HEAD':'GET',headers:headersFromQuery(request,q),redirect:'follow',cache:'no-store'}),ct=(r.headers.get('content-type')||'').toLowerCase(),finalUrl=r.url||target,looksHls=ct.includes('mpegurl')||/\.(m3u8|m3u)(?:$|[?#])/i.test(finalUrl),looksDash=ct.includes('dash+xml')||/\.mpd(?:$|[?#])/i.test(finalUrl),h=cors(new Headers(r.headers));h.set('Cache-Control','no-store');if(looksHls&&r.ok){const body=await r.text();h.set('Content-Type','application/vnd.apple.mpegurl; charset=utf-8');return new Response(rewriteHls(body,finalUrl,q),{status:r.status,headers:h})}if(looksDash&&r.ok){const body=await r.text();h.set('Content-Type','application/dash+xml; charset=utf-8');return new Response(rewriteDash(body,finalUrl),{status:r.status,headers:h})}if(!h.get('Content-Type')){const low=finalUrl.toLowerCase();h.set('Content-Type',/\.mp4(?:$|[?#])/i.test(low)?'video/mp4':/\.flv(?:$|[?#])/i.test(low)?'video/x-flv':/\.(ts|m2ts)(?:$|[?#])/i.test(low)?'video/mp2t':'application/octet-stream')}return new Response(r.body,{status:r.status,headers:h})
+  const target=q.get('u');
+  if(!isHttp(target))return new Response('bad url',{status:400});
+  const r=await fetch(target,{
+    method:request.method==='HEAD'?'HEAD':'GET',
+    headers:headersFromQuery(request,q),
+    redirect:'follow',
+    cache:'no-store'
+  });
+  const ct=(r.headers.get('content-type')||'').toLowerCase();
+  const finalUrl=r.url||target;
+  const h=cors(new Headers(r.headers));
+  h.set('Cache-Control','no-store');
+
+  // Some provider reverse proxies incorrectly label MPEG-TS/fMP4 media
+  // segments as application/vnd.apple.mpegurl. Never parse binary media as
+  // an HLS text manifest merely because the upstream Content-Type is wrong.
+  const path=(()=>{try{return new URL(finalUrl).pathname.toLowerCase()}catch{return String(finalUrl).toLowerCase().split(/[?#]/)[0]}})();
+  const ext=(path.match(/\.([a-z0-9]+)$/i)||[])[1]||'';
+  const mediaType={
+    ts:'video/mp2t',m2ts:'video/mp2t',
+    m4s:'video/mp4',cmfv:'video/mp4',cmfa:'audio/mp4',mp4:'video/mp4',
+    aac:'audio/aac',ac3:'audio/ac3',ec3:'audio/eac3',
+    vtt:'text/vtt',webvtt:'text/vtt'
+  }[ext];
+  if(mediaType){
+    h.set('Content-Type',mediaType);
+    return new Response(r.body,{status:r.status,headers:h});
+  }
+
+  const looksHls=ct.includes('mpegurl')||/\.(m3u8|m3u)(?:$|[?#])/i.test(finalUrl);
+  const looksDash=ct.includes('dash+xml')||/\.mpd(?:$|[?#])/i.test(finalUrl);
+  if(looksHls&&r.ok){
+    const body=await r.text();
+    h.set('Content-Type','application/vnd.apple.mpegurl; charset=utf-8');
+    return new Response(rewriteHls(body,finalUrl,q),{status:r.status,headers:h});
+  }
+  if(looksDash&&r.ok){
+    const body=await r.text();
+    h.set('Content-Type','application/dash+xml; charset=utf-8');
+    return new Response(rewriteDash(body,finalUrl),{status:r.status,headers:h});
+  }
+  if(!h.get('Content-Type')){
+    const low=finalUrl.toLowerCase();
+    h.set('Content-Type',/\.mp4(?:$|[?#])/i.test(low)?'video/mp4':/\.flv(?:$|[?#])/i.test(low)?'video/x-flv':/\.(ts|m2ts)(?:$|[?#])/i.test(low)?'video/mp2t':'application/octet-stream');
+  }
+  return new Response(r.body,{status:r.status,headers:h});
 }
 async function imageResponse(q){const u=q.get('u');if(!isHttp(u))return new Response('bad image url',{status:400});const h=new Headers({'User-Agent':q.get('ua')||'NM7-TV-Web/1.0.69'});if(q.get('r'))h.set('Referer',q.get('r'));const r=await fetch(u,{headers:h,redirect:'follow',cache:'no-store'});if(!r.ok)return new Response('upstream image HTTP '+r.status,{status:r.status});const ct=r.headers.get('content-type')||'';if(!/^image\//i.test(ct)&&!ct.toLowerCase().includes('svg'))return new Response('not an image',{status:415});const ab=await r.arrayBuffer();if(ab.byteLength>2*1024*1024)return new Response('image too large',{status:413});const out=cors(new Headers());out.set('Content-Type',ct);out.set('Content-Length',String(ab.byteLength));out.set('Cache-Control','public,max-age=86400');return new Response(ab,{status:200,headers:out})}
 async function licenseResponse(request,q){const u=q.get('u');if(!isHttp(u))return new Response('bad url',{status:400});const h=headersFromQuery(request,q),ua=q.get('ua')||'',ref=q.get('r')||'';if(ua)h.set('User-Agent',ua);if(ref)h.set('Referer',ref);let body;if(request.method==='POST'){const raw=await request.text();if(q.get('base64')==='1'){try{body=Uint8Array.from(atob(raw),c=>c.charCodeAt(0));h.set('Content-Type','application/octet-stream')}catch{return new Response('bad base64 body',{status:400})}}else body=raw}let r=await fetch(u,{method:request.method==='POST'?'POST':'GET',headers:h,body,redirect:'follow',cache:'no-store'});if(!r.ok&&request.method==='POST')r=await fetch(u,{method:'GET',headers:h,redirect:'follow',cache:'no-store'});return new Response(r.body,{status:r.status,headers:cors(new Headers(r.headers))})}

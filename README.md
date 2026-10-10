@@ -276,3 +276,32 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - iPhone/iPad and macOS desktop browsers: TV preset 1.
 - Samsung Tizen TV and other platforms: TV preset 1.
 - This change is deployed only to the isolated Worker `nm7-tv-web-device-test`; it does not change the production Worker.
+
+
+## 2026-10-10 — Điều tra lỗi phát SCTV4K và kênh quốc tế (đang cô lập, chưa deploy production)
+
+### Kết quả chẩn đoán SCTV4K
+
+- GitHub Actions kiểm tra ba playlist Worker production: Mặc định 1, Mặc định 2 và Thể thao. SCTV4K có một ứng viên HLS tại nguồn vietanhtv.id.vn; manifest gốc trả HTTP 200.
+- URL phân đoạn video con có đuôi .ts trả lỗi HTTP 400 khi tải trực tiếp; qua Worker proxy có lúc trả HTTP 200 nhưng upstream gán sai Content-Type application/vnd.apple.mpegurl.
+- Nguyên nhân trong proxy: Worker cũ chỉ nhìn Content-Type để nhận diện HLS, nên có thể đọc dữ liệu nhị phân MPEG-TS như văn bản M3U và viết lại nội dung phân đoạn. Manifest trông hợp lệ nhưng byte video đã bị thay đổi, dẫn tới màn hình đen.
+- Bản sửa cô lập trong worker.js ưu tiên nhận diện các loại tài nguyên theo phần mở rộng (.ts, .m2ts, .m4s, .mp4, audio/video phụ trợ); các media segment được truyền nguyên dạng nhị phân và gán MIME tương ứng. Chỉ manifest HLS/DASH mới đi qua bước viết lại URL.
+- Regression test scripts/test-worker-hls-segments.js kiểm tra cả trường hợp segment TS bị upstream gán nhầm MIME và trường hợp manifest HLS thật vẫn phải viết lại URL segment qua same-origin proxy.
+
+### Sửa fallback trong player
+
+- Không coi loadedmetadata, canplay, Shaka load() hoặc DASH STREAM_INITIALIZED là bằng chứng video đang phát; player chỉ ẩn trạng thái khởi động sau sự kiện playing/đã có tiến trình video.
+- Startup watchdog được sửa để thử đường dự phòng nếu trạng thái “Đang mở” vẫn còn, kể cả khi readyState đã đạt mức tối thiểu nhưng chưa phát thật.
+- Khi HLS native thất bại, chuyển sang proxy đúng một lần và timeout proxy cũng kiểm tra trạng thái chờ thay vì chỉ kiểm tra paused/readyState.
+- Sửa các chuỗi xuống dòng bị escape hai lần khiến UI hiển thị ký tự \\n thay vì xuống dòng; khi hết nguồn, thông báo có thêm lý do lỗi ngắn để dễ chẩn đoán mà không in URL/token.
+
+### DAZN PPV FHD
+
+- Trong lần kiểm tra production, API playlist tv&default=1, tv&default=2 và sport lần lượt trả 255, 551 và 739 kênh; không thấy kênh mang tên DAZN trong các tập dữ liệu đó.
+- Vì vậy chưa thể xác nhận nguồn |UK| DAZN PPV FHD trong ảnh có cùng URL với các playlist mặc định. Có thể đây là nguồn M3U nhập riêng hoặc nguồn khác. Không tự ý thay URL hoặc chèn ứng viên chưa xác minh; cần URL/entry M3U thực tế để kết luận nguyên nhân của kênh này.
+
+### Kiểm thử và phạm vi
+
+- GitHub Actions Web Browser Validation #303 PASS, gồm kiểm tra cú pháp, test chọn preset, fallback player và kiểm tra proxy bảo toàn bytes của segment.
+- Chẩn đoán production: workflow run #5 (https://github.com/phuongnm7/nm7-tv-web/actions/runs/38020872169); các phép dò được giới hạn và không in query/token của stream.
+- Code đang ở nhánh feat/diagnose-4k-foreign-playback-20261010, chưa merge vào stable/nm7-tv-web-2026-10-09 và chưa deploy lên Worker production. Không sửa NM7 Mobile/Android hay thay đổi URL playlist.

@@ -182,6 +182,41 @@ async function playlistResponse(source,defaultChoice='',env=null){
   if(hit&&hit.channels?.length)return new Response(JSON.stringify({channels:hit.channels,source,cached:true,stale:true,error:errors.join(' | ')}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
   return new Response(JSON.stringify({channels:[],source,error:errors.join(' | ')}),{status:504,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 }
+function sniffPayloadKind(bytes){
+  if(!bytes||!bytes.length)return 'unknown';
+  // MPEG-TS packet sync can identify a segment even when the provider lies about its MIME.
+  if(bytes.length>376&&bytes[0]===0x47&&bytes[188]===0x47&&bytes[376]===0x47)return 'ts';
+  if(bytes.length>=8){
+    const brand=String.fromCharCode(bytes[4],bytes[5],bytes[6],bytes[7]);
+    if(brand==='ftyp'||brand==='styp'||brand==='moof')return 'mp4';
+  }
+  let sample='';
+  try{sample=new TextDecoder().decode(bytes)}catch{}
+  const text=sample.replace(/^\uFEFF/,'').trimStart();
+  if(text.startsWith('#EXTM3U'))return 'hls';
+  if(/^(?:<\?xml[^>]*>\s*)?<MPD\b/i.test(text))return 'dash';
+  if(/^<!doctype\s+html\b|^<html\b|^<head\b/i.test(text))return 'html';
+  return 'unknown';
+}
+async function readResponsePrefix(response,limit=4096){
+  try{
+    const body=response.clone().body;
+    if(!body||typeof body.getReader!=='function')return new Uint8Array(0);
+    const reader=body.getReader(),chunks=[];
+    let total=0;
+    while(total<limit){
+      const item=await reader.read();
+      if(item.done||!item.value)break;
+      const take=item.value.subarray(0,Math.min(item.value.byteLength,limit-total));
+      if(take.byteLength){chunks.push(take);total+=take.byteLength;}
+      if(take.byteLength<item.value.byteLength)break;
+    }
+    try{await reader.cancel()}catch{}
+    const result=new Uint8Array(total);let offset=0;
+    for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.byteLength;}
+    return result;
+  }catch{return new Uint8Array(0)}
+}
 async function streamResponse(request,q){
   const target=q.get('u');
   if(!isHttp(target))return new Response('bad url',{status:400});
@@ -216,8 +251,27 @@ async function streamResponse(request,q){
     return new Response(r.body,{status:r.status,headers:h});
   }
 
-  const looksHls=ct.includes('mpegurl')||/\.(m3u8|m3u)(?:$|[?#])/i.test(finalUrl);
-  const looksDash=ct.includes('dash+xml')||/\.mpd(?:$|[?#])/i.test(finalUrl);
+  const hlsHint=ct.includes('mpegurl')||/\.(m3u8|m3u)(?:$|[?#])/i.test(finalUrl);
+  const dashHint=ct.includes('dash+xml')||/\.mpd(?:$|[?#])/i.test(finalUrl);
+  // Extensionless manifests may arrive as text/plain; binary segments may be
+  // incorrectly labelled as HLS. Sniff a small cloned prefix before rewriting.
+  const ambiguousType=!mediaType&&(!ct||ct.includes('octet-stream')||ct.startsWith('text/')||ct.includes('json')||ct.includes('xml'));
+  const prefixKind=r.ok&&(hlsHint||dashHint||ambiguousType)
+    ?sniffPayloadKind(await readResponsePrefix(r)):'unknown';
+  if(prefixKind==='ts'&&(hlsHint||dashHint||ambiguousType)){
+    h.set('Content-Type','video/mp2t');
+    return new Response(r.body,{status:r.status,headers:h});
+  }
+  if(prefixKind==='mp4'&&(hlsHint||dashHint||ambiguousType)){
+    h.set('Content-Type','video/mp4');
+    return new Response(r.body,{status:r.status,headers:h});
+  }
+  if(prefixKind==='html'&&(hlsHint||dashHint||ambiguousType)){
+    h.set('Content-Type','text/html; charset=utf-8');
+    return new Response(r.body,{status:r.status,headers:h});
+  }
+  const looksHls=prefixKind==='hls';
+  const looksDash=prefixKind==='dash';
   if(looksHls&&r.ok){
     const body=await r.text();
     h.set('Content-Type','application/vnd.apple.mpegurl; charset=utf-8');

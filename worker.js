@@ -385,6 +385,7 @@ async function probeResponse(request,q){
       const location=mr.headers.get("location")||"";
       let locationHost="";
       try{locationHost=new URL(location,target).hostname}catch{}
+      const requestedUrl=new URL(target);
       const out={
         status:mr.status,
         contentType:mr.headers.get("content-type")||"",
@@ -392,9 +393,33 @@ async function probeResponse(request,q){
         cfRayPresent:!!mr.headers.get("cf-ray"),
         redirectPresent:!!location,
         redirectHost:locationHost,
-        requestedHost:(()=>{try{return new URL(target).hostname}catch{return ""}})()
+        requestedHost:requestedUrl.hostname
       };
       try{await mr.body?.cancel()}catch{}
+      // Test whether the origin redirects to a raw IP that rejects Worker fetches.
+      // Keep all token-bearing paths/queries internal; report only status and host.
+      if(q.get("rewriteHost")==="1"&&location){
+        try{
+          const redirected=new URL(location,target);
+          const isIp=(host)=>/^\\d{1,3}(?:\\.\\d{1,3}){3}$/.test(host)||host.includes(":");
+          if(isIp(redirected.hostname)&&!isIp(requestedUrl.hostname)){
+            redirected.hostname=requestedUrl.hostname;
+            const rr=await fetchWithTimeout(redirected.href,{method:"GET",headers,redirect:"manual"},7000);
+            const prefix=await readResponsePrefix(rr,4096);
+            const secondLocation=rr.headers.get("location")||"";
+            let secondHost="";
+            try{secondHost=new URL(secondLocation,redirected.href).hostname}catch{}
+            out.rewriteHostTest={
+              applied:true,status:rr.status,contentType:rr.headers.get("content-type")||"",
+              server:rr.headers.get("server")||"",cfRayPresent:!!rr.headers.get("cf-ray"),
+              bodyBytes:prefix.byteLength,
+              tsSync188:prefix.byteLength>376&&prefix[0]===0x47&&prefix[188]===0x47&&prefix[376]===0x47,
+              redirectPresent:!!secondLocation,redirectHost:secondHost
+            };
+            try{await rr.body?.cancel()}catch{}
+          }else out.rewriteHostTest={applied:false,reason:"redirect-is-not-ip"};
+        }catch(e){out.rewriteHostTest={applied:false,errorClass:String(e?.name||"Error")}}
+      }
       return new Response(JSON.stringify(out),{headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Cache-Control":"no-store"}});
     }catch(e){
       return new Response(JSON.stringify({status:0,errorClass:String(e?.name||"Error")} ),{headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Cache-Control":"no-store"}});

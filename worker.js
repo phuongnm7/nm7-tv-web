@@ -37,6 +37,17 @@ function enrichChannels(channels){
     if(!c||typeof c!=='object')continue;
     if(!Array.isArray(c.candidates))c.candidates=[];
     addBuiltin(c);
+    // This provider returns valid HLS manifests but its direct TS segment URLs
+    // consistently return HTTP 400. Route this known SCTV4K source proxy-first.
+    const flatName=(String(c.id||'')+' '+String(c.name||'')).toLowerCase().replace(/[^a-z0-9]+/g,'');
+    if(flatName.includes('sctv4k')){
+      for(const candidate of c.candidates){
+        try{
+          const host=new URL(String(candidate.url||'')).hostname.toLowerCase();
+          if(host==='vietanhtv.id.vn')candidate.forceProxy=true;
+        }catch{}
+      }
+    }
     c.candidates.sort((a,b)=>score(String(b.url||''))-score(String(a.url||'')));
   }
   return out

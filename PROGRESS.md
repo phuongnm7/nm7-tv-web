@@ -550,3 +550,12 @@ Nhánh: `fix/sports-hls-startup-proxy-20261010`. **Chưa merge vào stable và c
 - Live diagnostic #26: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710.
 - These checks validate parser/proxy logic and a controlled HLS fixture. They do not prove the three named real sports channels now play; their exact M3U entries were not available in the server presets or found in the older saved M3U file, and no target-device playback has yet been verified.
 - Branch remains `fix/sports-hls-startup-proxy-20261010`. No merge/deploy or source URL changes. Do not deploy before confirming at least one actual failing sports entry through manifest, variant/segment and playback on the target device.
+
+### Follow-up diagnostic #27 — saved sports M3U sample
+
+- Diagnostic #27: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027818973 (**SUCCESS**).
+- The representative saved Film4k TNT Sports 1 endpoint returned HTTP **403** with `application/json` both when sent the full User-Agent and when sent the truncated `Mozilla/5.0`; the proxied request also returned 403. The new User-Agent parser fix is real and regression-tested, but this one live endpoint currently does not establish that UA truncation alone caused that stream’s failure.
+- SCTV4K re-check: manifest response took ~4.0 s direct / ~2.2 s through proxy. The first proxied TS sample was ~3.9 MB and took ~5.7 s total; ffprobe confirmed HEVC 3840×2160 25 fps. Direct segment still returned HTTP 400. The manifest is live and its media sequence continues to change.
+- The names in video 224593 (UK - SKY SPORTS+ 12 FHD, UK - SKY SPORTS+ 39 FHD, UK - TNT SPORTS 1 FHD) are not in the inspected production presets and were not found verbatim in the older saved M3U files available to this chat. The representative probe above is a separate, older `film4k.net` entry and must not be presented as proof about the exact video URLs.
+- Web Browser Validation #400: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027818980. Browser remote + HLS E2E #431: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027818989.
+- No production deployment, merge to stable, playlist URL change, or changes to NM7 Mobile/Android.

@@ -294,9 +294,9 @@ async function stalkerSocketStreamResponse(request,q,target){
       "Accept-Encoding: identity",
       "Connection: close"
     ];
-    const referer=h.get("Referer");if(referer)requestHeaders.push("Referer: "+referer.replace(/[\\r\\n]/g,""));
-    const range=h.get("Range");if(range)requestHeaders.push("Range: "+range.replace(/[\\r\\n]/g,""));
-    await writer.write(new TextEncoder().encode(requestHeaders.join("\\r\\n")+"\\r\\n\\r\\n"));
+    const referer=h.get("Referer");if(referer)requestHeaders.push("Referer: "+referer.replace(/[\r\n]/g,""));
+    const range=h.get("Range");if(range)requestHeaders.push("Range: "+range.replace(/[\r\n]/g,""));
+    await writer.write(new TextEncoder().encode(requestHeaders.join("\r\n")+"\r\n\r\n"));
     let raw=new Uint8Array(0),headerEnd=-1;
     const deadline=Date.now()+10000;
     while(headerEnd<0&&raw.byteLength<65536&&Date.now()<deadline){
@@ -311,10 +311,10 @@ async function stalkerSocketStreamResponse(request,q,target){
     }
     if(headerEnd<0){await cleanup();return new Response("No HTTP response from Stalker stream socket",{status:502,headers:cors(new Headers({"Content-Type":"text/plain","Cache-Control":"no-store"}))})}
     const headerText=new TextDecoder().decode(raw.subarray(0,headerEnd-4));
-    const statusMatch=(headerText.split("\\r\\n")[0]||"").match(/^HTTP\\/\\d(?:\\.\\d)?\\s+(\\d{3})/i);
+    const statusMatch=(headerText.split("\r\n")[0]||"").match(/^HTTP\/\d(?:\.\d)?\s+(\d{3})/i);
     const upstreamStatus=statusMatch?Number(statusMatch[1]):0;
     const upstreamHeaders={};
-    for(const line of headerText.split("\\r\\n").slice(1)){const i=line.indexOf(":");if(i>0)upstreamHeaders[line.slice(0,i).trim().toLowerCase()]=line.slice(i+1).trim()}
+    for(const line of headerText.split("\r\n").slice(1)){const i=line.indexOf(":");if(i>0)upstreamHeaders[line.slice(0,i).trim().toLowerCase()]=line.slice(i+1).trim()}
     if(upstreamStatus<200||upstreamStatus>=300){
       await cleanup();
       return new Response("Stalker stream upstream HTTP "+upstreamStatus,{status:502,headers:cors(new Headers({"Content-Type":"text/plain","Cache-Control":"no-store"}))});

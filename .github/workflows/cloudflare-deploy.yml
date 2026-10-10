@@ -124,7 +124,7 @@ jobs:
           checks={
               'VTV':['VTV1 HD','VTV2 HD','VTV3 HD','VTV4 HD','VTV5 HD','VTV5 Tây Nam Bộ','VTV5 Tây Nguyên','VTV6 HD'],
               'VTVcab':['On BiBi','ON Cine','ON E- Channel','On Golf','ON Info TV','On Kids','On Life','On Movies - You TV'],
-              'Thể Thao':['HTV Thể Thao','On Sports 50fps','SCTV15 HD','SCTV17 HD','SCTV22','VTV6 HD'],
+              'Thể Thao':['HTV Thể Thao','On Sports 50fps','SCTV15 HD','SCTV17 HD','SCTV22'],
               'SCTV':['SCTV Phim Tổng Hợp','SCTV1','SCTV2 - TODAY TV','SCTV3'],
           }
           for g,want in checks.items():

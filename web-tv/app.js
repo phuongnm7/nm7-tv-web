@@ -448,7 +448,7 @@ function selectMenu(){
  if(p===7){showSubset('recent');return}
  if(p===8){showAddSource();return}
  if(p===9){showSources();return}
- if(p===11){location.href='/web-tv/ban-tin.html';return}
+ if(p===11){location.href='/ban-tin.html';return}
  if(p===10){
   closeMenu();
   if(S.source==='local-m3u'&&S.localM3uText){applyLocalM3U(S.localM3uText,S.localM3uName,'Đã tải lại tệp M3U · '+S.list.length+' kênh');return}
@@ -1975,7 +1975,7 @@ function startup(){
  window.addEventListener('orientationchange',mobileModeChange);
  $('mobileMenuBtn').addEventListener('click',function(){openMenu()});
  $('btnYouTubeTab').addEventListener('click',function(){openYouTube();});
- $('btnNewsTab').addEventListener('click',function(){location.href='/web-tv/ban-tin.html';});
+ $('btnNewsTab').addEventListener('click',function(){location.href='/ban-tin.html';});
  $('appShortcut').addEventListener('click',function(){toast('Chọn ứng dụng');});
  window.addEventListener('focus',restoreRemoteFocus,true);
  window.addEventListener('pageshow',restoreRemoteFocus,true);

@@ -86,6 +86,7 @@ jobs:
           echo "$BG_META" | grep -q "3840x2160"
           test "$(sha256sum /tmp/nm7-bg.webp | cut -d' ' -f1)" = "d8af6ac8ba532db465dcb8c44e00b71865e6c9a712c8cc21cd0a2118400bd00d"
           grep -q "NM7 TV 1.0.69" /tmp/nm7-home.html
+          grep -q "app-safari-policy.js?v=20261010-sport-refresh1" /tmp/nm7-home.html
           grep -Fq "body.mobile-mode #mobileMenuBtn{display:flex;align-items:center;justify-content:center;flex:0 0 46px}" /tmp/nm7-home.html
           ! grep -Fq 'id="playerBackBtn"' /tmp/nm7-home.html
           grep -Fq 'data-a="back"' /tmp/nm7-home.html

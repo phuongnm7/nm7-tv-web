@@ -446,3 +446,14 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Web Browser Validation đã pass ở các commit kiểm thử trước đó; bản cuối có thêm cache-buster và đang chờ workflow mới xác nhận.
 - Playwright runner không có H.264 decoder (codec capability false), nên test E2E xác minh manifest/segment trả 200 khi codec không có; nếu H.264 có sẵn, vẫn yêu cầu video.currentTime tăng.
 - Chỉ đổi NM7 TV Web; không đụng nguồn mặc định, NM7 Mobile hoặc NM7 TV Android. Chưa merge nhánh fix mới / chưa deploy cho tới khi xác nhận test cuối.
+
+## 2026-10-10 — Kết quả cuối: sửa SCTV4K và nguồn M3U tùy chỉnh đã triển khai
+
+- PR #20 đã merge vào `stable/nm7-tv-web-2026-10-09`; commit: `61b76745edeee6c516a6fd7a0e7f5f511c0d8d36`.
+- **Cloudflare Deploy #445: SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023516146. Toàn bộ syntax/deploy/production smoke tests PASS.
+- **Web Browser Validation: SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023401289. Các regression test gồm header tùy chỉnh, GET Range probe, segment HLS và DASH proxy đều PASS.
+- **Browser E2E: SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023401145. Điều hướng remote và tải playlist/segment HLS trả HTTP 200; máy ảo CI không có decoder H.264 nên test không thể xác nhận giải mã video thực tế.
+- SCTV4K: HLS network/CORS hoặc HTTP 4xx/5xx chuyển qua đường proxy ngay; HLS startup watchdog giảm từ 15 giây xuống 8 giây; cache-buster được đổi để lấy player mới.
+- Nguồn tùy chỉnh: #EXTHTTP được parse và header User-Agent/Referer/Origin/header khác được bảo toàn. Probe dùng GET Range nếu HEAD bị chặn/không xác định được loại. DASH BaseURL/segment tuyệt đối được proxy qua Worker cùng miền và giữ header cần thiết.
+- Địa chỉ kiểm thử chính thức: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`.
+- Chỉ NM7 TV Web thay đổi; không đổi URL playlist mặc định, không sửa NM7 Mobile/Android.

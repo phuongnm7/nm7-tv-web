@@ -231,6 +231,16 @@ async function streamResponse(request,q){
   const h=cors(new Headers(r.headers));
   h.set('Cache-Control','no-store');
 
+  // Xtream/Stalker endpoints often serve TS from /play/live.php?extension=ts,
+  // so the media container is stated in the query rather than the path suffix.
+  // Fix the MIME before passing the upstream stream to the browser.
+  let queryExtension='';
+  try{queryExtension=new URL(target).searchParams.get('extension')||''}catch{}
+  if(r.ok&&/^(ts|m2ts)$/i.test(queryExtension)){
+    h.set('Content-Type','video/mp2t');
+    return new Response(r.body,{status:r.status,headers:h});
+  }
+
   // Some provider reverse proxies incorrectly label MPEG-TS/fMP4 media
   // segments as application/vnd.apple.mpegurl. Never parse binary media as
   // an HLS text manifest merely because the upstream Content-Type is wrong.
@@ -324,7 +334,7 @@ function detectMediaType(url,contentType,bodyText=""){
   if(ct.includes("dash+xml")||/\.mpd(?:$|[?#])/.test(u)||/<MPD\b/i.test(bodyText))return "dash";
   if(ct.includes("mpegurl")||/\.(m3u8|m3u)(?:$|[?#])/.test(u)||bodyText.trimStart().startsWith("#EXTM3U"))return "hls";
   if(ct.includes("x-flv")||/\.flv(?:$|[?#])/.test(u)||bodyText.startsWith("FLV"))return "flv";
-  if(ct.includes("mp2t")||/\.(ts|m2ts)(?:$|[?#])/.test(u))return "mpegts";
+  if(ct.includes("mp2t")||/\.(ts|m2ts)(?:$|[?#])/.test(u)||/[?&]extension=(?:ts|m2ts)(?:&|$)/i.test(u))return "mpegts";
   if(ct.includes("video/mp4")||/\.(mp4|m4v)(?:$|[?#])/.test(u))return "mp4";
   return "http";
 }

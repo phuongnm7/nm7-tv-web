@@ -436,3 +436,12 @@ Branch: `fix/sports-hls-startup-proxy-20261010`. The following remains isolated 
 - Live diagnostic #26: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710.
 - The names shown in the video (Sky Sports+ 12/39 and TNT Sports 1) were not found in the three server-served playlist presets or the older M3U file searched. The User-Agent defect is confirmed for this M3U format, but it is not yet proven that those three video entries use that exact provider.
 - No playlist/default URL was changed; no production deploy; NM7 Mobile and NM7 TV Android remain untouched. Do not merge/deploy until one of the actual failing video entries is probed end-to-end and tested on the target device.
+
+### Follow-up diagnostic #27 — custom sports source is still unverified
+
+- Diagnostic #27 completed successfully: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027818973.
+- A representative, older Film4k TNT Sports 1 endpoint returned HTTP 403 JSON with both the full User-Agent and truncated User-Agent; the proxied attempt also returned 403. That indicates the particular endpoint currently refuses the request from the CI environment. It does not prove the exact channels shown in video 224593 share that endpoint or error.
+- The video’s exact labels (UK - SKY SPORTS+ 12 FHD, UK - SKY SPORTS+ 39 FHD, UK - TNT SPORTS 1 FHD) were not found in the current server-served presets or older saved M3U files searched. The actual playlist entry/URL is still required for a source-specific diagnosis.
+- SCTV4K live diagnostic #27 measured about 4.0 s to direct manifest headers and 2.2 s through proxy; the proxied 3.9 MB HEVC 3840×2160 segment took ~5.7 s end-to-end in that sample. Direct TS segments still return HTTP 400. The HLS playlist is live and sequence numbers change, so long-lived manifest caching would risk stale segments.
+- Web Browser Validation #400 and browser fixture E2E #431 both passed. These are code/regression checks, not confirmation that the actual video channels play on the user’s device.
+- Production remains unchanged. No stable merge/deploy or default playlist URL changes were made.

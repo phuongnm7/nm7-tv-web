@@ -610,3 +610,12 @@ Phạm vi chỉ NM7 TV Web/Cloudflare; không thay đổi NM7 TV Android hoặc 
 
 ### Phạm vi
 Chỉ sửa NM7 TV Web và triển khai qua Cloudflare Worker. Không thay đổi NM7 TV Android, NM7 Mobile, logic phát video hoặc cấu hình Vercel.
+
+
+## 10/10/2026 — Tích hợp thử mục Bản tin GetOut
+
+- Tạo nhánh tính năng `feature/getout-ban-tin-20261010` từ stable `stable/nm7-tv-web-2026-10-09`.
+- Thêm nút Bản tin trên thanh tab hiện có; thêm trang độc lập `web-tv/ban-tin.html`.
+- Thêm endpoint Cloudflare Worker `/api/news` với allowlist nguồn 24h Highlights, ON Plus và BongTV; cache dữ liệu 120 giây; không nhận URL tùy ý từ người dùng.
+- Trang có danh mục, thẻ video, tải lại và mở video/trang gốc trong iframe; nút “Mở nguồn” dự phòng nếu nhà cung cấp chặn nhúng.
+- Chưa deploy production. Scraping có thể cần tinh chỉnh theo HTML thực tế; cần test danh sách và playback trên desktop, iPad/Safari và TV browser trước khi merge.

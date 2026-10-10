@@ -31,7 +31,8 @@ jobs:
           node --check web-tv/app-safari-policy.js
           node --check web-tv/app.js
           node --check web-tv/youtube.js
-          echo "NM7_TV_JS_SYNTAX_OK"
+          node scripts/test-sport-playlist-refresh.js
+          echo "NM7_TV_JS_SYNTAX_AND_SPORT_REFRESH_TESTS_OK"
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4
@@ -228,14 +229,16 @@ jobs:
           print("YOUTUBE_ORIGINAL_LAUNCHER_SMOKE_OK")
           PY
 
-          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport.json
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=sport&refresh=1" -o /tmp/nm7-sport.json
           python3 - <<'PY'
           import json
           d=json.load(open('/tmp/nm7-sport.json',encoding='utf-8'))
           channels=d.get('channels') or []
           if not channels:
               raise SystemExit(f"sport playlist returned zero channels: {d.get('error')}")
-          print('CLOUDFLARE_SPORT_SMOKE_OK channels=',len(channels),'upstream=',d.get('upstream'))
+          if d.get('refreshed') is not True:
+              raise SystemExit('sport playlist refresh flag was not honored: '+str(d))
+          print('CLOUDFLARE_SPORT_REFRESH_SMOKE_OK channels=',len(channels),'upstream=',d.get('upstream'),'refreshed=',d.get('refreshed'))
           PY
 
           CUSTOM_URL='https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com'

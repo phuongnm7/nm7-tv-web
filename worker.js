@@ -408,7 +408,6 @@ async function probeResponse(request,q){
   if(bodyTrim){
     if(/^<!doctype html|^<html\\b/i.test(bodyTrim))bodyClass="html";
     else if(bodyTrim.charAt(0)==="{"||bodyTrim.charAt(0)==="["){try{JSON.parse(bodyTrim);bodyClass="json"}catch{bodyClass="text-or-json"}}
-    else if(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/.test(bodyTrim.slice(0,256)))bodyClass="binary-or-control";
     else bodyClass="plain-text";
   }
   let finalHost="";

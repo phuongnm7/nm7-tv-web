@@ -431,11 +431,40 @@ async function licenseResponse(request,q){const u=q.get('u');if(!isHttp(u))retur
 async function sourceResponse(q){
   const target=String(q.get('u')||'').trim();
   if(!isHttp(target))return new Response(JSON.stringify({channels:[],error:'bad url'}),{status:400,headers:cors(new Headers({'Content-Type':'application/json'}))});
-  try{
-    const r=await fetchWithTimeout(target,{headers:{'User-Agent':'NM7-TV-Web/1.0.69','Accept':'application/vnd.apple.mpegurl,application/json,text/plain,*/*'}},10000);
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const body=await r.text();
-    let channels=parseM3U(body,target);
+
+  // Some upstream playlist Workers reject the generic NM7 UA but accept a normal
+  // browser request. Retry only source import; playback routes remain untouched.
+  const attempts=[
+    {ua:'NM7-TV-Web/1.0.69',accept:'application/vnd.apple.mpegurl,application/json,text/plain,*/*'},
+    {ua:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',accept:'text/plain,application/vnd.apple.mpegurl,application/json,*/*'}
+  ];
+  let lastError='unknown error',lastStatus=0,lastContentType='',lastUrl=target;
+  for(let i=0;i<attempts.length;i++){
+    let r;
+    try{
+      r=await fetchWithTimeout(target,{headers:{'User-Agent':attempts[i].ua,'Accept':attempts[i].accept}},10000);
+    }catch(e){
+      lastError=String(e?.message||e||'fetch failed');
+      if(i+1<attempts.length)continue;
+      break;
+    }
+    lastStatus=r.status;
+    lastContentType=r.headers.get('content-type')||'';
+    lastUrl=r.url||target;
+    if(!r.ok){
+      lastError='HTTP '+r.status;
+      try{await r.body?.cancel()}catch{}
+      if(i+1<attempts.length)continue;
+      break;
+    }
+
+    let body='';
+    try{body=await r.text()}catch(e){
+      lastError=String(e?.message||e||'failed to read response');
+      if(i+1<attempts.length)continue;
+      break;
+    }
+    let channels=parseM3U(body,lastUrl);
     if(!channels.length){
       try{
         const j=JSON.parse(body);
@@ -445,16 +474,25 @@ async function sourceResponse(q){
           group:String(x.group||x.groupTitle||x.category||'Khác'),
           logo:String(x.logo||x.tvgLogo||''),
           id:String(x.id||x.tvgId||x.name||x.title||''),
-          candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:safeUrl(x.url||x.stream||x.src,target),ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])
+          candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:safeUrl(x.url||x.stream||x.src,lastUrl),ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])
         }));
       }catch{}
     }
-    if(!channels.length)throw new Error('playlist rỗng');
-    enrichChannels(channels);
-    return new Response(JSON.stringify({channels,source:'custom',upstream:r.url||target}),{headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
-  }catch(e){
-    return new Response(JSON.stringify({channels:[],source:'custom',error:String(e?.message||e)}),{status:502,headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
+    if(channels.length){
+      enrichChannels(channels);
+      return new Response(JSON.stringify({channels,source:'custom',upstream:lastUrl,fetchMode:i===0?'nm7-ua':'browser-ua'}),{headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
+    }
+    lastError='Nguồn không trả về playlist M3U/JSON';
+    if(i+1<attempts.length)continue;
+    break;
   }
+  const detail=lastStatus?'HTTP '+lastStatus:'không nhận được phản hồi HTTP';
+  const ct=lastContentType?' ('+lastContentType+')':'';
+  return new Response(JSON.stringify({
+    channels:[],source:'custom',
+    error:lastError+'; '+detail+ct+' sau '+attempts.length+' lần thử',
+    upstream:lastUrl
+  }),{status:502,headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
 }
 function detectMediaType(url,contentType,bodyText=""){
   const ct=String(contentType||"").toLowerCase(),u=String(url||"").toLowerCase();

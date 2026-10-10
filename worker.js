@@ -815,7 +815,7 @@ async function newsResponse(url) {
         const videos = Array.isArray(rec.videos) ? rec.videos : [];
         const rawHref = rec.url || rec.detailUrl || rec.webUrl || rec.link || (videos[0] && (videos[0].url || videos[0].link)) || '';
         let href = '';
-        try { if (/^https?:\\/\\//i.test(String(rawHref))) href = new URL(rawHref).href; } catch {}
+        try { if (rawHref) { const parsed = new URL(String(rawHref), 'https://www.bongtv.com/'); if (parsed.protocol === 'http:' || parsed.protocol === 'https:') href = parsed.href; } } catch {}
         if (!href || seen.has(href)) continue;
         seen.add(href);
         const homeLogo = typeof home === 'object' ? (home.logo || home.logoUrl || home.image || '') : '';

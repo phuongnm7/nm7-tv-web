@@ -29,7 +29,7 @@ jobs:
           python3 - <<'PY'
           import json, re, os, tempfile, subprocess, shutil, time, urllib.parse, urllib.request, urllib.error
           from urllib.parse import urlparse, urljoin, parse_qs
-          BASE = "https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          BASE = "https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
           UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
 
           def request(url, headers=None, limit=12000, timeout=18):
@@ -208,7 +208,7 @@ jobs:
           for c in channels:
               name = str(c.get("name") or "")
               flat = re.sub(r"[^a-z0-9]+", "", name.lower())
-              if not ("sctv4k" in flat or "dazn" in flat):
+              if not ("sctv4k" in flat or "dazn" in flat or "bournemouth" in flat or "matchtime" in flat):
                   continue
               for i, cand in enumerate(c.get("candidates") or []):
                   url = str(cand.get("url") or cand.get("resolvedUrl") or "")
@@ -216,6 +216,7 @@ jobs:
                   if not url.startswith(("http://", "https://")) or key in seen: continue
                   seen.add(key)
                   targets.append((name, i, cand, url))
+          targets.sort(key=lambda item: (0 if "bournemouth" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) else 1 if "sctv4k" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) else 2))
           print("TARGET_CANDIDATES", len(targets))
           for name, i, cand, url in targets[:18]:
               typ = str(cand.get("type") or ("dash" if cand.get("dash") else "hls" if cand.get("hls") else "unknown"))
@@ -232,7 +233,7 @@ jobs:
               upstream_headers = {"User-Agent": str(cand.get("ua") or UA)}
               if ref: upstream_headers["Referer"] = ref
               for k, v in extra.items():
-                  if str(k).lower() not in ("host", "connection", "content-length", "cookie", "user-agent", "referer") and isinstance(v, str):
+                  if str(k).lower() not in ("host", "connection", "content-length", "user-agent", "referer") and isinstance(v, str):
                       upstream_headers[str(k)] = v
               inspect_path(name.replace(" ", "_") + "_DIRECT", url, upstream_headers)
               q = {"u": url}
@@ -241,6 +242,28 @@ jobs:
               if extra: q["h"] = json.dumps(extra, separators=(",", ":"))
               proxy_url = BASE + "/api/stream?" + urllib.parse.urlencode(q)
               inspect_path(name.replace(" ", "_") + "_PROXY", proxy_url, {"User-Agent": UA})
+              query_fields = parse_qs(urlparse(url).query)
+              is_stalker = (
+                  urlparse(url).path.lower().endswith("/play/live.php")
+                  and all(key in query_fields for key in ("mac", "stream", "extension"))
+                  and ("play_token" in query_fields or "token" in query_fields)
+              )
+              if is_stalker:
+                  probe_url = BASE + "/api/probe?" + urllib.parse.urlencode(q)
+                  diagnostic = request(probe_url, {"User-Agent": UA}, 12000, 25)
+                  try:
+                      d = json.loads(diagnostic.get("body", b"{}").decode("utf-8", "ignore"))
+                  except Exception:
+                      d = {}
+                  print("STALKER_PROBE", json.dumps({
+                      "channel": name, "candidateIndex": i, "probeHTTP": diagnostic.get("status"),
+                      "upstreamHTTP": d.get("status"), "HEAD": d.get("headStatus"), "GET": d.get("getStatus"),
+                      "hint": d.get("errorHint"), "type": d.get("type"), "contentType": d.get("contentType"),
+                      "bodyClass": d.get("bodyClass"), "bodyBytes": d.get("bodyBytes"),
+                      "finalHost": d.get("finalHost"), "server": d.get("serverType"),
+                      "cfRay": d.get("cfRayPresent"), "via": d.get("viaPresent"),
+                      "authHeader": d.get("wwwAuthenticatePresent")
+                  }, ensure_ascii=False))
           if not targets:
               print("NO_MATCHING_TARGETS — the tested channels are not in the three currently served production playlists; likely a local/custom playlist or another source.")
           PY
@@ -251,7 +274,7 @@ jobs:
           python3 - <<'PY'
           import json, time, urllib.parse, urllib.request, urllib.error
           from urllib.parse import urlparse, urljoin
-          BASE = "https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          BASE = "https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
           STREAM = "https://film4k.net/api/tv/ants/3/index.m3u8"
           REFERER = "https://film4k.net/"
           ORIGIN = "https://film4k.net"

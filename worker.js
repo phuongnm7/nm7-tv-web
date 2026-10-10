@@ -386,6 +386,7 @@ async function probeResponse(request,q){
       let locationHost="";
       try{locationHost=new URL(location,target).hostname}catch{}
       const requestedUrl=new URL(target);
+      const redirectUrl=location?new URL(location,target):null;
       const out={
         status:mr.status,
         contentType:mr.headers.get("content-type")||"",
@@ -393,7 +394,11 @@ async function probeResponse(request,q){
         cfRayPresent:!!mr.headers.get("cf-ray"),
         redirectPresent:!!location,
         redirectHost:locationHost,
-        requestedHost:requestedUrl.hostname
+        redirectScheme:redirectUrl?.protocol||"",
+        redirectPort:redirectUrl?.port||"",
+        redirectPathSame:!!redirectUrl&&redirectUrl.pathname===requestedUrl.pathname,
+        requestedHost:requestedUrl.hostname,
+        requestedPort:requestedUrl.port||""
       };
       try{await mr.body?.cancel()}catch{}
       // Test whether the origin redirects to a raw IP that rejects Worker fetches.
@@ -418,6 +423,32 @@ async function probeResponse(request,q){
             };
             try{await rr.body?.cancel()}catch{}
           }else out.rewriteHostTest={applied:false,reason:"redirect-is-not-ip"};
+          // Second safe experiment: re-host the redirected path on the original host AND original port.
+          // This distinguishes an upstream proxy-port redirect from an IP/WAF restriction.
+          if(isIp(redirected.hostname)&&!isIp(requestedUrl.hostname)){
+            try{
+              const originalPortTarget=new URL(redirected.href);
+              originalPortTarget.protocol=requestedUrl.protocol;
+              originalPortTarget.hostname=requestedUrl.hostname;
+              originalPortTarget.port=requestedUrl.port;
+              const rr2=await fetchWithTimeout(originalPortTarget.href,{method:"GET",headers,redirect:"manual"},7000);
+              const prefix2=await Promise.race([
+                readResponsePrefix(rr2,4096),
+                new Promise(resolve=>setTimeout(()=>resolve(new Uint8Array(0)),2500))
+              ]);
+              const secondLocation2=rr2.headers.get("location")||"";
+              let secondHost2="";
+              try{secondHost2=new URL(secondLocation2,originalPortTarget.href).hostname}catch{}
+              out.rewriteOriginalPortTest={
+                applied:true,status:rr2.status,contentType:rr2.headers.get("content-type")||"",
+                server:rr2.headers.get("server")||"",cfRayPresent:!!rr2.headers.get("cf-ray"),
+                bodyBytes:prefix2.byteLength,
+                tsSync188:prefix2.byteLength>376&&prefix2[0]===0x47&&prefix2[188]===0x47&&prefix2[376]===0x47,
+                redirectPresent:!!secondLocation2,redirectHost:secondHost2
+              };
+              try{await rr2.body?.cancel()}catch{}
+            }catch(e){out.rewriteOriginalPortTest={applied:false,errorClass:String(e?.name||"Error")}}
+          }
         }catch(e){out.rewriteHostTest={applied:false,errorClass:String(e?.name||"Error")}}
       }
       return new Response(JSON.stringify(out),{headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Cache-Control":"no-store"}});

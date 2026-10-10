@@ -53,13 +53,33 @@ jobs:
         run: |
           set -euo pipefail
           BASE="https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
-          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/" -o /tmp/nm7-test-home.html
-          grep -q "NM7 TV 1.0.69" /tmp/nm7-test-home.html
+
+          # A newly created workers.dev endpoint can briefly return 404 while propagating.
+          ready=0
+          for attempt in $(seq 1 12); do
+            status="$(curl -sS --max-redirs 3 --max-time 15 -o /tmp/nm7-test-home.html -w "%{http_code}" "$BASE/" || true)"
+            if [[ "$status" == "200" ]] && grep -q "NM7 TV 1.0.69" /tmp/nm7-test-home.html; then
+              ready=1
+              break
+            fi
+            echo "Waiting for test Worker propagation: attempt=$attempt HTTP=$status"
+            sleep 2
+          done
+          if [[ "$ready" != "1" ]]; then
+            echo "Test Worker root never returned the expected app HTML."
+            head -c 500 /tmp/nm7-test-home.html || true
+            exit 1
+          fi
           echo "TEST_WORKER_HOME_OK"
 
-          curl -fsSL --max-time 25 --get \
+          probe_status="$(curl -sS --retry 5 --retry-delay 2 --retry-all-errors --max-redirs 3 --max-time 25 --get \
             --data-urlencode 'u=https://mag.example.test/play/live.php?mac=00:11:22:33:44:55&stream=123&extension=ts&play_token=MASKED' \
-            "$BASE/api/probe" -o /tmp/nm7-test-probe.json
+            -o /tmp/nm7-test-probe.json -w "%{http_code}" "$BASE/api/probe" || true)"
+          if [[ "$probe_status" != "200" ]]; then
+            echo "Probe endpoint returned HTTP=$probe_status"
+            cat /tmp/nm7-test-probe.json || true
+            exit 1
+          fi
           python3 - <<'PY'
           import json
           d=json.load(open('/tmp/nm7-test-probe.json', encoding='utf-8'))
@@ -68,7 +88,13 @@ jobs:
           print('STALKER_QUERY_EXTENSION_PROBE_OK', d.get('type'))
           PY
 
-          curl -fsSL --max-time 30 "$BASE/api/playlist?source=tv&default=2" -o /tmp/nm7-test-playlist.json
+          playlist_status="$(curl -sS --retry 5 --retry-delay 2 --retry-all-errors --max-redirs 3 --max-time 30 \
+            -o /tmp/nm7-test-playlist.json -w "%{http_code}" "$BASE/api/playlist?source=tv&default=2" || true)"
+          if [[ "$playlist_status" != "200" ]]; then
+            echo "Playlist endpoint returned HTTP=$playlist_status"
+            cat /tmp/nm7-test-playlist.json || true
+            exit 1
+          fi
           python3 - <<'PY'
           import json
           d=json.load(open('/tmp/nm7-test-playlist.json', encoding='utf-8'))

@@ -1,0 +1,79 @@
+name: Deploy isolated NM7 TV Web test Worker
+
+on:
+  push:
+    branches:
+      - fix/sports-hls-startup-proxy-20261010
+  workflow_dispatch:
+
+concurrency:
+  group: nm7-tv-web-isolated-test
+  cancel-in-progress: true
+
+jobs:
+  deploy-test-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v6
+
+      - name: Guard against production deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fx 'name = "nm7-tv-web-test"' wrangler.toml
+          if grep -Fx 'name = "nm7-tv-web"' wrangler.toml; then
+            echo "Refusing to deploy: wrangler.toml targets production."
+            exit 1
+          fi
+          echo "ISOLATED_WORKER_NAME_GUARD_OK"
+
+      - name: Validate JavaScript and Stalker regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check worker.js
+          node --check web-tv/app.js
+          node --check web-tv/app-safari-policy.js
+          node scripts/test-playback-startup-fallback.js
+          node scripts/test-worker-hls-segments.js
+
+      - name: Deploy isolated Cloudflare Worker only
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+      - name: Smoke-test isolated test URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/" -o /tmp/nm7-test-home.html
+          grep -q "NM7 TV 1.0.69" /tmp/nm7-test-home.html
+          echo "TEST_WORKER_HOME_OK"
+
+          curl -fsSL --max-time 25 --get \
+            --data-urlencode 'u=https://mag.example.test/play/live.php?mac=00:11:22:33:44:55&stream=123&extension=ts&play_token=MASKED' \
+            "$BASE/api/probe" -o /tmp/nm7-test-probe.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-test-probe.json', encoding='utf-8'))
+          if d.get('type') != 'mpegts':
+              raise SystemExit('Stalker query extension was not detected as MPEG-TS: '+str(d))
+          print('STALKER_QUERY_EXTENSION_PROBE_OK', d.get('type'))
+          PY
+
+          curl -fsSL --max-time 30 "$BASE/api/playlist?source=tv&default=2" -o /tmp/nm7-test-playlist.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-test-playlist.json', encoding='utf-8'))
+          channels=d.get('channels') or []
+          if not channels:
+              raise SystemExit('Test Worker playlist has no channels: '+str(d.get('error')))
+          print('TEST_WORKER_PLAYLIST_OK channels=', len(channels), 'upstream=', d.get('upstream'))
+          PY

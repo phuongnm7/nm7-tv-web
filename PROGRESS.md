@@ -489,3 +489,12 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Root cause of the current black screen/long wait: the player still selected direct-first for this known source and the SCTV4K special case expanded the startup watchdog to 45 seconds. This overrode the earlier 8-second HLS timeout.
 - New isolated branch `fix/sctv4k-proxy-retry-state-20261010`: start SCTV4K/VietAnhTV HLS via the working Worker proxy first in both player entrypoints; remove 45-second override; cap HLS watchdog at 8 seconds; bump cache-buster; add regression assertions.
 - Diagnostic workflow: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024005264 (PASS). This is a source/segment HTTP diagnostic, not a claim that device playback has already been verified.
+
+## 2026-10-10 — SCTV4K proxy-first correction
+
+- Root cause confirmed against production: direct SCTV4K HLS manifest returns HTTP 200, but its TS child requests return HTTP 400. Previous behavior still allowed direct attempt first and could leave startup waiting.
+- Worker now tags the `vietanhtv.id.vn` candidate `forceProxy: true`; both web player entrypoints enforce proxy-first for this host.
+- Bounded the known 4K watchdog to 15 seconds (removed the 45-second wait) and bumped the active player cache-buster.
+- Added regression test `scripts/test-sctv4k-proxy-preference.js`; full Web Browser Validation PASS: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38025807061.
+- Browser HLS E2E is pending; CI lacks H.264 decoder, so actual device playback remains required.
+- DAZN was not found in server presets 1/2 or sports playlists. It is likely in the user's custom/local source; exact URL/entry must be provided to inspect the upstream and headers. No source defaults, NM7 Mobile, or NM7 TV Android changed.

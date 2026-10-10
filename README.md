@@ -14,11 +14,32 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 
 - Ngày cập nhật: **10/10/2026**
 - Nhánh ổn định: `stable/nm7-tv-web-2026-10-09`
-- Cập nhật mới nhất: **Stalker/Xtream `live.php?extension=ts` được xử lý qua TCP socket cùng Cloudflare Worker khi origin redirect sang IP; bản test đã được người dùng xác nhận hoạt động**
+- Cập nhật mới nhất: **Service Binding Cloudflare sửa lỗi nhập nguồn thể thao qua URL `/playlist.m3u`; bản production đã được smoke test và người dùng xác nhận hoạt động**
+- Giữ lại đường TCP socket Stalker/Xtream đã được xác minh trước đó.
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Nơi triển khai: **Cloudflare Workers**
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
 - Các chức năng/player/DRM hiện tại được giữ nguyên; local M3U là phần bổ sung riêng.
+
+
+## Sửa lỗi nhập nguồn thể thao qua URL — 10/10/2026
+
+### Nguyên nhân
+URL `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u` trả HTTP 200 và M3U khi truy cập trực tiếp, nhưng trả HTTP 404 khi Worker NM7 TV Web gọi nó bằng `fetch()`. Thử đổi User-Agent vẫn không xử lý được, nên không phải lỗi cú pháp M3U hoặc URL playlist bị mất.
+
+### Sửa trên Cloudflare
+- Trong `wrangler.toml`, khai báo Service Binding `THETHAO_SOURCE` cho Worker `thethaonm7`.
+- Trong `worker.js`, `fetchPlaylistTarget()` dùng binding cho host nguồn thể thao; `/api/source` và tải nguồn thể thao mặc định gọi qua helper này. Nguồn khác tiếp tục dùng cơ chế tải hiện tại.
+- Nguồn URL có lần thử lại với User-Agent trình duyệt và lỗi HTTP/Content-Type rõ hơn khi thất bại.
+- Thêm smoke test production cho đúng URL này vào `.github/workflows/cloudflare-deploy.yml`.
+
+### Kiểm thử
+- Worker Cloudflare thử nghiệm nhập thành công **1.010 kênh** từ URL đang lỗi.
+- API production Cloudflare `/api/source` cũng trả **1.010 kênh** trong kiểm tra read-only từ runner.
+- [Cloudflare source import test #38061701828](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38061701828): **SUCCESS**.
+- Người dùng đã xác nhận thêm nguồn hoạt động trên NM7 TV Web.
+
+Phạm vi chỉ là `phuongnm7/nm7-tv-web` và Cloudflare Workers. Không sửa NM7 TV Android hoặc NM7 Mobile; không chuyển ứng dụng sang Vercel.
 
 
 ## Tự chọn nguồn mặc định theo thiết bị — 10/10/2026

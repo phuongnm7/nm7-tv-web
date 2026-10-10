@@ -67,6 +67,18 @@ jobs:
                   "resolutions": list(dict.fromkeys(resolutions))[:12],
                   "codecs": list(dict.fromkeys(codecs))[:8], "error": result.get("error")
               }, ensure_ascii=False))
+              # Check the live production fix without ever logging the signed URL/path.
+              if label.startswith("SCTV4K_PROXY_SEGMENT"):
+                  status = result.get("status")
+                  mime = str(result.get("contentType") or "").lower()
+                  if status == 200 and mime.startswith("video/mp2t"):
+                      print("SCTV4K_PROXY_SEGMENT_MIME_PASS")
+                  elif status == 200:
+                      print("SCTV4K_PROXY_SEGMENT_MIME_FAIL")
+                  else:
+                      print("SCTV4K_PROXY_SEGMENT_UPSTREAM_UNAVAILABLE", json.dumps({
+                          "status": status, "error": result.get("error")
+                      }, ensure_ascii=False))
               return text
 
           def extract_uris(text, base_url):

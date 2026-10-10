@@ -445,3 +445,13 @@ Branch: `fix/sports-hls-startup-proxy-20261010`. The following remains isolated 
 - SCTV4K live diagnostic #27 measured about 4.0 s to direct manifest headers and 2.2 s through proxy; the proxied 3.9 MB HEVC 3840×2160 segment took ~5.7 s end-to-end in that sample. Direct TS segments still return HTTP 400. The HLS playlist is live and sequence numbers change, so long-lived manifest caching would risk stale segments.
 - Web Browser Validation #400 and browser fixture E2E #431 both passed. These are code/regression checks, not confirmation that the actual video channels play on the user’s device.
 - Production remains unchanged. No stable merge/deploy or default playlist URL changes were made.
+
+
+## Nguồn Stalker/Xtream `live.php?extension=ts` — 10/10/2026
+
+- Sửa nhận diện định dạng cho endpoint kiểu Stalker/Xtream khai báo container bằng query `extension=ts` hoặc `extension=m2ts`, dù URL không có đuôi `.ts`.
+- Worker `/api/stream` chuyển tiếp body dạng stream và đặt MIME `video/mp2t` khi upstream trả thành công; không đọc lại payload TS thành văn bản.
+- Cập nhật cả hai player entrypoint (`app.js`, `app-safari-policy.js`) để phân loại URL theo query extension, đồng thời tăng cache-buster ở `index.html`.
+- Kiểm thử trên nhánh cô lập: [Web Browser Validation #38029193670](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38029193670) **PASS**; [Browser remote + HLS E2E #38029193712](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38029193712) **PASS**. E2E phát HLS fixture do CI tạo và xác nhận điều hướng remote/giao diện.
+- Giới hạn xác minh: test Worker dùng URL Stalker mô phỏng và payload TS giả lập; chưa xác minh URL/token nguồn thật trên Samsung TV, Safari hoặc thiết bị thực. HTTP 200/MIME đúng không tự chứng minh giải mã/phát hình thành công.
+- Phạm vi: chỉ nhánh fix NM7 TV Web; không thay playlist mặc định, không merge vào stable và không deploy production.

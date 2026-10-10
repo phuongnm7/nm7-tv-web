@@ -1974,6 +1974,7 @@ function startup(){
  window.addEventListener('orientationchange',mobileModeChange);
  $('mobileMenuBtn').addEventListener('click',function(){openMenu()});
  $('btnYouTubeTab').addEventListener('click',function(){openYouTube();});
+ $('btnNewsTab').addEventListener('click',function(){location.href='/web-tv/ban-tin.html';});
  $('appShortcut').addEventListener('click',function(){toast('Chọn ứng dụng');});
  window.addEventListener('focus',restoreRemoteFocus,true);
  window.addEventListener('pageshow',restoreRemoteFocus,true);

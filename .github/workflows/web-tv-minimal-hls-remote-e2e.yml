@@ -49,9 +49,15 @@ jobs:
           open(p,"w",encoding="utf-8").write(s)
           p="e2e-site/app.js"
           s=open(p,encoding="utf-8").read()
-          s=s.replace("tv:'/api/playlist?source=tv&default=android1069'","tv:'/playlist.json'")
-          s=s.replace("tv:'/api/playlist?source=tv'","tv:'/playlist.json'")
+          # Match the current preset-aware PLAYLISTS declarations in app.js.
+          # The test page must not hit production APIs when the local fixture is present.
+          s=s.replace("tv:'/api/playlist?source=tv&default=1'","tv:'/playlist.json'")
+          s=s.replace("tv2:'/api/playlist?source=tv&default=2'","tv2:'/playlist.json'")
           s=s.replace("sport:'/api/playlist?source=sport'","sport:'/playlist.json'")
+          if "/api/playlist?source=tv&default=1" in s or "/api/playlist?source=tv&default=2" in s:
+            raise SystemExit("E2E fixture adaptation failed: source preset endpoint still points to production API")
+          if "tv:'/playlist.json'" not in s or "tv2:'/playlist.json'" not in s:
+            raise SystemExit("E2E fixture adaptation failed: local playlist fixture not configured")
           open(p,"w",encoding="utf-8").write(s)
           PY
           node --check e2e-site/app.js

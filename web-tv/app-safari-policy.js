@@ -117,7 +117,7 @@ function norm(c){
 }
 
 function parseM3U(text,base){
- var lines=String(text||'').replace(/^\uFEFF/,'').split(/\r?\n/),out=[],m=null,ua='',ref='',origin='',manifest='',licenseType='',licenseKey='',epg='';
+ var lines=String(text||'').replace(/^\uFEFF/,'').split(/\r?\n/),out=[],m=null,ua='',ref='',origin='',headers={},manifest='',licenseType='',licenseKey='',epg='';
  function finish(){if(m&&m.candidates.length)out.push(m)}
  for(var i=0;i<lines.length;i++){
   var l=lines[i].trim(),mt,lt,lk,um,rm,p,h,url,ps,r,u;
@@ -131,10 +131,26 @@ function parseM3U(text,base){
    finish();
    p=l.indexOf(',');h=p<0?l:l.slice(0,p);
    m={name:p<0?'Kênh':l.slice(p+1).trim(),group:(/group-title="([^"]*)"/i.exec(h)||[])[1]||'Khác',logo:(/tvg-logo="([^"]*)"/i.exec(h)||[])[1]||'',id:(/tvg-id="([^"]*)"/i.exec(h)||[])[1]||'',candidates:[],catchup:(/catchup="([^"]*)"/i.exec(h)||[])[1]||'',catchupDays:(/catchup-days="([^"]*)"/i.exec(h)||[])[1]||'',catchupSource:(/catchup-source="([^"]*)"/i.exec(h)||[])[1]||''};
-   ua='';ref='';origin='';manifest='';licenseType='';licenseKey='';
+   ua='';ref='';origin='';headers={};manifest='';licenseType='';licenseKey='';
    continue
   }
   if(!m)continue;
+  if(l.indexOf('#EXTHTTP:')===0){
+   try{
+    var rawHeaders=JSON.parse(l.slice(l.indexOf(':')+1).trim());
+    if(rawHeaders&&typeof rawHeaders==='object'&&!Array.isArray(rawHeaders)){
+     Object.keys(rawHeaders).forEach(function(k){
+      var value=rawHeaders[k];if(typeof value!=='string'||!value.trim())return;
+      var lk=String(k).toLowerCase();
+      if(lk==='user-agent')ua=value;
+      else if(lk==='referer'||lk==='referrer')ref=value;
+      else if(lk==='origin')origin=value;
+      else headers[k]=value;
+     });
+    }
+   }catch(e){}
+   continue
+  }
   if(l.indexOf('#EXTVLCOPT:')===0){
    um=/http-user-agent=(?:"([^"]+)"|([^\s]+))/i.exec(l);rm=/(?:http-referrer|http-referer)=(?:"([^"]+)"|([^\s]+))/i.exec(l);
    if(um)ua=um[1]||um[2];
@@ -155,7 +171,7 @@ function parseM3U(text,base){
    for(var j=1;j<ps.length;j++){
     var z=ps[j],eq=z.indexOf('='),k=eq>0?z.slice(0,eq):'',v=eq>0?decodeURIComponent(z.slice(eq+1)):'';if(/^referer$/i.test(k))r=v;if(/^http-user-agent$/i.test(k))u=v;if(/^origin$/i.test(k))origin=v;
    }
-   var mm=manifest.toLowerCase(),cand={url:url,ref:r,ua:u,headers:{},type:mm==='mpd'?'dash':mm==='hls'?'hls':'',dash:mm==='mpd',hls:mm==='hls'||/\.m3u8?(?:$|\?)/i.test(url)||/playlist|index\.m3u|manifest/i.test(url),drm:licenseType&&licenseKey?{type:licenseType,key:licenseKey}:null};
+   var mm=manifest.toLowerCase(),cand={url:url,ref:r,ua:u,headers:Object.assign({},headers),type:mm==='mpd'?'dash':mm==='hls'?'hls':'',dash:mm==='mpd',hls:mm==='hls'||/\.m3u8?(?:$|\?)/i.test(url)||/playlist|index\.m3u|manifest/i.test(url),drm:licenseType&&licenseKey?{type:licenseType,key:licenseKey}:null};
    if(origin)cand.headers.Origin=origin;m.candidates.push(cand);
   }
  }
@@ -822,7 +838,8 @@ function nextCandidate(reason){
  }
  if(S.attemptStep<1){
   S.attemptStep++;
-  toast((reason||'Nguồn lỗi')+' · '+(S.attemptStep===1?'thử proxy':'thử lại'));
+  var nextViaProxy=attemptUsesProxy(cand,classify(cand));
+  toast((reason||'Nguồn lỗi')+' · thử '+(nextViaProxy?'proxy':'trực tiếp'));
   setTimeout(tryCandidate,120);return;
  }
  S.attemptStep=0;S.proxyAttempt=false;S.candidateIndex++;
@@ -955,6 +972,17 @@ function tryHlsJs(c,cand,url,gen){
   h.on(Hls.Events.ERROR,function(ev,data){
    if(gen!==S.generation)return;
    if(S.debug)console.log('NM7 HLS',data&&data.type,data&&data.details,data&&data.response||'');
+   var httpStatus=Number(data&&data.response&&(data.response.code||data.response.status)||data&&data.networkDetails&&data.networkDetails.status||0);
+   // Do not wait for HLS.js retry backoff when an upstream explicitly rejects
+   // the manifest/segment. Switch direct <-> proxy immediately on HTTP 4xx/5xx.
+   if(httpStatus>=400&&httpStatus<=599){
+    nextCandidate('HLS HTTP '+httpStatus+' · '+(S.proxyAttempt?'proxy lỗi':'nguồn trực tiếp lỗi'));
+    return;
+   }
+   if(data&&data.fatal&&!S.proxyAttempt&&data.type===Hls.ErrorTypes.NETWORK_ERROR){
+    nextCandidate('HLS trực tiếp lỗi · chuyển proxy');
+    return;
+   }
    if(data&&data.fatal){
     if(data.type===Hls.ErrorTypes.NETWORK_ERROR&&networkRecoveries<2){
       networkRecoveries++;

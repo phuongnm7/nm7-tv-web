@@ -244,3 +244,86 @@ jobs:
           if not targets:
               print("NO_MATCHING_TARGETS — the tested channels are not in the three currently served production playlists; likely a local/custom playlist or another source.")
           PY
+
+      - name: Probe a representative saved custom sports M3U entry (redacted)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, time, urllib.parse, urllib.request, urllib.error
+          from urllib.parse import urlparse, urljoin
+          BASE = "https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          STREAM = "https://film4k.net/api/tv/ants/3/index.m3u8"
+          REFERER = "https://film4k.net/"
+          ORIGIN = "https://film4k.net"
+          FULL_UA = "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36"
+          RUNNER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36"
+
+          def safe_host(url):
+              try: return urlparse(url).hostname
+              except Exception: return "[unknown]"
+
+          def probe(label, url, headers, limit=12000, timeout=12):
+              start = time.monotonic()
+              req = urllib.request.Request(url, headers=headers, method="GET")
+              try:
+                  with urllib.request.urlopen(req, timeout=timeout) as r:
+                      header_at = time.monotonic()
+                      body = r.read(limit)
+                      end = time.monotonic()
+                      final = r.geturl()
+                      result = {
+                          "status": r.status, "contentType": r.headers.get("Content-Type", ""),
+                          "headerMs": round((header_at-start)*1000),
+                          "readMs": round((end-header_at)*1000), "totalMs": round((end-start)*1000),
+                          "bytesRead": len(body), "host": safe_host(final),
+                          "isHLS": body.lstrip().startswith(b"#EXTM3U"),
+                          "isHTML": body[:500].lstrip().lower().startswith((b"<html", b"<!doctype html")),
+                          "errorType": None
+                      }
+                      print(label, json.dumps(result, ensure_ascii=False))
+                      return {"result": result, "body": body, "finalUrl": final}
+              except urllib.error.HTTPError as e:
+                  end = time.monotonic()
+                  body = e.read(min(limit, 1200))
+                  result = {
+                      "status": e.code, "contentType": e.headers.get("Content-Type", ""),
+                      "headerMs": round((end-start)*1000), "readMs": 0,
+                      "totalMs": round((end-start)*1000), "bytesRead": len(body),
+                      "host": safe_host(e.geturl()), "isHLS": body.lstrip().startswith(b"#EXTM3U"),
+                      "isHTML": body[:500].lstrip().lower().startswith((b"<html", b"<!doctype html")),
+                      "errorType": None
+                  }
+                  print(label, json.dumps(result, ensure_ascii=False))
+                  return {"result": result, "body": body, "finalUrl": e.geturl()}
+              except Exception as e:
+                  result = {
+                      "status": None, "contentType": None, "headerMs": None, "readMs": None,
+                      "totalMs": round((time.monotonic()-start)*1000), "bytesRead": 0,
+                      "host": safe_host(url), "isHLS": False, "isHTML": False,
+                      "errorType": type(e).__name__
+                  }
+                  print(label, json.dumps(result, ensure_ascii=False))
+                  return {"result": result, "body": b"", "finalUrl": url}
+
+          def children(response):
+              text = response["body"].decode("utf-8", "ignore")
+              return [x.strip() for x in text.splitlines() if x.strip() and not x.lstrip().startswith("#")]
+
+          ref_headers = {"User-Agent": FULL_UA, "Referer": REFERER, "Origin": ORIGIN}
+          full = probe("SAVED_SPORT_DIRECT_FULL_UA", STREAM, ref_headers)
+          short = probe("SAVED_SPORT_DIRECT_TRUNCATED_UA", STREAM,
+                        {"User-Agent": "Mozilla/5.0", "Referer": REFERER, "Origin": ORIGIN})
+          q = {"u": STREAM, "r": REFERER, "ua": FULL_UA,
+               "h": json.dumps({"Origin": ORIGIN}, separators=(",", ":"))}
+          proxy_url = BASE + "/api/stream?" + urllib.parse.urlencode(q)
+          proxy = probe("SAVED_SPORT_PROXY_FULL_UA", proxy_url, {"User-Agent": RUNNER_UA})
+          # Inspect only one child. Never print a URI/path/query because it can contain a token.
+          direct_children = children(full)
+          if full["result"]["isHLS"] and direct_children:
+              child = urljoin(full["finalUrl"], direct_children[0])
+              probe("SAVED_SPORT_DIRECT_SEGMENT1", child, ref_headers, limit=2048, timeout=10)
+          proxy_children = children(proxy)
+          if proxy["result"]["isHLS"] and proxy_children:
+              child = urljoin(proxy["finalUrl"], proxy_children[0])
+              probe("SAVED_SPORT_PROXY_SEGMENT1", child, {"User-Agent": RUNNER_UA}, limit=2048, timeout=10)
+          PY

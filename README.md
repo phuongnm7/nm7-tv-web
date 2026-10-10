@@ -264,3 +264,11 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Trang NM7 TV Web production: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - API playlist Mặc định 1: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/playlist?source=tv&default=1`
 - Nguồn upstream Mặc định 1: `https://nm7-tv-web.vercel.app/api/vietmitv-merge` (đây là URL playlist, không phải URL luồng video riêng của VTV1).
+
+
+### Device-based TV preset defaults (isolated Cloudflare test)
+- Android browsers: TV preset 2.
+- Windows browsers: TV preset 2.
+- iPhone/iPad and macOS desktop browsers: TV preset 1.
+- Samsung Tizen TV and other platforms: TV preset 1.
+- This change is deployed only to the isolated Worker `nm7-tv-web-device-test`; it does not change the production Worker.

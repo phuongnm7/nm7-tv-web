@@ -745,7 +745,7 @@ function classify(c){
  if(c.dash||t==='dash'||m.indexOf('dash+xml')>=0||/\.mpd(?:$|\?)/i.test(u))return 'dash';
  if(c.hls||t==='hls'||m.indexOf('mpegurl')>=0||/\.m3u8?(?:$|\?)/i.test(u))return 'hls';
  if(c.flv||t==='flv'||m.indexOf('x-flv')>=0||/\.flv(?:$|\?)/i.test(u))return 'flv';
- if(c.mpegts||t==='mpegts'||m.indexOf('mp2t')>=0||/\.ts(?:$|\?)/i.test(u))return 'mpegts';
+ if(c.mpegts||t==='mpegts'||m.indexOf('mp2t')>=0||/\.ts(?:$|\?)/i.test(u)||/[?&]extension=(?:ts|m2ts)(?:&|$)/i.test(u))return 'mpegts';
  if(/^rtsp/i.test(u))return 'rtsp';
  if(/^rtmp/i.test(u))return 'rtmp';
  if(/^udp:/i.test(u))return 'udp';

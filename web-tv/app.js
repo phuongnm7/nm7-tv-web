@@ -837,6 +837,13 @@ function scheduleCandidateRetry(){
   tryCandidate();
  },120)
 }
+function isStalkerTsCandidate(cand,kind){
+ if(kind!=='mpegts'||!cand)return false;
+ try{
+  var u=new URL(String(cand.resolvedUrl||cand.url||'')),q=u.searchParams;
+  return /\\/play\\/live\\.php$/i.test(u.pathname)&&q.has('mac')&&q.has('stream')&&q.has('extension')&&(q.has('play_token')||q.has('token'));
+ }catch(e){return false}
+}
 function nextCandidate(reason){
  if(!S.player||S.retryPending)return;
  if(S.watchdog){clearTimeout(S.watchdog);S.watchdog=null}
@@ -855,8 +862,10 @@ function nextCandidate(reason){
  }
  var kind=cand?classify(cand):'http';
  var proxyFirst=!!cand&&shouldProxyFirst(cand,kind);
- // Avoid retrying the same proxy-first URL for another full watchdog cycle.
- if(S.attemptStep<1&&!(proxyFirst&&S.proxyAttempt)){
+ // Most proxy-first providers must not be retried directly. Stalker tokens can be tied
+ // to the viewer network, however, so after a proxy 403 try this TS URL directly once.
+ var allowStalkerDirectFallback=isStalkerTsCandidate(cand,kind);
+ if(S.attemptStep<1&&(!(proxyFirst&&S.proxyAttempt)||allowStalkerDirectFallback)){
   S.attemptStep++;
   var nextViaProxy=attemptUsesProxy(cand,kind);
   toast((reason||'Nguồn lỗi')+' · thử '+(nextViaProxy?'proxy':'trực tiếp'));

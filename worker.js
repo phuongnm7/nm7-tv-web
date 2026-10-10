@@ -73,7 +73,7 @@ function isStalkerPlaybackUrl(value){
   try{
     const u=new URL(String(value||''));
     const q=u.searchParams;
-    return /\\/play\\/live\\.php$/i.test(u.pathname)&&q.has('mac')&&q.has('stream')&&q.has('extension')&&(q.has('play_token')||q.has('token'));
+    return u.pathname.toLowerCase().endsWith('/play/live.php')&&q.has('mac')&&q.has('stream')&&q.has('extension')&&(q.has('play_token')||q.has('token'));
   }catch{return false}
 }
 function headersFromQuery(req,q){

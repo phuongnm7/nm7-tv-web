@@ -40,6 +40,7 @@ jobs:
           node --check web-tv/app-safari-policy.js
           node scripts/test-playback-startup-fallback.js
           node scripts/test-worker-hls-segments.js
+          node scripts/test-stalker-default-user-agent.js
 
       - name: Deploy isolated Cloudflare Worker only
         uses: cloudflare/wrangler-action@v4

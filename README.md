@@ -303,5 +303,5 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 ### Kiểm thử và phạm vi
 
 - GitHub Actions Web Browser Validation #303 PASS, gồm kiểm tra cú pháp, test chọn preset, fallback player và kiểm tra proxy bảo toàn bytes của segment.
-- Chẩn đoán production: workflow run #5 (https://github.com/phuongnm7/nm7-tv-web/actions/runs/38020872169); các phép dò được giới hạn và không in query/token của stream.
+- Chẩn đoán production: workflow run #9 (https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021315033). Workflow hiện chỉ ghi host và loại tài nguyên, không ghi path/query có thể chứa thông tin ký của stream.
 - Code đang ở nhánh feat/diagnose-4k-foreign-playback-20261010, chưa merge vào stable/nm7-tv-web-2026-10-09 và chưa deploy lên Worker production. Không sửa NM7 Mobile/Android hay thay đổi URL playlist.

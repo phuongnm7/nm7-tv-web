@@ -190,6 +190,19 @@ async function dashResourceResponse(request,url){
 }
 function cors(h){h.set('Access-Control-Allow-Origin','*');h.set('Access-Control-Allow-Methods','GET,HEAD,POST,OPTIONS');h.set('Access-Control-Allow-Headers','Range,Accept,Content-Type,Origin,Referer,User-Agent,X-Requested-With');h.set('Access-Control-Expose-Headers','Content-Length,Content-Range,Accept-Ranges,Content-Type,ETag');return h}
 async function fetchWithTimeout(url,init={},ms=9000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{return await fetch(url,{...init,signal:c.signal,redirect:init.redirect||'follow',cache:'no-store'})}finally{clearTimeout(t)}}
+async function fetchPlaylistTarget(target,init={},env=null,ms=10000){
+  let host='';
+  try{host=new URL(target).hostname.toLowerCase()}catch{}
+  // Use a Service Binding for this same-account Worker. Public workers.dev
+  // fetches from another Worker can return 404 even when the URL is valid.
+  if(host==='thethaonm7.phuongnm7-iptv.workers.dev'&&env?.THETHAO_SOURCE){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),ms);
+    try{
+      return await env.THETHAO_SOURCE.fetch(new Request(target,{...init,signal:controller.signal,redirect:'follow'}));
+    }finally{clearTimeout(timer)}
+  }
+  return fetchWithTimeout(target,init,ms);
+}
 async function playlistResponse(source,defaultChoice='',env=null){
   if(!SOURCES[source])return new Response(JSON.stringify({channels:[],source}),{status:400,headers:{'Content-Type':'application/json'}});
   const choice=String(defaultChoice||'');
@@ -205,7 +218,7 @@ async function playlistResponse(source,defaultChoice='',env=null){
     const useBinding=source==='tv'&&target==='https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/'&&env?.PLAYLIST_SOURCE;
     const r=useBinding
       ?await env.PLAYLIST_SOURCE.fetch(new Request(target,init))
-      :await fetchWithTimeout(target,init,10000);if(!r.ok)throw new Error('HTTP '+r.status);const body=await r.text();let channels=parseM3U(body,target);if(!channels.length){try{const j=JSON.parse(body),arr=Array.isArray(j)?j:(Array.isArray(j.channels)?j.channels:Array.isArray(j.data)?j.data:[]);channels=arr.map(x=>({name:String(x.name||x.title||x.channel||'Kênh'),group:String(x.group||x.groupTitle||x.category||'Khác'),logo:String(x.logo||x.tvgLogo||''),id:String(x.id||x.tvgId||x.name||x.title||''),candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:x.url||x.stream||x.src,ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])}))}catch{}}if(!channels.length)throw new Error('playlist rỗng');
+      :await fetchPlaylistTarget(target,init,env,10000);if(!r.ok)throw new Error('HTTP '+r.status);const body=await r.text();let channels=parseM3U(body,target);if(!channels.length){try{const j=JSON.parse(body),arr=Array.isArray(j)?j:(Array.isArray(j.channels)?j.channels:Array.isArray(j.data)?j.data:[]);channels=arr.map(x=>({name:String(x.name||x.title||x.channel||'Kênh'),group:String(x.group||x.groupTitle||x.category||'Khác'),logo:String(x.logo||x.tvgLogo||''),id:String(x.id||x.tvgId||x.name||x.title||''),candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:x.url||x.stream||x.src,ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])}))}catch{}}if(!channels.length)throw new Error('playlist rỗng');
     enrichChannels(channels);
     playlistCache.set(cacheKey,{time:now,channels,upstream:target});
     return new Response(JSON.stringify({channels,source,cached:false,preset:isDefault?preset:undefined,upstream:target}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch(e){errors.push(target+': '+e.message)}}
@@ -428,14 +441,44 @@ async function streamResponse(request,q){
 async function imageResponse(q){const u=q.get('u');if(!isHttp(u))return new Response('bad image url',{status:400});const h=new Headers({'User-Agent':q.get('ua')||'NM7-TV-Web/1.0.69'});if(q.get('r'))h.set('Referer',q.get('r'));const r=await fetch(u,{headers:h,redirect:'follow',cache:'no-store'});if(!r.ok)return new Response('upstream image HTTP '+r.status,{status:r.status});const ct=r.headers.get('content-type')||'';if(!/^image\//i.test(ct)&&!ct.toLowerCase().includes('svg'))return new Response('not an image',{status:415});const ab=await r.arrayBuffer();if(ab.byteLength>2*1024*1024)return new Response('image too large',{status:413});const out=cors(new Headers());out.set('Content-Type',ct);out.set('Content-Length',String(ab.byteLength));out.set('Cache-Control','public,max-age=86400');return new Response(ab,{status:200,headers:out})}
 async function licenseResponse(request,q){const u=q.get('u');if(!isHttp(u))return new Response('bad url',{status:400});const h=headersFromQuery(request,q),ua=q.get('ua')||'',ref=q.get('r')||'';if(ua)h.set('User-Agent',ua);if(ref)h.set('Referer',ref);let body;if(request.method==='POST'){const raw=await request.text();if(q.get('base64')==='1'){try{body=Uint8Array.from(atob(raw),c=>c.charCodeAt(0));h.set('Content-Type','application/octet-stream')}catch{return new Response('bad base64 body',{status:400})}}else body=raw}let r=await fetch(u,{method:request.method==='POST'?'POST':'GET',headers:h,body,redirect:'follow',cache:'no-store'});if(!r.ok&&request.method==='POST')r=await fetch(u,{method:'GET',headers:h,redirect:'follow',cache:'no-store'});return new Response(r.body,{status:r.status,headers:cors(new Headers(r.headers))})}
 
-async function sourceResponse(q){
+async function sourceResponse(q,env=null){
   const target=String(q.get('u')||'').trim();
   if(!isHttp(target))return new Response(JSON.stringify({channels:[],error:'bad url'}),{status:400,headers:cors(new Headers({'Content-Type':'application/json'}))});
-  try{
-    const r=await fetchWithTimeout(target,{headers:{'User-Agent':'NM7-TV-Web/1.0.69','Accept':'application/vnd.apple.mpegurl,application/json,text/plain,*/*'}},10000);
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const body=await r.text();
-    let channels=parseM3U(body,target);
+
+  // Retry source import with a browser UA if the default NM7 request is rejected.
+  // This is isolated to /api/source; TV playback/proxy routes are unchanged.
+  const attempts=[
+    {ua:'NM7-TV-Web/1.0.69',accept:'application/vnd.apple.mpegurl,application/json,text/plain,*/*'},
+    {ua:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',accept:'text/plain,application/vnd.apple.mpegurl,application/json,*/*'}
+  ];
+  let lastError='unknown error',lastStatus=0,lastContentType='',lastUrl=target;
+  for(let i=0;i<attempts.length;i++){
+    let r;
+    try{
+      r=await fetchPlaylistTarget(target,{headers:{'User-Agent':attempts[i].ua,'Accept':attempts[i].accept}},env,10000);
+    }catch(e){
+      lastError=String(e?.message||e||'fetch failed');
+      lastStatus=0;
+      if(i+1<attempts.length)continue;
+      break;
+    }
+    lastStatus=r.status;
+    lastContentType=r.headers.get('content-type')||'';
+    lastUrl=r.url||target;
+    if(!r.ok){
+      lastError='HTTP '+r.status;
+      try{await r.body?.cancel()}catch{}
+      if(i+1<attempts.length)continue;
+      break;
+    }
+    let body='';
+    try{body=await r.text()}catch(e){
+      lastError=String(e?.message||e||'failed to read response');
+      lastStatus=0;
+      if(i+1<attempts.length)continue;
+      break;
+    }
+    let channels=parseM3U(body,lastUrl);
     if(!channels.length){
       try{
         const j=JSON.parse(body);
@@ -445,16 +488,27 @@ async function sourceResponse(q){
           group:String(x.group||x.groupTitle||x.category||'Khác'),
           logo:String(x.logo||x.tvgLogo||''),
           id:String(x.id||x.tvgId||x.name||x.title||''),
-          candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:safeUrl(x.url||x.stream||x.src,target),ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])
+          candidates:Array.isArray(x.candidates)?x.candidates:(x.url||x.stream||x.src?[{url:safeUrl(x.url||x.stream||x.src,lastUrl),ref:x.ref||x.referer||'',ua:x.ua||x.userAgent||'',headers:x.headers||{},type:x.type||'',dash:x.type==='dash',hls:x.type==='hls'}]:[])
         }));
       }catch{}
     }
-    if(!channels.length)throw new Error('playlist rỗng');
-    enrichChannels(channels);
-    return new Response(JSON.stringify({channels,source:'custom',upstream:r.url||target}),{headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
-  }catch(e){
-    return new Response(JSON.stringify({channels:[],source:'custom',error:String(e?.message||e)}),{status:502,headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
+    if(channels.length){
+      enrichChannels(channels);
+      return new Response(JSON.stringify({channels,source:'custom',upstream:lastUrl,fetchMode:i===0?'nm7-ua':'browser-ua'}),{headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
+    }
+    lastError='Nguồn không trả về playlist M3U/JSON';
+    if(i+1<attempts.length)continue;
+    break;
   }
+  const detail=lastStatus?'HTTP '+lastStatus:'không nhận được phản hồi HTTP';
+  const ct=lastContentType?' ('+lastContentType+')':'';
+  let upstreamHost='';
+  try{upstreamHost=new URL(lastUrl).host}catch{}
+  return new Response(JSON.stringify({
+    channels:[],source:'custom',
+    error:lastError+'; '+detail+ct+' sau '+attempts.length+' lần thử',
+    upstreamHost
+  }),{status:502,headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
 }
 function detectMediaType(url,contentType,bodyText=""){
   const ct=String(contentType||"").toLowerCase(),u=String(url||"").toLowerCase();
@@ -720,4 +774,4 @@ async function probeResponse(request,q){
     retryAfter:r?.headers.get("retry-after")||""
   }),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*"}});
 }
-export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p.startsWith('/api/dash-resource/'))return dashResourceResponse(request,url);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};
+export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p.startsWith('/api/dash-resource/'))return dashResourceResponse(request,url);if(p==='/api/source')return sourceResponse(q,env);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};

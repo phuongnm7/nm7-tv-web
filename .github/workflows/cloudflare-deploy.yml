@@ -238,6 +238,9 @@ jobs:
               raise SystemExit(f"sport playlist returned zero channels: {d.get('error')}")
           if d.get('refreshed') is not True:
               raise SystemExit('sport playlist refresh flag was not honored: '+str(d))
+          expected='https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u'
+          if d.get('upstream') != expected:
+              raise SystemExit('sport playlist used wrong upstream: '+str(d.get('upstream'))+'; expected '+expected)
           print('CLOUDFLARE_SPORT_REFRESH_SMOKE_OK channels=',len(channels),'upstream=',d.get('upstream'),'refreshed=',d.get('refreshed'))
           PY
 

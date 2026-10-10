@@ -6,7 +6,7 @@ const fs = require('node:fs');
 
 async function main() {
   const source = fs.readFileSync('worker.js', 'utf8');
-  const nodeSafeSource = source.replace(/^import \\{ connect \} from [\"']cloudflare:sockets[\"'];\\s*/, 'const connect = () => { throw new Error(\"TCP sockets are unavailable in Node regression tests\"); };\\n');
+  const nodeSafeSource = source.replace('import { connect } from "cloudflare:sockets";', 'const connect = () => { throw new Error("TCP sockets are unavailable in Node regression tests"); };');
   const dataUrl = 'data:text/javascript;base64,' + Buffer.from(nodeSafeSource, 'utf8').toString('base64');
   const mod = await import(dataUrl);
   const worker = mod.default;

@@ -277,6 +277,21 @@ jobs:
                   and ("play_token" in query_fields or "token" in query_fields)
               )
               if is_stalker:
+                  # Inspect the first response before redirects, without printing any token-bearing URL.
+                  manual_q = dict(q, manualRedirect="1")
+                  manual_url = BASE + "/api/probe?" + urllib.parse.urlencode(manual_q)
+                  manual_result = request(manual_url, {"User-Agent": UA}, limit=2000, timeout=10)
+                  try:
+                      manual_data = json.loads(manual_result.get("body", b"{}").decode("utf-8", "ignore"))
+                  except Exception:
+                      manual_data = {}
+                  print(name.replace(" ", "_") + "_CLOUDFLARE_MANUAL_REDIRECT", json.dumps({
+                      "probeHTTP": manual_result.get("status"), "upstreamHTTP": manual_data.get("status"),
+                      "requestedHost": manual_data.get("requestedHost"), "redirectPresent": manual_data.get("redirectPresent"),
+                      "redirectHost": manual_data.get("redirectHost"), "server": manual_data.get("server"),
+                      "cfRayPresent": manual_data.get("cfRayPresent"), "contentType": manual_data.get("contentType"),
+                      "errorClass": manual_data.get("errorClass")
+                  }, ensure_ascii=False))
                   # Hold source URL and Worker fixed; change only UA to isolate the cause of HTTP 403.
                   q_browser = dict(q)
                   q_browser["ua"] = UA

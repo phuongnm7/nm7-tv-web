@@ -559,3 +559,27 @@ Nhánh: `fix/sports-hls-startup-proxy-20261010`. **Chưa merge vào stable và c
 - The names in video 224593 (UK - SKY SPORTS+ 12 FHD, UK - SKY SPORTS+ 39 FHD, UK - TNT SPORTS 1 FHD) are not in the inspected production presets and were not found verbatim in the older saved M3U files available to this chat. The representative probe above is a separate, older `film4k.net` entry and must not be presented as proof about the exact video URLs.
 - Web Browser Validation #400: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027818980. Browser remote + HLS E2E #431: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027818989.
 - No production deployment, merge to stable, playlist URL change, or changes to NM7 Mobile/Android.
+
+
+## 2026-10-10 — Stalker/Xtream `live.php?extension=ts`
+
+### Thay đổi trên nhánh cô lập `fix/sports-hls-startup-proxy-20261010`
+
+- Endpoint Stalker/Xtream dùng đường dẫn dạng `/play/live.php` và khai báo container trong query `extension=ts`; trước đó player có thể nhận dạng nó là `http` thay vì MPEG-TS vì URL không kết thúc bằng `.ts`.
+- `web-tv/app.js` và `web-tv/app-safari-policy.js`: `classify()` nhận diện `extension=ts` / `extension=m2ts` ở query string.
+- `worker.js`: `detectMediaType()` cũng nhận diện query extension cho `/api/probe`; `streamResponse()` đặt `Content-Type: video/mp2t` đối với upstream thành công và chuyển tiếp `r.body` nguyên dạng, không parse/ghi lại TS thành text.
+- `scripts/test-worker-hls-segments.js`: thêm regression test với URL Stalker đã che thông tin truy cập và payload TS tổng hợp; xác nhận status, MIME và payload byte-for-byte.
+- `scripts/test-playback-startup-fallback.js`: xác minh cả hai entrypoint đều nhận dạng query extension như MPEG-TS.
+- `web-tv/index.html`: cache-buster mới `20261010-stalker-ts-query1` để thiết bị tải player mới.
+
+### Kết quả CI cho commit `d3572ba8cc4f36025f960694d96e3ec62c9e8051`
+
+- **Web Browser Validation #38029193670: SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38029193670. JavaScript syntax, regression tests và required web assets đều PASS.
+- **Browser remote + HLS E2E #38029193712: SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38029193712. HLS fixture được tạo trong CI đã phát được trong trình duyệt test; điều hướng remote, kiểm tra focus và geometry giao diện cũng PASS.
+- `.github/workflows/diagnose-tv360-drm.yml` có run thất bại không thuộc hai workflow xác nhận fix này; workflow đó được khai báo cho nhánh TV360 DRM riêng, không phải bài test Stalker. Không dùng kết quả đó để tuyên bố stream Stalker thất bại hoặc thành công.
+
+### Chưa được coi là hoàn tất trên thiết bị thật
+
+- Test Worker hiện dùng URL giả lập `mag.example.test`, token được mask và bytes TS tổng hợp. Chưa gọi được nguồn trực tiếp có token thật trong lần xác minh này và chưa có bằng chứng phát hình trên Samsung TV/Safari.
+- Trước khi phát hành cần thử URL thật mà không ghi token vào log, đo thời gian mở, xác minh candidate thực tế, response/headers và frame đầu trên thiết bị đích.
+- Vì vậy nhánh tiếp tục được giữ cô lập: **chưa merge stable, chưa deploy production, không đổi URL nguồn mặc định, không sửa NM7 Mobile hoặc NM7 TV Android**.

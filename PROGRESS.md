@@ -362,3 +362,9 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Nhánh tính năng không nằm trong danh sách nhánh của Cloudflare production deploy; thay đổi này không tự triển khai lên dịch vụ đang chạy.
 - Kiểm thử GitHub Actions `Web Browser Validation` đã **PASS**: [run #286](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38005309930). Node syntax checks đều đạt; regression test xác nhận 7 trường hợp trên mỗi file player (Android UA, Android Client Hints, iPhone, iPad, iPadOS desktop mode, desktop và Samsung Tizen), giữ preset khi quay lại Truyền hình, trạng thái lỗi preset 2 và cache-buster của script đang được trang sử dụng.
 - Không chạy Cloudflare production deploy. Nhánh tính năng không nằm trong danh sách deploy; nhánh stable, Worker đang chạy và các repository NM7 khác không bị thay đổi.
+
+
+## Cloudflare isolated device-preset test (2026-10-10)
+- Added `wrangler.device-test.toml` with Worker name `nm7-tv-web-device-test`; it reuses the existing `worker.js`, `web-tv` assets, and `phuongnm7-playlist` service binding.
+- Added `.github/workflows/cloudflare-device-test.yml`. It deploys only the isolated test Worker and checks both TV playlist endpoints. It does not run `wrangler.toml` and does not deploy the production Worker `nm7-tv-web`.
+- Test branch: `test/cloudflare-device-preset-20261010`. Production app source and production deployment workflow are unchanged by this test-specific commit.

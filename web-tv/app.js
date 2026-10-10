@@ -723,16 +723,10 @@ function makeProxy(u,cand){
  cand=normalizeCandidate(cand||{});
  if(!S.proxyAttempt)return u;
  if(u.indexOf(location.origin+'/api/stream')===0)return u;
- // Cloudflare Worker egress is WAF-blocked for this Stalker host. Use the tested
- // branch-only Vercel proxy for this one stream type; leave every other source on Worker.
- var stalkerTsProxy=isStalkerTsCandidate(cand,'mpegts');
- var proxyOrigin=stalkerTsProxy
-  ?'https://nm7-tv-web-git-fix-sports-hls-startup-proxy-20261010-phuongnm7.vercel.app'
-  :'';
- var q=proxyOrigin+'/api/stream?u='+encodeURIComponent(u);
+ // NM7 TV Web must use its same-origin Cloudflare Worker only; never route via Vercel.
+ var q='/api/stream?u='+encodeURIComponent(u);
  if(cand.ref)q+='&r='+encodeURIComponent(cand.ref);
  if(cand.ua)q+='&ua='+encodeURIComponent(cand.ua);
- else if(stalkerTsProxy)q+='&ua='+encodeURIComponent('Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36');
  if(cand.headers&&Object.keys(cand.headers).length)q+='&h='+encodeURIComponent(JSON.stringify(cand.headers));
  return q
 }
@@ -896,7 +890,7 @@ function tryCandidate(){
  if(!cand){setStatus('Kênh chưa có URL phát');return}
  clearPlayers();kind=classify(cand);
  S.proxyAttempt=attemptUsesProxy(cand,kind);
- dbg('Playback attempt: kind='+kind+' route='+(S.proxyAttempt?(isStalkerTsCandidate(cand,kind)?'vercel-preview-proxy':'worker-proxy'):'direct')+' source='+(S.candidateIndex+1)+'/'+(c.candidates?c.candidates.length:0));
+ dbg('Playback attempt: kind='+kind+' route='+(S.proxyAttempt?('worker-proxy'):'direct')+' source='+(S.candidateIndex+1)+'/'+(c.candidates?c.candidates.length:0));
  var sourceUrl=cand.resolvedUrl||cand.url,url=makeProxy(sourceUrl,cand);
  setStatus('Đang mở '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
  v.style.display='block';v.autoplay=true;v.controls=false;v.muted=false;v.defaultMuted=false;v.volume=1;

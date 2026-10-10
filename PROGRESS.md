@@ -413,7 +413,7 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 
 ### Kết quả kiểm thử và phạm vi
 
-- Web Browser Validation #303: SUCCESS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38020920789. Các bước JS syntax check, regression checks và required assets đều PASS.
-- Production diagnostic #5: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38020872169. Đã kiểm tra cả manifest lẫn URI segment; không đưa URL có token vào tài liệu.
+- Web Browser Validation #303: SUCCESS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021405853. Các bước JS syntax check, regression checks và required assets đều PASS.
+- Production diagnostic #9: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021315033. Đã kiểm tra cả manifest lẫn URI segment; workflow hiện chỉ ghi host và loại tài nguyên, không ghi path/query có thể chứa chữ ký stream.
 - DAZN PPV FHD không xuất hiện trong các playlist production được hỏi qua ba API (Mặc định 1, Mặc định 2, Thể thao). Chưa đủ dữ liệu để xử lý chính xác kênh DAZN trong ảnh; cần entry M3U hoặc URL nguồn thực tế.
 - Branch: feat/diagnose-4k-foreign-playback-20261010. Chưa merge stable, chưa deploy Cloudflare production. Không thay URL mặc định, không sửa NM7 Mobile/Android.

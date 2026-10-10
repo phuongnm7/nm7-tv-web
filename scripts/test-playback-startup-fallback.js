@@ -61,6 +61,17 @@ for (const file of files) {
     source.includes('var allowStalkerDirectFallback=isStalkerTsCandidate(cand,kind);') &&
     source.includes('||allowStalkerDirectFallback'),
     file + ': Stalker MPEG-TS tries the direct endpoint once after proxy failure');
+  const helper = source.match(/function isStalkerTsCandidate\\(cand,kind\\)\\{[\\s\\S]*?\\n\\}/);
+  assert.ok(helper, file + ': Stalker fallback classifier is extractable for behavior tests');
+  const isStalkerTsCandidate = new Function(helper[0] + '; return isStalkerTsCandidate;')();
+  assert.equal(isStalkerTsCandidate({url:'http://mag.example.test/play/live.php?mac=M&stream=1&extension=ts&play_token=T'}, 'mpegts'), true,
+    file + ': identifies a tokenized Stalker MPEG-TS stream');
+  assert.equal(isStalkerTsCandidate({url:'http://example.test/live.ts'}, 'mpegts'), false,
+    file + ': does not classify ordinary TS URLs as Stalker');
+  assert.equal(isStalkerTsCandidate({url:'http://mag.example.test/play/live.php?mac=M&stream=1&extension=ts'}, 'mpegts'), false,
+    file + ': does not use direct fallback without a playback token');
+  assert.equal(isStalkerTsCandidate({url:'http://mag.example.test/play/live.php?mac=M&stream=1&extension=ts&play_token=T'}, 'hls'), false,
+    file + ': Stalker direct fallback applies only to MPEG-TS');
   assert.ok(source.includes('if(S.hls)return;'),
     file + ': generic video error listener does not race HLS.js diagnostics');
   assert.ok(source.includes('startFragPrefetch:true'),

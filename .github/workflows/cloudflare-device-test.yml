@@ -1,0 +1,97 @@
+name: Deploy NM7 TV Sport Refresh Test to Cloudflare
+
+on:
+  push:
+    branches:
+      - test/sport-playlist-refresh-20261010
+
+concurrency:
+  group: nm7-cloudflare-sport-refresh-test
+  cancel-in-progress: true
+
+jobs:
+  test-sport-refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Checkout isolated test branch
+        uses: actions/checkout@v6
+
+      - name: Validate code and regression test
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module --check < worker.js
+          node --check web-tv/app.js
+          node --check web-tv/app-safari-policy.js
+          node scripts/test-sport-playlist-refresh.js
+          echo "NM7_SPORT_REFRESH_CODE_TESTS_OK"
+
+      - name: Deploy isolated test Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.sport-refresh-test.toml
+
+      - name: Smoke test isolated Worker sport reload
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web-sport-refresh-test.phuongnm7-iptv.workers.dev"
+          curl -fsSL --max-redirs 3 --max-time 30 "$BASE/" -o /tmp/nm7-sport-refresh-home.html
+          grep -q "NM7 TV 1.0.69" /tmp/nm7-sport-refresh-home.html
+          grep -q "app-safari-policy.js?v=20261010-sport-refresh1" /tmp/nm7-sport-refresh-home.html
+          echo "SPORT_REFRESH_WORKER_HTML_OK"
+
+          curl -fsSL --max-time 45 "$BASE/api/playlist?source=sport" -o /tmp/nm7-sport-before.json
+          curl -fsSL --max-time 45 "$BASE/api/playlist?source=sport&refresh=1" -o /tmp/nm7-sport-after.json
+          python3 - <<'PY'
+          import json
+          before=json.load(open('/tmp/nm7-sport-before.json',encoding='utf-8'))
+          after=json.load(open('/tmp/nm7-sport-after.json',encoding='utf-8'))
+          for label,data in [('before',before),('refresh',after)]:
+              channels=data.get('channels') or []
+              if not channels:
+                  raise SystemExit(f'SPORT_{label.upper()}_FAILED: '+str(data.get('error')))
+              print(f'SPORT_{label.upper()}_API_OK channels={len(channels)} cached={data.get("cached")}')
+          if after.get('refreshed') is not True:
+              raise SystemExit('SPORT_REFRESH_FLAG_NOT_HONORED: '+str(after))
+          if after.get('stale') is True:
+              raise SystemExit('SPORT_REFRESH_RETURNED_STALE_CACHE')
+          print('SPORT_CACHE_BYPASS_CONFIRMED channels='+str(len(after['channels']))+
+                ' refreshed='+str(after.get('refreshed')))
+          PY
+
+      - name: Publish sport refresh test status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="success"
+          if [ "$JOB_STATUS" != "success" ]; then state="failure"; fi
+          summary="NM7 sport playlist refresh test $state"
+          if [ -f /tmp/nm7-sport-after.json ]; then
+            summary="$(python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/nm7-sport-after.json',encoding='utf-8'))
+          if d.get('channels') and d.get('refreshed') is True:
+              print('SPORT_REFRESH_OK channels='+str(len(d['channels'])))
+          else:
+              print('SPORT_REFRESH_FAILED '+str(d.get('error') or 'refresh flag missing'))
+          PY
+          )"
+          fi
+          summary="\${summary:0:140}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state="$state" \
+            -f context="NM7 Cloudflare sport refresh test" \
+            -f description="$summary" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+          echo "SPORT_REFRESH_STATUS_PUBLISHED $state $summary"

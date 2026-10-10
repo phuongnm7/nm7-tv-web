@@ -72,7 +72,7 @@ async function main() {
     assert.equal(denied.status, 403, 'probe retains the real upstream HTTP status');
     assert.equal(denied.errorHint, 'upstream-access-policy', '403 body is classified without returning it');
     assert.equal(denied.bodyClass, 'plain-text', 'probe reports only the safe upstream body class');
-    assert.equal(denied.bodyBytes, 7, 'probe reports response byte count without returning body text');
+    assert.equal(denied.bodyBytes, 9, 'probe reports response byte count without returning body text');
     assert.equal(denied.finalHost, 'mag.example.test', 'probe reports only the final hostname');
     assert.equal(JSON.stringify(denied).includes('Forbidden'), false, 'probe never echoes upstream body text');
     assert.equal(JSON.stringify(denied).includes('SAFE_TEST'), false, 'probe response never exposes tokens');

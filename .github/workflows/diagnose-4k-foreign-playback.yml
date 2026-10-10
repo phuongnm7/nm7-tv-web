@@ -9,6 +9,7 @@ on:
       - "web-tv/app-safari-policy.js"
       - "web-tv/app.js"
       - "worker.js"
+      - "wrangler.toml"
   workflow_dispatch:
 permissions:
   contents: read

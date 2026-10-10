@@ -156,7 +156,7 @@ jobs:
               const segmentOk=mediaResponses.some(x=>x.path.endsWith('test-hls0.ts')&&x.status===200);
               if(!manifestOk||!segmentOk)throw new Error('HLS fetch path failed in codec-limited browser '+JSON.stringify({manifestOk,segmentOk,mediaResponses}));
               console.log('HLS_FETCH_PATH_OK_CODEC_UNAVAILABLE_SKIP');
-              console.log('REMOTE_OK='+JSON.stringify({initial,right,menuDown:mi}));
+              console.log('REMOTE_OK='+JSON.stringify({initial:init,right,menuDown:mi}));
             }
             await b.close();
           })().catch(e=>{console.error(e);process.exit(1)});

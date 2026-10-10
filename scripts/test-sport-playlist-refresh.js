@@ -26,7 +26,7 @@ for (const file of appFiles) {
 }
 
 const html = fs.readFileSync('web-tv/index.html', 'utf8');
-assert.ok(html.includes('app-safari-policy.js?v=20261010-sport-refresh1'),
+assert.ok(html.includes('app-safari-policy.js?v=20261010-ipad-landscape-menu1'),
   'index.html must bump the active player cache-buster');
 
 console.log('SPORT_PLAYLIST_REFRESH_TESTS_OK');

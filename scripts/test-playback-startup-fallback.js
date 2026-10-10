@@ -81,8 +81,7 @@ for (const file of files) {
   assert.equal(isStalkerTsCandidate({url:'http://mag.example.test/play/live.php?mac=M&stream=1&extension=ts&play_token=T'}, 'hls'), false,
     file + ': Stalker direct fallback applies only to MPEG-TS');
 
-  // Runtime-test makeProxy routing: only tokenized Stalker TS uses the tested
-  // branch-specific Vercel egress; ordinary sources continue using the Worker.
+  // Runtime-test makeProxy routing: all sources must stay on the same-origin Cloudflare Worker.
   const proxyStart = source.indexOf('function makeProxy(u,cand){');
   let proxyEnd = -1, proxyDepth = 0, proxyStarted = false;
   for (let k = proxyStart; proxyStart >= 0 && k < source.length; k++) {
@@ -93,8 +92,8 @@ for (const file of files) {
     }
   }
   assert.ok(proxyStart >= 0 && proxyEnd > proxyStart, file + ': makeProxy is extractable for route tests');
-  assert.ok(source.includes('https://nm7-tv-web-git-fix-sports-hls-startup-proxy-20261010-phuongnm7.vercel.app'),
-    file + ': Stalker fallback uses the branch-specific Vercel preview, not production');
+  assert.ok(!source.includes('vercel.app') && !source.includes('VERCEL'),
+    file + ': playback routing does not use Vercel');
   const proxyFactory = new Function('S','location','isHttp','normalizeCandidate','isStalkerTsCandidate',
     source.slice(proxyStart, proxyEnd) + '; return makeProxy;');
   const testLocation = {origin:'https://nm7-test.example'};
@@ -103,13 +102,11 @@ for (const file of files) {
   const makeProxy = (state) => proxyFactory(state,testLocation,isHttpTest,normalizeTest,isStalkerTsCandidate);
   const signedStalkerUrl = 'http://mag.example.test/play/live.php?mac=SAFE&stream=1&extension=ts&play_token=SAFE';
   const stalkerProxyUrl = makeProxy({proxyAttempt:true})(signedStalkerUrl,{url:signedStalkerUrl});
-  const stalkerProxy = new URL(stalkerProxyUrl);
-  assert.equal(stalkerProxy.origin,'https://nm7-tv-web-git-fix-sports-hls-startup-proxy-20261010-phuongnm7.vercel.app',
-    file + ': Stalker MPEG-TS is sent through tested Vercel preview egress');
-  assert.equal(stalkerProxy.pathname,'/api/stream',file + ': Vercel proxy path is correct');
+  const stalkerProxy = new URL(stalkerProxyUrl,'https://nm7-test.example');
+  assert.equal(stalkerProxy.origin,'https://nm7-test.example',
+    file + ': Stalker MPEG-TS stays on same-origin Cloudflare Worker');
+  assert.equal(stalkerProxy.pathname,'/api/stream',file + ': Cloudflare Worker proxy path is correct');
   assert.equal(stalkerProxy.searchParams.get('u'),signedStalkerUrl,file + ': source URL is encoded as the upstream parameter');
-  assert.ok((stalkerProxy.searchParams.get('ua')||'').includes('Android 15') && (stalkerProxy.searchParams.get('ua')||'').includes('Chrome/130'),
-    file + ': Stalker source gets the browser UA proven to return TS');
   const regularProxy = makeProxy({proxyAttempt:true})('https://media.example.test/live.ts',{url:'https://media.example.test/live.ts'});
   assert.equal(regularProxy.startsWith('/api/stream?u='),true,
     file + ': other sources continue using the same-origin Worker proxy');

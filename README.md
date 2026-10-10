@@ -334,3 +334,12 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Mở rộng scripts/test-playback-startup-fallback.js để kiểm tra chuyển proxy HLS ngay, timeout HLS ngắn hơn và parser M3U cục bộ.
 - Regression suite chạy trên nhánh fix/fast-hls-fallback-custom-m3u-headers-20261010. Không thay URL playlist mặc định; không sửa NM7 Mobile hoặc NM7 TV Android.
 - Ghi chú E2E: runner Playwright hiện không có decoder H.264 tích hợp (MediaSource.isTypeSupported trả false). Bài E2E được chỉnh để kiểm tra việc tải manifest/segment HTTP 200 trong môi trường thiếu codec, và vẫn buộc playback thật nếu codec H.264 có sẵn.
+
+### Cập nhật trạng thái chính thức — 10/10/2026
+
+- PR #20 đã được merge vào nhánh ổn định; commit triển khai: `61b76745edeee6c516a6fd7a0e7f5f511c0d8d36`.
+- **Cloudflare Deploy #445: SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023516146. JavaScript syntax, deploy Worker, deploy YouTube reverse proxy, YouTube smoke tests và Cloudflare Worker smoke tests đều PASS.
+- **Web Browser Validation: PASS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023401289. Bao gồm kiểm thử EXTHTTP/header propagation, HEAD→GET Range probe, DASH segment proxy, HLS segment bytes và fallback khi HLS gặp lỗi.
+- **Browser E2E: PASS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023401145. Navigation và tải HLS manifest/segment trả HTTP 200. CI không có decoder H.264, vì vậy bài test xác nhận đường tải tài nguyên và không tuyên bố đã xác nhận giải mã/phát video H.264 thực tế.
+- SCTV4K chuyển từ nguồn trực tiếp sang proxy ngay khi có lỗi mạng/HTTP, không chờ hết watchdog mặc định 15 giây; HLS watchdog giảm xuống 8 giây. Header tùy chỉnh từ M3U được giữ trong probe, manifest và các request segment HLS/DASH.
+- Phạm vi vẫn chỉ là NM7 TV Web; không đổi URL playlist mặc định, không sửa NM7 Mobile hoặc NM7 TV Android.

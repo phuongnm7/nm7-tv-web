@@ -4,7 +4,7 @@
 
 - Ngày: **10/10/2026**
 - Nhánh ổn định: `stable/nm7-tv-web-2026-10-09` (nhận bản TCP socket fix đã được người dùng xác nhận trên test Cloudflare)
-- Tính năng mới nhất: **Stalker/Xtream `live.php?extension=ts` đi qua TCP socket trong Cloudflare Worker khi origin redirect sang IP**
+- Tính năng mới nhất: **sửa nhập nguồn thể thao bằng Service Binding Cloudflare Worker-to-Worker**, đồng thời giữ lại TCP socket Stalker/Xtream đã xác nhận
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
 - Nền tảng triển khai: **Cloudflare Workers**
@@ -12,7 +12,7 @@
 
 ## Trạng thái hiện tại
 
-Bản hiện tại **giữ nguyên giao diện, player, điều hướng, playlist và các logic playback đang có**; phần bổ sung duy nhất cho mốc này là khả năng thêm nguồn IPTV bằng tệp M3U/M3U8 trong **Thêm nguồn IPTV**.
+Bản hiện tại **giữ nguyên giao diện, player, điều hướng và logic playback**. Tính năng nhập M3U/M3U8 cục bộ vẫn được giữ; bản sửa mới cô lập ở đường tải nguồn URL/Worker-to-Worker trên Cloudflare.
 
 ### Nhập nguồn IPTV bằng tệp cục bộ
 
@@ -573,3 +573,24 @@ Nhánh: `fix/sports-hls-startup-proxy-20261010`. **Chưa merge vào stable và c
 - Người dùng đã xác nhận bản test Cloudflare này hoạt động; bản này được đưa vào nhánh ổn định. Kết quả deploy production được theo dõi riêng.
 
 Phạm vi: chỉ NM7 TV Web/Cloudflare Worker. Không sửa NM7 Mobile hoặc NM7 TV Android; không chuyển luồng phát video sang Vercel.
+
+
+## 2026-10-10 — Sửa lỗi thêm nguồn URL trên NM7 TV Web (Cloudflare)
+
+### Nguyên nhân đã xác minh
+- URL nguồn thể thao `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u` trả HTTP 200 và nội dung M3U khi được gọi trực tiếp từ runner.
+- Cùng URL đó trả HTTP 404 khi Worker NM7 TV Web gọi qua `fetch()`; thử thêm User-Agent Chrome cũng vẫn 404.
+- Kết quả này chứng minh URL playlist không bị mất. Vấn đề nằm ở giao tiếp Worker-to-Worker qua URL `workers.dev`, không phải parser M3U hay thao tác chọn tệp.
+
+### Bản sửa đã chuyển vào nhánh ổn định
+- `worker.js`: thêm `fetchPlaylistTarget()`; với host thể thao `thethaonm7.phuongnm7-iptv.workers.dev`, dùng binding `THETHAO_SOURCE` thay vì gọi URL công khai bằng Fetch API. Đường này được dùng cho nguồn thể thao mặc định và nhập URL tùy chỉnh; các host khác vẫn theo đường tải hiện có.
+- `sourceResponse()`: thêm lần thử User-Agent trình duyệt dự phòng và báo mã HTTP/Content-Type rõ hơn khi nguồn vẫn lỗi.
+- `wrangler.toml`: khai báo Service Binding `THETHAO_SOURCE = thethaonm7`.
+- `.github/workflows/cloudflare-deploy.yml`: thêm production smoke test cho URL đang lỗi và báo trạng thái kiểm thử.
+- Không đổi URL nguồn chính/dự phòng, giao diện, player, DRM, nhóm playlist mặc định, hoặc logic ứng dụng Android/Mobile.
+
+### Kết quả kiểm thử
+- Worker thử nghiệm Cloudflare: nguồn đang lỗi nhập thành công **1.010 kênh**; hai playlist mặc định trả lần lượt 300 và 595 kênh.
+- Production Cloudflare, kiểm tra read-only từ runner: API `/api/source` trả **1.010 kênh**. Workflow kiểm tra: [#38061701828](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38061701828) (**SUCCESS**).
+- Người dùng đã xác nhận thao tác thêm nguồn trên NM7 TV Web hoạt động sau sửa.
+- Phạm vi chỉ `phuongnm7/nm7-tv-web` và Cloudflare Worker. Không sửa NM7 TV Android hoặc NM7 Mobile; không chuyển dự án sang Vercel.

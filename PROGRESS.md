@@ -4,7 +4,7 @@
 
 - Ngày: **10/10/2026**
 - Nhánh ổn định: `stable/nm7-tv-web-2026-10-09` (nhận bản TCP socket fix đã được người dùng xác nhận trên test Cloudflare)
-- Tính năng mới nhất: **tải lại nguồn Thể thao bỏ qua cache 30 giây của Worker**, đồng thời giữ lại Service Binding nguồn thể thao và TCP socket Stalker/Xtream
+- Tính năng mới nhất: **nguồn Thể thao mặc định ưu tiên Worker danh sách động và bỏ qua cache khi tải lại**; GitHub M3U chỉ là nguồn dự phòng
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
 - Nền tảng triển khai: **Cloudflare Workers**
@@ -612,3 +612,22 @@ Phạm vi: chỉ NM7 TV Web/Cloudflare Worker. Không sửa NM7 Mobile hoặc NM
 
 ### Phạm vi
 Chỉ sửa luồng nguồn Thể thao của NM7 TV Web/Cloudflare. Không sửa NM7 TV Android hoặc NM7 Mobile; không thay đổi nguồn URL, playlist mặc định khác, giao diện hay logic phát video.
+
+
+## 2026-10-10 — Sửa tiếp: nguồn Thể thao mặc định phải dùng danh sách động
+
+### Nguyên nhân bổ sung
+- Lượt chẩn đoán trước cho thấy API đã nhận `refresh=1`, nhưng nó vẫn lấy nguồn đầu tiên trong `SOURCES.sport`: GitHub Raw `sports-auto.m3u`. URL này trả 783 kênh ở lượt test, trong khi URL Worker động `thethaonm7.../playlist.m3u` trả hơn 1.000 kênh.
+- Vì nguồn GitHub vẫn hợp lệ và có playlist, Worker không rơi xuống nguồn dự phòng. Do đó chỉ bỏ qua cache là chưa đủ; ưu tiên nguồn mới nhất cũng phải sửa.
+
+### Bản sửa
+- Đổi thứ tự `SOURCES.sport`: Worker động `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u` đứng trước; GitHub Raw thành nguồn dự phòng.
+- Giữ `refresh=1` để bỏ qua cache 30 giây của Worker NM7 TV Web.
+- Bổ sung test hồi quy kiểm tra cả cờ refresh lẫn thứ tự nguồn; Cloudflare production smoke test yêu cầu API trả đúng upstream Worker động.
+
+### Kết quả production
+- Cloudflare Deploy [#38064028213](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38064028213): **SUCCESS**.
+- `/api/playlist?source=sport&refresh=1` trả **1.028 kênh**, `refreshed:true`, upstream chính xác là `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u`.
+- Kiểm thử regression `SPORT_PLAYLIST_REFRESH_TESTS_OK`; các smoke test playlist và nhập nguồn tùy chỉnh cũng PASS.
+
+Phạm vi chỉ NM7 TV Web/Cloudflare; không thay đổi NM7 TV Android hoặc NM7 Mobile.

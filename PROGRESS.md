@@ -481,3 +481,11 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Web Browser Validation #38024369674: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369674.
 - Browser E2E #38024369686: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369686. Runner xác nhận các lượt tải manifest và segment cho fixture, nhưng không có decoder H.264; chưa thể dùng CI để xác nhận playback thật của HEVC 4K.
 - Code trên nhánh `fix/sctv4k-proxy-retry-state-20261010`, chưa deploy lúc ghi nhận. Không thay đổi playlist mặc định, NM7 Mobile hoặc NM7 TV Android.
+
+
+## 2026-10-10 — Follow-up based on video 224589
+
+- Re-ran a live diagnostic against the official Cloudflare Worker. SCTV4K's manifest on `vietanhtv.id.vn` returns HTTP 200 directly, but direct child `.ts` media requests return HTTP 400. Fetching the same manifest through `/api/stream` returns HTTP 200, and proxied media segments return HTTP 200 with `video/mp2t`.
+- Root cause of the current black screen/long wait: the player still selected direct-first for this known source and the SCTV4K special case expanded the startup watchdog to 45 seconds. This overrode the earlier 8-second HLS timeout.
+- New isolated branch `fix/sctv4k-proxy-retry-state-20261010`: start SCTV4K/VietAnhTV HLS via the working Worker proxy first in both player entrypoints; remove 45-second override; cap HLS watchdog at 8 seconds; bump cache-buster; add regression assertions.
+- Diagnostic workflow: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024005264 (PASS). This is a source/segment HTTP diagnostic, not a claim that device playback has already been verified.

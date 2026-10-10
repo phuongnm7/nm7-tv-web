@@ -1,512 +1,137 @@
-# NM7 TV Web 1.0.69
+# NM7 TV Web — Bản ổn định
 
-Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi của bản Android TV **1.0.69**.
+NM7 TV Web là giao diện IPTV trên trình duyệt, lấy giao diện/hành vi của **NM7 TV Android 1.0.69** làm chuẩn. Tài liệu này mô tả bản ổn định hiện tại; nhật ký chẩn đoán theo từng ngày nằm trong [PROGRESS.md](PROGRESS.md).
 
-## Mốc baseline gốc — 09/10/2026
+## Mốc chính thức hiện tại
 
-- Nhánh gốc ổn định cho các bản kế tiếp: `stable/nm7-tv-web-2026-10-09`.
-- Commit production đã xác minh: `52a51a8447735259db92f33cf5a67748cdf94c40` (Deploy #428 PASS; YouTube Original E2E #114 PASS).
-- Tài liệu chuẩn: [`STABLE_BASELINE.md`](STABLE_BASELINE.md).
-- **Các bản web kế tiếp phải tạo branch feature/fix từ nhánh stable này** và giữ nguyên các tính năng hiện có, trừ phần được yêu cầu thay đổi.
-- Chỉ áp dụng cho `phuongnm7/nm7-tv-web`; không áp dụng cho NM7 Mobile hoặc NM7 TV Android.
+| Hạng mục | Giá trị |
+|---|---|
+| Repository | [phuongnm7/nm7-tv-web](https://github.com/phuongnm7/nm7-tv-web) |
+| Nhánh stable | `stable/nm7-tv-web-2026-10-09` |
+| Mã ứng dụng đã deploy/xác minh | `a5a3a6377a2001e296441d3110d0de9ea4a85bd5` |
+| Production | https://nm7-tv-web.phuongnm7-iptv.workers.dev/ |
+| Lần deploy/smoke test gần nhất đạt | [Cloudflare workflow #38064641220 — SUCCESS](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38064641220) |
+| Baseline UI | NM7 TV Android 1.0.69 |
+| Ngày chốt trạng thái | 10/10/2026 |
 
-## Mốc hiện tại
+**Đây là mốc chuẩn cho các phiên bản kế tiếp.** Mọi nhánh phát triển mới phải được tạo từ HEAD mới nhất của `stable/nm7-tv-web-2026-10-09`. Không lấy nhánh thử nghiệm cũ làm nền và không lấy repository NM7 Android/Mobile làm nền.
 
-- Ngày cập nhật: **10/10/2026**
-- Nhánh ổn định: `stable/nm7-tv-web-2026-10-09`
-- Cập nhật mới nhất: **Thể thao bỏ qua cache Worker khi mở lại/tải lại nguồn**, đồng thời giữ Service Binding sửa lỗi nhập URL `/playlist.m3u`
-- Giữ lại đường TCP socket Stalker/Xtream đã được xác minh trước đó.
-- Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
-- Nơi triển khai: **Cloudflare Workers**
-- Chuẩn giao diện TV: Android TV NM7 1.0.69
-- Các chức năng/player/DRM hiện tại được giữ nguyên; local M3U là phần bổ sung riêng.
+## Phạm vi triển khai và kiến trúc
 
+Ứng dụng NM7 TV Web được phục vụ bởi **Cloudflare Workers**:
 
-## Sửa lỗi nhập nguồn thể thao qua URL — 10/10/2026
+- `worker.js`: định tuyến request, xử lý playlist API, nhập nguồn và proxy stream.
+- `wrangler.toml`: cấu hình Worker `nm7-tv-web`, static assets và Service Bindings.
+- `web-tv/index.html`: giao diện chính và các asset.
+- `web-tv/app-safari-policy.js`: script player đang được trang chính nạp.
+- `web-tv/app.js`: script ứng dụng được duy trì song song; khi sửa logic chung cần kiểm tra các thay đổi liên quan ở cả hai file.
+- `web-tv/youtube.js`: launcher điều hướng YouTube.
+- `web-tv/mobile-background.js`: Media Session/Picture-in-Picture khi browser hỗ trợ.
+- `.github/workflows/cloudflare-deploy.yml`: tự động chạy kiểm thử, deploy Cloudflare và smoke test production.
+- `scripts/test-sport-playlist-refresh.js`, `scripts/test-ipad-landscape-menu.js`: regression tests cho các lỗi đã sửa gần nhất.
 
-### Nguyên nhân
-URL `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u` trả HTTP 200 và M3U khi truy cập trực tiếp, nhưng trả HTTP 404 khi Worker NM7 TV Web gọi nó bằng `fetch()`. Thử đổi User-Agent vẫn không xử lý được, nên không phải lỗi cú pháp M3U hoặc URL playlist bị mất.
+Lưu ý rõ về Vercel: URL `https://nm7-tv-web.vercel.app/api/vietmitv-merge` còn được dùng làm **upstream playlist của Truyền hình preset 1**. Đây không phải nơi chạy giao diện NM7 TV Web; không triển khai ứng dụng lên Vercel và không thay đổi dự án Vercel khi xử lý NM7 TV Web.
 
-### Sửa trên Cloudflare
-- Trong `wrangler.toml`, khai báo Service Binding `THETHAO_SOURCE` cho Worker `thethaonm7`.
-- Trong `worker.js`, `fetchPlaylistTarget()` dùng binding cho host nguồn thể thao; `/api/source` và tải nguồn thể thao mặc định gọi qua helper này. Nguồn khác tiếp tục dùng cơ chế tải hiện tại.
-- Nguồn URL có lần thử lại với User-Agent trình duyệt và lỗi HTTP/Content-Type rõ hơn khi thất bại.
-- Thêm smoke test production cho đúng URL này vào `.github/workflows/cloudflare-deploy.yml`.
+## Tính năng trong bản ổn định
 
-### Kiểm thử
-- Worker Cloudflare thử nghiệm nhập thành công **1.010 kênh** từ URL đang lỗi.
-- API production Cloudflare `/api/source` cũng trả **1.010 kênh** trong kiểm tra read-only từ runner.
-- [Cloudflare source import test #38061701828](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38061701828): **SUCCESS**.
-- Người dùng đã xác nhận thêm nguồn hoạt động trên NM7 TV Web.
+### Giao diện và điều khiển
 
-Phạm vi chỉ là `phuongnm7/nm7-tv-web` và Cloudflare Workers. Không sửa NM7 TV Android hoặc NM7 Mobile; không chuyển ứng dụng sang Vercel.
-
-
-## Sửa lỗi “Tải lại nguồn” của Thể thao — 10/10/2026
-
-### Nguyên nhân
-Nút tải lại đã bỏ qua cache trong giao diện nhưng gọi `/api/playlist?source=sport`, và Worker vẫn trả cache nội bộ có TTL 30 giây. Luồng nhập URL trực tiếp đi qua `/api/source` nên không dùng cache này.
-
-### Sửa lỗi
-- Hai player script `web-tv/app.js` và `web-tv/app-safari-policy.js` thêm `refresh=1` mỗi khi mở hoặc tải lại nguồn Thể thao.
-- `worker.js` chuyển cờ này vào `playlistResponse()` để bỏ qua cache nội bộ khi có yêu cầu làm mới. Cache của các nguồn khác không đổi.
-- `index.html` tăng cache-buster để trình duyệt lấy script mới.
-- Thêm regression test `scripts/test-sport-playlist-refresh.js`; workflow Cloudflare kiểm tra API trả `refreshed:true` khi gọi `/api/playlist?source=sport&refresh=1`.
-
-Phạm vi chỉ là NM7 TV Web và Cloudflare Workers. Không sửa NM7 TV Android hoặc NM7 Mobile.
-
-
-## Tự chọn nguồn mặc định theo thiết bị — 10/10/2026
-
-- Trình duyệt trên Android tự mở trang chủ bằng **Nguồn mặc định 2**.
-- Trình duyệt trên Windows tự mở bằng **Nguồn mặc định 2**.
-- Trình duyệt trên iPhone/iPad/iPod tự mở bằng **Nguồn mặc định 1**; iPadOS bật chế độ “Yêu cầu trang web cho máy tính” cũng được nhận diện qua `MacIntel` + cảm ứng đa điểm.
-- macOS, Samsung Tizen TV và thiết bị khác/không nhận diện được tiếp tục dùng **Nguồn mặc định 1**.
-- Việc nhận diện diễn ra trước khi đọc cache để tránh hiển thị tạm danh sách của preset 1 trên Android. Người dùng vẫn có thể đổi preset thủ công trong hộp thoại **Nguồn mặc định**; khi quay lại Truyền hình từ nhóm Thể thao, lựa chọn hiện tại được giữ nguyên.
-- Nếu API của preset 2 lỗi và không có cache preset 2 để dùng, trang báo lỗi nguồn mặc định 2 thay vì âm thầm nạp preset 1; tránh lưu nhầm dữ liệu vào cache của preset khác.
-- Logic được áp dụng cho cả `web-tv/app-safari-policy.js` (entrypoint của trang hiện tại) và `web-tv/app.js`. Đã tăng cache-buster trong `index.html` để trình duyệt lấy script mới. Regression tests bao gồm Android UA/Client Hints, iPhone, iPad, iPadOS desktop mode, desktop, Samsung Tizen, preset khi điều hướng và trạng thái lỗi.
-- Đã gộp vào nhánh ổn định qua [PR #18](https://github.com/phuongnm7/nm7-tv-web/pull/18); commit tính năng ban đầu `f95e80d3b8c759116d3700de5daa1a6f5f5b2d04`.
-- Cập nhật `.github/workflows/cloudflare-deploy.yml` để nhánh stable kích hoạt triển khai production. Commit kích hoạt deploy: `b018f28dd163d75f2c8a46ff990532bdcdea05ec`.
-- **Production Cloudflare Deploy #438: SUCCESS** — [workflow run](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38010319718). Syntax check, deploy Worker, deploy YouTube reverse proxy, YouTube smoke test và production Worker smoke test đều PASS.
-- Phạm vi chỉ là `phuongnm7/nm7-tv-web`; không sửa NM7 Mobile hoặc NM7 TV Android.
-
-
-## YouTube gốc + AdBlock kiểu trình duyệt
-
-Mốc này không dùng Invidious, Piped hoặc YouTube Web Shell nữa.
-
-- Nút/menu YouTube trên mobile và web mở trực tiếp trang YouTube chính thức: https://www.youtube.com/. Bản web thường không tự cung cấp network-level AdBlock cho origin youtube.com.
-- Web launcher chỉ làm nhiệm vụ điều hướng; không giả lập giao diện YouTube và không thay thế tài khoản/đăng nhập YouTube.
-- Chặn quảng cáo kiểu trình duyệt không thể thực hiện đầy đủ bằng JavaScript của trang NM7 khi YouTube là origin khác. Vì vậy bộ chặn được chuyển lên native host WebView cho Samsung Tizen.
-- Thư mục tizen-youtube-host/ chứa scaffold native EWK: intercept request trước khi gửi mạng, trả 204 cho các URL quảng cáo rõ ràng, và inject page-level fallback để bấm Skip/tua quảng cáo khi quảng cáo vẫn lọt qua.
-- Kiến trúc này tương tự mô hình mà Cốc Cốc công khai: YouTube vẫn là YouTube gốc, còn lớp lọc nằm ở tầng trình duyệt. Cốc Cốc cho biết họ tích hợp Adblock Plus và liên tục cập nhật để xử lý anti-adblock của YouTube.
-- Đây không phải mã Adblock Plus/Cốc Cốc nguyên bản và hiện chưa phải ABP core hoàn chỉnh; rule set trong native host là bộ lọc bảo thủ để không làm hỏng media CDN.
-
-### Quan trọng với Samsung UA49M5500 / Tizen 3.0
-
-Bản Web chạy trực tiếp trên trình duyệt TV không thể tự biến thành trình duyệt có network interception. Muốn có YouTube gốc + chặn quảng cáo ở tầng request cần chạy NM7 bên trong native Tizen host có EWK WebView.
-
-Native host dùng các API EWK request interception và script injection tương ứng với Tizen 3.0.
-
-### Trạng thái
-
-- Đã đổi launcher sang YouTube gốc.
-- Đã bỏ dependency Piped/Invidious khỏi Worker và frontend.
-- Đã thêm native host source scaffold.
-- Chưa thể tuyên bố chặn quảng cáo thành công trên UA49M5500 cho tới khi source native được build/sign và cài thử trên TV thật. Tizen SDK/firmware của thiết bị không có trong môi trường build hiện tại.
-## Chạy nền trên mobile
-
-### IPTV
-
-- Player HTML5 hiện giữ media element khi trang chuyển sang nền thay vì tự đóng player.
-- Thêm nút **◩ Chạy nền** trong bộ điều khiển mobile.
-- Trên Safari iPhone/iPad, nút này dùng Picture-in-Picture theo API WebKit khi capability thực sự có; Apple mô tả PiP là cơ chế để video tiếp tục hiển thị khi người dùng chuyển sang ứng dụng khác.
-- Trên Android Chrome và các browser hỗ trợ Media Session, NM7 đăng ký metadata và điều khiển Play/Pause, tua ±10/30 giây và next/previous nơi browser cung cấp lock-screen/media controls.
-- Khi quay lại ứng dụng/trang, trạng thái media session được đồng bộ lại.
-
-### YouTube gốc
-
-- NM7 vẫn mở **YouTube chính thức** để giữ nguyên giao diện/chức năng gốc.
-- NM7 không thể ép YouTube gốc phát nền từ JavaScript của website sau khi chuyển sang origin youtube.com.
-- Google hiện quy định background playback trên mobile web là quyền của YouTube Premium; vì vậy phần này không được ghi nhận là đã bypass giới hạn YouTube. citeturn130962search0
-- PiP/background của YouTube sẽ theo khả năng và chính sách của YouTube/browser. Đối với mobile browser, NM7 chỉ có thể giữ launcher/host ở đúng tầng mà nền tảng cho phép.
-
-### Giới hạn
-
-- PiP cần user gesture; browser có thể từ chối trong một số container. Đặc biệt, iOS/iPadOS Home Screen PWA có giới hạn PiP riêng đã được WebKit ghi nhận, trong khi Safari thông thường hỗ trợ PiP. citeturn839350search1turn839350search2
-- Không có API web chuẩn nào cho phép NM7 ép một tab YouTube khác origin tiếp tục phát nền trái với chính sách của YouTube.
-## Giao diện TV
-
-- Giữ hình nền và phong cách thẻ kênh theo Android TV 1.0.69.
-- Các nhóm ưu tiên: VTV, VTVcab, Thể Thao, SCTV khi có trong playlist.
-- Thẻ kênh dùng nút HTML có thể focus và cơ chế `roving tabindex`, giúp điều hướng bằng bàn phím trình duyệt và điều khiển Samsung TV thống nhất.
-- LEFT tại vị trí đầu danh sách có thể mở menu bên.
-- UP/DOWN chuyển nhóm; LEFT/RIGHT chuyển kênh trong nhóm.
-- OK mở phát kênh.
-- Trình phát hỗ trợ Back, bộ điều khiển, tua và chuyển kênh.
-- Giao diện TV lấy Android TV NM7 1.0.69 làm chuẩn tham chiếu.
-
-## Giao diện điện thoại / responsive
-
-- Điện thoại dùng cuộn dọc tự nhiên của trình duyệt.
-- Các thẻ kênh chuyển sang lưới responsive trên màn hình nhỏ.
-- Gesture cảm ứng chỉ được xử lý trong khu vực trình phát.
-- Trong trình phát: vuốt trái/phải để tua, vuốt lên/xuống để chuyển kênh, chạm để hiện bộ điều khiển.
-- Menu điện thoại và xử lý Back hai bước vẫn được giữ.
-- Điều hướng remote/bàn phím TV được giữ nguyên.
-
-## Quản lý nguồn
+- Giao diện TV theo chuẩn NM7 TV Android 1.0.69, có nhóm kênh, logo, danh sách và menu tùy chọn.
+- Hỗ trợ bố cục responsive cho điện thoại/iPad.
+- Điều hướng bằng phím remote TV và focus cho các thành phần giao diện.
+- Nút menu ☰ ở góc trên bên trái hoạt động trên iPad nằm ngang, gồm trường hợp Safari dùng “Yêu cầu trang web cho máy tính”. Bản sửa nhận diện iPadOS Macintosh/MacIntel bằng nhiều điểm chạm và tải script mới qua cache-buster.
+- Có launcher YouTube chính thức; NM7 Web không thay thế giao diện hoặc tài khoản YouTube.
 
 ### Nguồn Truyền hình
 
-- **Mặc định 1:** `https://nm7-tv-web.vercel.app/api/vietmitv-merge`
-- **Mặc định 2 (nguồn cũ):** `https://phuongnm7-playlist.phuongnm7-iptv.workers.dev/`
-- Khi mở mục **Truyền hình**, NM7 TV Web dùng Mặc định 1. Worker tự thử Mặc định 2 nếu Mặc định 1 lỗi hoặc playlist rỗng.
-- Mở **Chỉnh sửa nguồn → Nguồn mặc định** để chọn thủ công **Dùng mặc định 1** hoặc **Dùng mặc định 2**, hoặc tải lại nguồn đang chọn.
-- Đã xác minh qua Cloudflare Worker ngày 09/10/2026: Mặc định 1 trả 359 kênh từ đúng endpoint VietMiTV Merge; Mặc định 2 vẫn trả playlist cũ 515 kênh. Cloudflare Deploy #426 và YouTube Original E2E #112 đều PASS trên commit `ebd9906582a815173ec570059a6d17252d37bf16`. Cấu hình này chỉ áp dụng cho repository **NM7 TV Web**, không áp dụng cho NM7 Mobile hay NM7 TV Android.
+Có hai preset và lựa chọn mặc định theo thiết bị:
+
+- **Android và Windows:** mặc định preset 2.
+- **iPhone/iPad/iPod:** mặc định preset 1; iPadOS desktop mode được nhận diện.
+- **Thiết bị khác:** mặc định preset 1 nếu không có quy tắc cụ thể khác.
+
+API:
+- `/api/playlist?source=tv&default=1` — preset 1 (VietMiTV Merge).
+- `/api/playlist?source=tv&default=2` — preset 2 (nguồn playlist truyền hình khác đã cấu hình trong Worker).
+
+VTV1 của preset 1 dùng nguồn đã cấu hình trong playlist preset này. Không tự ý thêm lại VTVGO hoặc đổi nguồn mặc định khi không có yêu cầu.
 
 ### Nguồn Thể thao
 
-Nguồn chính — danh sách động, cập nhật khi tải lại:
-`https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u`
-
-Nguồn dự phòng nếu Worker trên lỗi:
-`https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com`
-
-### Thêm nguồn IPTV bằng URL
-
-Trình duyệt dùng API cùng miền:
-
-`/api/source?u=<URL_playlist>`
-
-Worker lấy playlist, kiểm tra HTTP status, phân tích M3U/JSON, giải quyết URL tương đối và giữ metadata stream/header/DRM khi có. Cơ chế này tiếp tục được giữ nguyên.
-
-### Thêm nguồn IPTV bằng tệp M3U/M3U8
-
-Trong hộp thoại **Thêm nguồn IPTV** có nút **📁 Chọn tệp M3U**.
-
-- Hỗ trợ `.m3u` và `.m3u8`.
-- Đọc trực tiếp bằng File API của trình duyệt.
-- **Không upload tệp lên máy chủ.**
-- Giới hạn kích thước: **20 MB**.
-- Tái sử dụng parser M3U hiện có, vì vậy metadata như `tvg-id`, `tvg-logo`, `group-title` và thông tin header/DRM được giữ khi có.
-- Tên tệp được hiển thị là nguồn hiện tại trong phiên.
-- Chọn tệp thành công sẽ tự đóng hộp thoại và nạp danh sách qua pipeline hiện tại.
-- Remote TV trong hộp thoại hỗ trợ **LEFT/UP**, **RIGHT/DOWN** và **OK**.
-- Khi reload nguồn trong cùng phiên, playlist cục bộ được áp dụng lại từ nội dung đã đọc.
-
-Tính năng được triển khai đồng nhất trong `web-tv/app.js` và `web-tv/app-safari-policy.js`.
-
-## Phát video
-
-- HLS: HLS native khi phù hợp; Hls.js trên trình duyệt Chromium/MSE.
-- MPEG-TS/FLV: mpegts.js hoặc đường FLV MSE khi trình duyệt hỗ trợ.
-- DASH: Shaka Player **5.2.12**.
-- ClearKey / Widevine / PlayReady dùng đường EME của trình duyệt khi thiết bị cung cấp key system tương ứng.
-- URL wrapper HTTP chưa biết định dạng được probe trước khi chọn engine.
-- `/api/stream` có thể rewrite playlist HLS và BaseURL/segment DASH qua same-origin proxy, đồng thời giữ metadata header.
-- `/api/license` xử lý chuyển tiếp yêu cầu license DRM.
-- ON Football tiếp tục dùng các nguồn DASH SeeNow và ClearKey đã chốt trong Worker/playlist.
-
-## Bảo toàn bản hiện tại
-
-Mốc local M3U **không thay đổi**:
-
-- UI Android TV 1.0.69.
-- Player và các control hiện có.
-- Logic DRM/playback.
-- Danh sách và thứ tự nhóm playlist mặc định.
-- Endpoint Thể thao.
-- API `/api/source`.
-
-Chỉ thêm phần đọc và áp dụng tệp M3U cục bộ.
-
-## Giới hạn của trình duyệt Samsung
-
-Bản Web dùng Arrow/Enter/Back làm lớp điều khiển remote TV portable. Các phím media/chuyên dụng chỉ được dùng khi trình duyệt thực sự cung cấp sự kiện tương ứng.
-
-## Kiểm thử và production
-
-- Commit code triển khai `a36b3c0e798fdfc08d3584524ac00f1dc28f07a2` đã **deploy Cloudflare thành công**.
-- GitHub Actions run **#250 attempt 2: SUCCESS**.
-- Checkout: **SUCCESS**.
-- Deploy to Cloudflare Workers: **SUCCESS**.
-- Production smoke test: **SUCCESS**.
-- Smoke test đã xác nhận HTML/background 1.0.69, playlist Android 1.0.69, playlist Thể thao, custom source và các marker Shaka/Safari DRM hiện có.
-- Code local M3U đã được kiểm tra syntax và marker; `app.js` và `app-safari-policy.js` đồng nhất.
-
-## Test thực tế tiếp theo
-
-- Chrome Android: chọn tệp M3U/M3U8 và kiểm tra danh sách.
-- Samsung TV/Tizen Web App: mở **Thêm nguồn IPTV**, focus nút **Chọn tệp M3U**, OK và kiểm tra điều hướng.
-- Playlist có logo/group/tvg-id.
-- Playlist có User-Agent/Referer/Origin.
-- Playlist có metadata DRM/ClearKey.
-- Chuyển giữa nguồn URL và nguồn tệp.
-- Reload trang trong cùng phiên và kiểm tra source state.
-- HLS, DASH/DRM, FLV và MPEG-TS sau khi nhập playlist.
-
-## Nguyên tắc phát triển tiếp theo
-
-Chỉ sửa phần có lỗi tái hiện rõ. Không thay đổi UI/player/DRM nếu lỗi không liên quan trực tiếp đến phần cần sửa. Mọi bản sửa tiếp theo phải cô lập để bảo vệ Android TV 1.0.69 làm chuẩn.
-
-## 2026-10-06 — YouTube AdShield mobile: nguyên nhân đã xác định
-
-Ảnh test mobile cho thấy quảng cáo đang được YouTube chèn và render trong player của YouTube gốc. Luồng cũ của NM7 chỉ thực hiện `location.href` sang `youtube.com`; sau khi đổi origin, JavaScript của NM7 không còn là lớp kiểm soát request của YouTube.
-
-uBlock hiện phải xử lý cả player-response (`adPlacements`, `adSlots`, `playerAds`) và request media quảng cáo; vì vậy danh sách vài domain quảng cáo không đủ để xử lý ổn định. citeturn413338search0turn413338search2
-
-### Hướng xử lý mới
-
-- Android mobile: launcher NM7 thử handoff `nm7youtube://open?url=...` sang native host; nếu không có host thì quay về YouTube gốc.
-- Native host được tạo riêng từ baseline NM7 TV 1.0.69, giữ YouTube là giao diện chính thức.
-- Host dùng `shouldInterceptRequest()` cho URL quảng cáo rõ ràng và `WebViewCompat.addDocumentStartJavaScript()` để xử lý player response sớm. Android WebView chính thức hỗ trợ cả request interception và document-start injection. citeturn413338search7
-- `youtube_adshield.js` xử lý `fetch`, `JSON.parse`, player response và DOM ad/skip; các rule được đối chiếu với bộ lọc YouTube cập nhật tháng 09/2026. citeturn413338search0
-
-### Trạng thái
-
-Đây chưa phải bản đã xác nhận 100% trên điện thoại thật. APK native host đang chờ một GitHub Actions runner hoạt động bình thường để build; các run vừa qua dừng lỗi rất sớm và không có log step. Không đánh dấu thành công cho tới khi cài APK lên Android và kiểm tra quảng cáo thực tế.
-
-
-## 2026-10-06 — YouTube mở trực tiếp origin chính thức
-
-Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể trả về HTML/skeleton của YouTube nhưng các luồng dữ liệu phía sau bị YouTube rate-limit hoặc lỗi 401/403, dẫn tới trang đứng ở trạng thái loading. Vì vậy reverse-proxy không còn là đường mặc định của người dùng.
-
-- web-tv/youtube.js hiện mở trực tiếp https://www.youtube.com/ hoặc URL video chính thức.
-- Không đổi giao diện hay tài khoản của YouTube; người dùng nhận đúng trang YouTube chính thức của trình duyệt.
-- Worker nm7-youtube-proxy vẫn được giữ để chẩn đoán/thử nghiệm và chỉ proxy khi thêm ?proxy=1; không dùng làm đường mặc định.
-- Đây là thay đổi để ưu tiên tính ổn định: YouTube không bị kẹt skeleton do lớp proxy trung gian.
-- Chặn quảng cáo ở tầng trình duyệt vẫn cần native browser host (như EWK trên Tizen) hoặc trình duyệt có bộ lọc riêng; JavaScript của NM7 không thể biến một tab youtube.com thành adblocker network-level.
-
-
-## 2026-10-08 — Responsive mobile layout + YouTube home shortcut
-
-- Giữ nguyên toàn bộ baseline Android TV 1.0.69, player, DRM, playlist, remote navigation và local M3U.
-- Ẩn nút **Chọn ứng dụng** (button cạnh logo YouTube) khỏi thanh đầu trang chủ trên mọi chế độ; nút YouTube gốc vẫn giữ nguyên.
-- Thiết bị touch/mobile ở portrait dùng lưới **3 cột**; ở landscape dùng **4 cột**. Khoảng cách và chiều cao thẻ được giảm để tận dụng diện tích màn hình, nhưng không thay đổi thứ tự kênh.
-- Native Tizen YouTube host bổ sung nút nổi **⌂ NM7** trong trang YouTube gốc và phím **Home/XF86Home/XF86HomePage** để quay thẳng về trang chủ NM7.
-- Browser web thuần không thể chèn nút vào youtube.com sau khi đã chuyển origin do same-origin isolation; vì vậy shortcut một chạm trong YouTube được thực hiện ở native host. Trên mobile browser thuần, nút Home/điều hướng tab vẫn thuộc quyền kiểm soát của browser.
-- Chưa đánh dấu native adblock thành công: vẫn cần build/sign và E2E trên Samsung UA49M5500 Tizen 3.0.
-
-
-## 2026-10-09 — VTV1 dùng nguồn từ playlist mặc định 1
-
-### Yêu cầu và nguyên nhân
-
-- VTV1 trên NM7 TV Web chỉ phát được khi app thử nhiều ứng viên; hai URL FPT được chèn thêm trong Worker không phát được ở lần kiểm tra của người dùng, còn URL VTVGo được chọn cuối cùng cũng không phát được.
-- Lỗi nằm ở logic riêng trong Worker: `BUILTIN.vtv1hd` tự bổ sung ba URL VTV1 không lấy từ playlist mặc định, sau đó nhánh xử lý Mặc định 1 ép chọn URL VTVGo (hoặc ứng viên thứ ba).
-- Cách làm đó khiến luồng VTV1 thực tế khác với URL do playlist mặc định 1 cung cấp.
-
-### Thay đổi đã triển khai
-
-- Xóa danh sách nguồn VTV1 hardcode khỏi `worker.js`, gồm hai URL FPT và URL VTVGo.
-- Xóa mapping tự động chèn `BUILTIN.vtv1hd` cho kênh VTV1.
-- Xóa nhánh ép chọn URL VTVGo/ứng viên thứ ba cho VTV1 khi tải Mặc định 1.
-- VTV1 giờ giữ các ứng viên có sẵn trong playlist từ nguồn mặc định 1; Worker không tự thay URL bằng nguồn VTVGo hoặc hai URL FPT đã bị loại bỏ.
-- Tăng `CACHE_SCHEMA` từ `20261009-vietmitv-defaults-1` lên `20261009-vietmitv-defaults-2` và đổi query version của `app-safari-policy.js` để trình duyệt tải script mới, tránh dùng cache danh sách kênh cũ.
-- Giữ nguyên URL Mặc định 1: `https://nm7-tv-web.vercel.app/api/vietmitv-merge`.
-- Giữ nguyên URL Mặc định 2, nguồn thể thao, các built-in của VTVCab, player, giao diện 1.0.69 và logic DRM không liên quan.
-- Phạm vi chỉ là repository **NM7 TV Web**. Không áp dụng cho NM7 Mobile hoặc NM7 TV Android.
-
-### Triển khai và xác minh
-
-- Nhánh sửa: `fix/vtv1-single-source-hide-default-urls-20261009`.
-- Cloudflare production: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`.
-- GitHub Actions Cloudflare Deploy **#435 — SUCCESS**: [xem workflow](https://github.com/phuongnm7/nm7-tv-web/actions/runs/37931847498).
-- Các bước JavaScript syntax check, Cloudflare deploy và smoke test Worker đều thành công.
-- Bước deploy dedicated YouTube reverse proxy được **skip có chủ đích** trên nhánh này; không triển khai thay đổi sang Worker YouTube riêng.
-- Đã xác nhận trong mã nguồn sau sửa không còn URL VTVGo nói trên, không còn danh sách VTV1 hardcode và không còn nhánh ép chọn ứng viên thứ ba.
-- **Giới hạn xác minh:** smoke test xác nhận deploy và API tổng thể, không tự chứng minh VTV1 phát thành công trên TV thật. Cần kiểm tra phát lại trên thiết bị để xác nhận URL ứng viên hiện có trong playlist mặc định 1 còn hoạt động.
-
-### URL cần phân biệt
-
-- Trang NM7 TV Web production: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
-- API playlist Mặc định 1: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/api/playlist?source=tv&default=1`
-- Nguồn upstream Mặc định 1: `https://nm7-tv-web.vercel.app/api/vietmitv-merge` (đây là URL playlist, không phải URL luồng video riêng của VTV1).
-
-
-### Device-based TV preset defaults (isolated Cloudflare test)
-- Android browsers: TV preset 2.
-- Windows browsers: TV preset 2.
-- iPhone/iPad and macOS desktop browsers: TV preset 1.
-- Samsung Tizen TV and other platforms: TV preset 1.
-- This change is deployed only to the isolated Worker `nm7-tv-web-device-test`; it does not change the production Worker.
-
-
-## 2026-10-10 — Sửa lỗi proxy HLS của SCTV4K và chẩn đoán kênh quốc tế (đã deploy)
-
-### Kết quả chẩn đoán SCTV4K
-
-- GitHub Actions kiểm tra ba playlist Worker production: Mặc định 1, Mặc định 2 và Thể thao. SCTV4K có một ứng viên HLS tại nguồn vietanhtv.id.vn; manifest gốc trả HTTP 200.
-- URL phân đoạn video con có đuôi .ts trả lỗi HTTP 400 khi tải trực tiếp; qua Worker proxy có lúc trả HTTP 200 nhưng upstream gán sai Content-Type application/vnd.apple.mpegurl.
-- Nguyên nhân trong proxy: Worker cũ chỉ nhìn Content-Type để nhận diện HLS, nên có thể đọc dữ liệu nhị phân MPEG-TS như văn bản M3U và viết lại nội dung phân đoạn. Manifest trông hợp lệ nhưng byte video đã bị thay đổi, dẫn tới màn hình đen.
-- Bản sửa cô lập trong worker.js ưu tiên nhận diện các loại tài nguyên theo phần mở rộng (.ts, .m2ts, .m4s, .mp4, audio/video phụ trợ); các media segment được truyền nguyên dạng nhị phân và gán MIME tương ứng. Chỉ manifest HLS/DASH mới đi qua bước viết lại URL.
-- Regression test scripts/test-worker-hls-segments.js kiểm tra cả trường hợp segment TS bị upstream gán nhầm MIME và trường hợp manifest HLS thật vẫn phải viết lại URL segment qua same-origin proxy.
-
-### Sửa fallback trong player
-
-- Không coi loadedmetadata, canplay, Shaka load() hoặc DASH STREAM_INITIALIZED là bằng chứng video đang phát; player chỉ ẩn trạng thái khởi động sau sự kiện playing/đã có tiến trình video.
-- Startup watchdog được sửa để thử đường dự phòng nếu trạng thái “Đang mở” vẫn còn, kể cả khi readyState đã đạt mức tối thiểu nhưng chưa phát thật.
-- Khi HLS native thất bại, chuyển sang proxy đúng một lần và timeout proxy cũng kiểm tra trạng thái chờ thay vì chỉ kiểm tra paused/readyState.
-- Sửa các chuỗi xuống dòng bị escape hai lần khiến UI hiển thị ký tự \\n thay vì xuống dòng; khi hết nguồn, thông báo có thêm lý do lỗi ngắn để dễ chẩn đoán mà không in URL/token.
-
-### DAZN PPV FHD
-
-- Trong lần kiểm tra production, API playlist tv&default=1, tv&default=2 và sport lần lượt trả 255, 551 và 739 kênh; không thấy kênh mang tên DAZN trong các tập dữ liệu đó.
-- Vì vậy chưa thể xác nhận nguồn |UK| DAZN PPV FHD trong ảnh có cùng URL với các playlist mặc định. Có thể đây là nguồn M3U nhập riêng hoặc nguồn khác. Không tự ý thay URL hoặc chèn ứng viên chưa xác minh; cần URL/entry M3U thực tế để kết luận nguyên nhân của kênh này.
-
-### Kiểm thử và phạm vi
-
-- GitHub Actions Web Browser Validation #303 PASS, gồm kiểm tra cú pháp, test chọn preset, fallback player và kiểm tra proxy bảo toàn bytes của segment.
-- Đã merge PR #19 vào nhánh `stable/nm7-tv-web-2026-10-09`, commit `034de12128fba712cb51af388c491ed434c0ae33`.
-- Cloudflare Deploy #442: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021648048. JavaScript syntax, deploy Worker, deploy YouTube reverse proxy, YouTube smoke test và production Worker smoke test đều PASS.
-- Chẩn đoán sau triển khai #10: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38021737310. Hai segment SCTV4K trả HTTP 200 với `Content-Type: video/mp2t`; workflow ghi `SCTV4K_PROXY_SEGMENT_MIME_PASS` và che toàn bộ path stream.
-- Phạm vi chỉ NM7 TV Web. Không sửa NM7 Mobile/Android hoặc đổi URL playlist.
-- Giới hạn kiểm thử: Playwright browser E2E cho HLS fixture vẫn fail ở `hls.js bufferAddCodecError` trên runner CI; regression test proxy nhị phân và syntax/regression suite đều PASS. Cần tiếp tục xác minh phát trực tiếp trên trình duyệt/thiết bị người dùng.
-- Kênh `|UK| DAZN PPV FHD` chưa có trong playlist mặc định 1, mặc định 2 hoặc playlist Thể thao; cần entry M3U/URL của nguồn tùy chỉnh để xác định đúng kênh này.
-
-## 2026-10-10 — Vòng sửa tiếp theo theo video SCTV4K và nguồn kênh quốc tế
-
-### SCTV4K chờ 15 giây mới phát
-
-- Video 224587 cho thấy player khởi chạy nguồn trực tiếp, giữ màn hình chờ, đến watchdog 15 giây mới chuyển qua proxy; sau khi proxy tải media thì hình mới xuất hiện.
-- Nguyên nhân trong logic cũ: lỗi HLS ở tầng mạng/CORS có thể bị HLS.js retry/backoff thay vì chuyển proxy ngay; watchdog chung là 15 giây.
-- Sửa ở app.js và app-safari-policy.js: khi HLS phát sinh lỗi mạng trực tiếp hoặc HTTP 4xx/5xx thì chuyển sang đường còn lại ngay, không chờ hết watchdog; timeout khởi động HLS giảm xuống 8 giây.
-- Cập nhật query cache-buster trong index.html để trình duyệt tải player mới.
-
-### Kênh từ nguồn M3U người dùng thêm vào không phát
-
-- Video 224588 cho thấy kênh quốc tế ban đầu hiện “Đang xác định định dạng”, sau đó thử proxy và kết thúc “Video error”.
-- Probe cũ chỉ dùng HEAD. Một số nhà cung cấp chặn HEAD hoặc trả Content-Type không hữu ích; player vì thế có thể nhận nhầm link HLS thành URL video HTTP thường.
-- Worker /api/probe hiện dùng User-Agent, Referer và header tùy chỉnh của candidate; nếu HEAD không dùng được hoặc không xác định được loại stream, thử GET Range có giới hạn và nhận diện HLS/DASH từ Content-Type, phần mở rộng hoặc phần đầu manifest.
-- Cả parser M3U trong Worker và player hiện đọc tag #EXTHTTP JSON. User-Agent, Referer/Referrer, Origin và header bổ sung được giữ trong candidate để tiếp tục gửi cho manifest/segment qua proxy.
-- DASH MPD khi phát qua proxy hiện viết BaseURL và segment URL tuyệt đối qua endpoint cùng miền /api/dash-resource; endpoint giải quyết URL upstream, giữ header tùy chỉnh và trả media segment dạng nhị phân. Điều này tránh để segment DASH rời khỏi proxy khi nhà cung cấp yêu cầu Referer/Origin/User-Agent.
-
-### Kiểm thử
-
-- Thêm scripts/test-custom-m3u-headers-probe.js: kiểm tra EXTHTTP được phân tích, HEAD bị từ chối thì GET Range nhận diện được HLS và các header được truyền.
-- Thêm scripts/test-worker-dash-proxy.js: kiểm tra BaseURL/SegmentURL DASH được viết lại cùng miền, giữ nguyên bytes media và gửi custom headers.
-- Mở rộng scripts/test-playback-startup-fallback.js để kiểm tra chuyển proxy HLS ngay, timeout HLS ngắn hơn và parser M3U cục bộ.
-- Regression suite chạy trên nhánh fix/fast-hls-fallback-custom-m3u-headers-20261010. Không thay URL playlist mặc định; không sửa NM7 Mobile hoặc NM7 TV Android.
-- Ghi chú E2E: runner Playwright hiện không có decoder H.264 tích hợp (MediaSource.isTypeSupported trả false). Bài E2E được chỉnh để kiểm tra việc tải manifest/segment HTTP 200 trong môi trường thiếu codec, và vẫn buộc playback thật nếu codec H.264 có sẵn.
-
-### Cập nhật trạng thái chính thức — 10/10/2026
-
-- PR #20 đã được merge vào nhánh ổn định; commit triển khai: `61b76745edeee6c516a6fd7a0e7f5f511c0d8d36`.
-- **Cloudflare Deploy #445: SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023516146. JavaScript syntax, deploy Worker, deploy YouTube reverse proxy, YouTube smoke tests và Cloudflare Worker smoke tests đều PASS.
-- **Web Browser Validation: PASS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023401289. Bao gồm kiểm thử EXTHTTP/header propagation, HEAD→GET Range probe, DASH segment proxy, HLS segment bytes và fallback khi HLS gặp lỗi.
-- **Browser E2E: PASS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38023401145. Navigation và tải HLS manifest/segment trả HTTP 200. CI không có decoder H.264, vì vậy bài test xác nhận đường tải tài nguyên và không tuyên bố đã xác nhận giải mã/phát video H.264 thực tế.
-- SCTV4K chuyển từ nguồn trực tiếp sang proxy ngay khi có lỗi mạng/HTTP, không chờ hết watchdog mặc định 15 giây; HLS watchdog giảm xuống 8 giây. Header tùy chỉnh từ M3U được giữ trong probe, manifest và các request segment HLS/DASH.
-- Phạm vi vẫn chỉ là NM7 TV Web; không đổi URL playlist mặc định, không sửa NM7 Mobile hoặc NM7 TV Android.
-
-## 2026-10-10 — Điều tra lần lỗi SCTV4K mới và sửa theo codec thực tế
-
-### Nguyên nhân đã xác nhận từ production
-
-- Video mới cho thấy player chuyển sang proxy nhưng vẫn kết thúc do watchdog HLS 8 giây.
-- Chẩn đoán playlist đang chạy xác nhận URL manifest SCTV4K tại `vietanhtv.id.vn` trả HTTP 200, trong khi URL phân đoạn TS tải trực tiếp trả HTTP 400.
-- Qua Worker proxy, các phân đoạn được trả HTTP 200 với MIME `video/mp2t`; hai mẫu lần lượt có kích thước khoảng 3.9 MB và 8 MB (mẫu thứ hai bị giới hạn đọc ở 8 MB). Bytes có sync MPEG-TS ở các nhịp 188 byte.
-- `ffprobe` nhận diện video thật là **HEVC/H.265 Main, 3840×2160, 25 fps**. Đây là luồng 4K HEVC, các phân đoạn lớn hơn nhiều so với HLS kênh thường.
-
-### Sửa ở nhánh đang kiểm thử
-
-- Worker đánh dấu riêng candidate SCTV4K trên host đã xác minh là `forceProxy: true`; player thử proxy ngay từ đầu thay vì đi qua URL phân đoạn trực tiếp đã trả 400.
-- Hai player entrypoint bảo vệ HLS callbacks bằng identity của player instance (`S.hls === h`). Sự kiện lỗi đến muộn từ instance trực tiếp đã bị destroy không được phép huỷ lượt proxy mới.
-- Watchdog thường của HLS vẫn ngắn, nhưng SCTV4K/vietanhtv được cấp 45 giây để buffer các segment 4K nhiều MB; lỗi mạng/HTTP rõ ràng vẫn chuyển đường ngay.
-- Đổi cache-buster ở `index.html` để thiết bị tải player mới.
-- Thêm `scripts/test-sctv4k-proxy-preference.js`; mở rộng regression checks về timeout 4K và stale HLS callbacks.
-
-### Kiểm thử
-
-- Live diagnostic #38024197006: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024197006 — nguồn trực tiếp segment HTTP 400, qua proxy HTTP 200; codec đã được nhận diện mà không log đường dẫn có thể chứa token.
-- Web Browser Validation #38024369674: PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369674.
-- Browser E2E #38024369686: PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369686. Bài test kiểm tra remote navigation và manifest/segment của fixture; runner không có decoder H.264 nên không thể thay thế test giải mã thực tế SCTV4K.
-- Nhánh `fix/sctv4k-proxy-retry-state-20261010`; chưa deploy sản phẩm tại thời điểm ghi nhận này. Không đổi URL playlist mặc định, không chỉnh NM7 Mobile hoặc NM7 TV Android.
-
-
-### Follow-up fix — SCTV4K direct TS returns HTTP 400 (10/10/2026)
-
-Production diagnostic of the currently deployed Cloudflare Worker reproduced the new recording: the SCTV4K M3U8 manifest returns HTTP 200, but direct child MPEG-TS segment requests return HTTP 400. The same manifest through `/api/stream` and its proxied TS segments return HTTP 200 (`video/mp2t`). The prior player still attempted direct first and had a special 45-second startup watchdog for this channel, which explains the black screen and long wait. The new follow-up change in `fix/sctv4k-proxy-retry-state-20261010` starts the known SCTV4K/VietAnhTV HLS candidate through the Worker proxy first, removes the 45-second exception, and caps the HLS startup watchdog at 8 seconds. Both `app.js` and `app-safari-policy.js` are updated; cache-buster is bumped. Do not claim the final result until browser regression and Cloudflare production smoke tests pass.
-
-### 2026-10-10 — SCTV4K proxy-first follow-up
-
-- Live Cloudflare diagnostic verified the SCTV4K manifest at `vietanhtv.id.vn` responds HTTP 200 directly, but direct child TS segment requests respond HTTP 400. This is a provider-specific failure pattern: a successful manifest does not mean direct segment delivery works.
-- The Worker playlist parser now marks this provider as `forceProxy: true`. Both player entrypoints also recognize the provider hostname as proxy-first, so the first playback attempt goes through the Cloudflare Worker instead of waiting for a direct-source failure.
-- Known SCTV4K startup watchdog is bounded at 15 seconds (not 45 seconds); normal HLS remains 8 seconds. Cache-buster updated so the client loads the new player code.
-- Added `scripts/test-sctv4k-proxy-preference.js`: confirms only `vietanhtv.id.vn` HLS is forced through proxy and unrelated HLS remains unchanged.
-- Validation: Web Browser Validation PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38025807061. Browser HLS E2E is still running; its CI browser has no H.264 decoder, so that job can verify resource delivery but not real H.264 decoding.
-- DAZN/foreign custom channel was not present in the three server-served playlists (default 1, default 2, sports). The local/custom source URL/entry is not exposed to server diagnostics, so its exact upstream failure cannot be reproduced without the exact M3U entry. No default source URLs were changed.
-
-## 2026-10-10 — HLS manifest sniffing and playback retry-state fix (isolated branch)
-
-Branch: `fix/sports-hls-startup-proxy-20261010`. This work has **not** been merged into the stable branch or deployed to the production Worker.
-
-### What the new video establishes
-
-- SCTV4K now opens but still has a noticeable startup delay. Earlier live diagnostics established that its direct manifest returns HTTP 200 while direct TS segment requests return HTTP 400; proxy segment requests return HTTP 200. Earlier stream inspection identified HEVC/H.265 3840×2160 media, which can add first-frame delay on devices with limited HEVC decoding or large initial segments. HTTP success does not prove playback starts quickly.
-- The latest video shows several user-added international sports entries reaching the “proxy” attempt but remaining black. These entries are from a local/custom playlist and were not found in the three server-served playlist presets, so the exact upstream response and codec/DRM cannot be concluded from the current video alone.
-
-### Code changes on the isolated branch
-
-- Worker `/api/stream` now inspects a small cloned response prefix before rewriting ambiguous manifest payloads. It can identify an HLS manifest at an extensionless `text/plain` URL and rewrite its relative segment URIs; it identifies common MPEG-TS/fMP4 payloads and passes their binary bytes through without treating them as playlist text.
-- The player entrypoints serialize candidate retries so HLS.js and the generic video-element error listener cannot race each other. If a provider is marked proxy-first and that proxy attempt fails, the player moves on rather than spending another full watchdog interval retrying the same proxy URL.
-- HLS.js enables fragment prefetch and its transmuxing worker on non-Tizen browsers; the worker remains disabled on older Tizen/SMART-TV user agents. The active script cache-buster was bumped.
-- Regression tests cover extensionless `text/plain` HLS manifests, correctly rewritten child URIs, custom User-Agent/Referer/other M3U headers, misleading HLS MIME on binary TS, byte-for-byte passthrough, retry serialization, and HLS prefetch configuration.
-
-### Validation and limits
-
-- Web Browser Validation #388: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027250808.
-- Browser remote + HLS E2E #419: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027250824. This uses a test HLS fixture; it does not verify the user's real sports URLs or decode SCTV4K HEVC on the target device.
-- No production deploy, playlist/default URL changes, or modifications to NM7 Mobile / NM7 TV Android were made.
-- To finish diagnosis for the user-added sports channels, inspect one failing entry including its `#EXTINF`, any `#EXTHTTP` / `#EXTVLCOPT` lines, and the stream URL (sensitive query tokens may be redacted after the host and URL shape). A source-specific 401/403, required header, DRM requirement, or unsupported codec must be confirmed from that entry before changing source handling.
-
-## 2026-10-10 — Custom M3U User-Agent parsing and SCTV4K live-stream timing
-
-Branch: `fix/sports-hls-startup-proxy-20261010`. The following remains isolated from the stable branch and production Worker.
-
-### Confirmed SCTV4K timing
-
-- Live diagnostic #26: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710.
-- Production manifest response-to-headers time was approximately **3.46 s direct** and **3.01 s through the Worker**.
-- The direct TS segment request returns HTTP 400. In the proxy sample, one segment read timed out after 12 seconds; another TS segment returned **4,417,248 bytes in 4.69 s** and was confirmed by ffprobe as **HEVC Main, 3840×2160, 25 fps**.
-- The playlist is live, not VOD: target duration 6 seconds, six segments, no `#EXT-X-ENDLIST`, and the media sequence changed between requests. Do not cache the manifest for a long TTL: a stale sequence may refer to expired segments.
-- These measurements show that the remaining delay is not just a player watchdog. The upstream manifest itself is slow, and 4K HEVC segments are multi-megabyte with variable response times. A CI HTTP 200 result is not proof of a fast first frame or successful device decoding.
-
-### Confirmed parser defect for an M3U header format
-
-- An earlier user-provided sports playlist in the file library uses unquoted `#EXTVLCOPT:http-user-agent=` values containing spaces. The old parser stopped at the first whitespace and sent only a truncated User-Agent (for example, `Mozilla/5.0`), unlike a native player that reads the full option value. This can make a provider return an error page or reject a manifest even when the same entry plays in the app.
-- Fixed the parser in `worker.js`, `web-tv/app.js` and `web-tv/app-safari-policy.js`: for an unquoted User-Agent, capture the remainder of that `#EXTVLCOPT` line and trim it. Referer and Origin options remain parsed as before.
-- Expanded `scripts/test-custom-m3u-headers-probe.js` to assert that the entire unquoted User-Agent, Referer and Origin survive parsing and reach the HEAD → GET Range probe. The same regression checks both frontend entrypoints.
-
-### Other isolated-branch safeguards
-
-- The Worker sniffs a small response prefix to distinguish extensionless/text HLS manifests from binary TS/fMP4 segments with a misleading MIME type.
-- Playback candidate retries are serialized to prevent a generic media error and HLS.js error from triggering overlapping retries. A failed proxy-first candidate is not retried again through the same proxy for a full watchdog interval.
-- HLS.js fragment prefetch is enabled and its transmuxing worker is enabled outside older Tizen/SMART-TV user agents. The active script cache-buster is updated.
-
-### Validation and release status
-
-- Web Browser Validation #397: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027577281.
-- Browser remote + HLS E2E #428: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027577190. It uses a test HLS fixture and does not verify the real custom sports stream or SCTV4K decoding on the user's device.
-- Live diagnostic #26: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710.
-- The names shown in the video (Sky Sports+ 12/39 and TNT Sports 1) were not found in the three server-served playlist presets or the older M3U file searched. The User-Agent defect is confirmed for this M3U format, but it is not yet proven that those three video entries use that exact provider.
-- No playlist/default URL was changed; no production deploy; NM7 Mobile and NM7 TV Android remain untouched. Do not merge/deploy until one of the actual failing video entries is probed end-to-end and tested on the target device.
-
-### Follow-up diagnostic #27 — custom sports source is still unverified
-
-- Diagnostic #27 completed successfully: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027818973.
-- A representative, older Film4k TNT Sports 1 endpoint returned HTTP 403 JSON with both the full User-Agent and truncated User-Agent; the proxied attempt also returned 403. That indicates the particular endpoint currently refuses the request from the CI environment. It does not prove the exact channels shown in video 224593 share that endpoint or error.
-- The video’s exact labels (UK - SKY SPORTS+ 12 FHD, UK - SKY SPORTS+ 39 FHD, UK - TNT SPORTS 1 FHD) were not found in the current server-served presets or older saved M3U files searched. The actual playlist entry/URL is still required for a source-specific diagnosis.
-- SCTV4K live diagnostic #27 measured about 4.0 s to direct manifest headers and 2.2 s through proxy; the proxied 3.9 MB HEVC 3840×2160 segment took ~5.7 s end-to-end in that sample. Direct TS segments still return HTTP 400. The HLS playlist is live and sequence numbers change, so long-lived manifest caching would risk stale segments.
-- Web Browser Validation #400 and browser fixture E2E #431 both passed. These are code/regression checks, not confirmation that the actual video channels play on the user’s device.
-- Production remains unchanged. No stable merge/deploy or default playlist URL changes were made.
-
-
-## 2026-10-10 — Sửa luồng Stalker/Xtream ngay trên Cloudflare Workers
-
-### Nguyên nhân
-- Nguồn Stalker trả HTTP 302 từ `mag.tivi-one-iptv.net/play/live.php?extension=ts` sang địa chỉ IP stream.
-- Đường `fetch()` theo redirect thông thường của Worker bị upstream trả HTTP 403, trong khi kiểm tra TCP socket tới đích stream trả HTTP 200 cùng dữ liệu MPEG-TS hợp lệ.
-- Vì vậy, chỉ nhận diện `extension=ts` và đặt MIME đúng là chưa đủ; cần mở luồng TCP theo redirect đã kiểm tra.
-
-### Thay đổi
-- `worker.js`: thêm `stalkerSocketStreamResponse()` bằng Cloudflare `cloudflare:sockets`; gửi HTTP GET tới đích được kiểm tra và trả body dưới dạng stream, không nạp toàn bộ video vào bộ nhớ.
-- Chỉ bật cho host `mag.tivi-one-iptv.net`, đường dẫn `/play/live.php`, `extension=ts|m2ts` và có trường nhận diện nguồn/phiên cần thiết. Đích redirect được giới hạn chặt vào IP `192.142.25.161`, cổng 80; không biến Worker thành proxy TCP tùy ý.
-- Giữ nguyên đường phát cùng origin qua Cloudflare Worker `/api/stream`. `app.js` và `app-safari-policy.js` không chuyển luồng video sang Vercel; URL VietMiTV Merge đang có trong cấu hình vẫn chỉ là nguồn playlist, không phải proxy phát video.
-- Bổ sung regression test cho nhận diện Stalker, bảo toàn payload MPEG-TS, header M3U và ưu tiên proxy của SCTV4K.
-
-### Kiểm chứng trên bản test Cloudflare
-- [Chẩn đoán Cloudflare TCP socket #38038333778](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38038333778): socket stream trả HTTP 200, `video/mp2t` và byte sync MPEG-TS hợp lệ.
-- [Web Browser Validation #38038333749](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38038333749): PASS.
-- [Browser remote + HLS E2E #38038333758](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38038333758): PASS.
-- Người dùng đã xác nhận bản test Cloudflare này hoạt động và yêu cầu đưa mã cùng tài liệu sang nhánh ổn định.
-
-Phạm vi thay đổi: chỉ NM7 TV Web và Cloudflare Worker; không đổi NM7 Mobile hoặc NM7 TV Android. Việc triển khai production được xác minh riêng qua workflow Cloudflare của nhánh stable.
-
-
-## Sửa menu trên iPad nằm ngang (10/10/2026)
-
-- Sửa nhận diện iPadOS Safari khi bật “Yêu cầu trang web cho máy tính”: Safari có thể báo Macintosh/MacIntel dù thiết bị là iPad.
-- Dùng thêm navigator.maxTouchPoints > 1 để bật mobile-mode trên iPad màn hình rộng, nhờ đó nút ☰ ở góc trên bên trái tiếp tục hiển thị khi xoay ngang.
-- Tăng cache-buster của script Safari đang hoạt động và thêm regression test cho cả hai tệp JS; workflow Cloudflare kiểm tra script mới sau triển khai.
-- Phạm vi chỉ gồm NM7 TV Web/Cloudflare; không thay đổi NM7 Android hoặc NM7 Mobile.
+- Nguồn chính là playlist động: `https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u`.
+- Nguồn GitHub Raw `sports-auto.m3u` chỉ là dự phòng.
+- Mỗi lần mở hoặc tải lại Thể thao sử dụng `refresh=1` để bỏ qua cache playlist nội bộ của Worker NM7 Web.
+- Service Binding `THETHAO_SOURCE` giải quyết lỗi gọi Worker nguồn qua URL `workers.dev` bằng Fetch API thông thường.
+- API làm mới: `/api/playlist?source=sport&refresh=1`.
+
+Số lượng kênh là dữ liệu động. Smoke test ngày 10/10/2026 ghi nhận 1.028 kênh ở đường nguồn tùy chỉnh; không được coi con số này là số lượng cố định hoặc cam kết mọi kênh đều đang phát.
+
+### Thêm nguồn IPTV
+
+- Thêm nguồn qua URL bằng `/api/source?u=<URL_playlist_đã_encode>`.
+- Có hỗ trợ nhập tệp `.m3u` và `.m3u8` cục bộ, giới hạn 20 MB.
+- Tệp cục bộ được trình duyệt đọc qua File API, không upload nội dung lên server.
+- Parser giữ metadata có trong nguồn như `tvg-id`, `tvg-logo`, `group-title`, URL stream, header và metadata DRM trong giới hạn dữ liệu nguồn cung cấp.
+- Worker xử lý đường tải nguồn, URL tương đối và các header M3U được hỗ trợ. Một URL có thể vẫn thất bại nếu upstream yêu cầu xác thực, chặn môi trường Cloudflare hoặc thay đổi định dạng.
+
+### Playback và proxy
+
+Các nhánh phát hiện có trong baseline gồm HLS, DASH/DRM, FLV và MPEG-TS; khả năng sử dụng từng nhánh phụ thuộc browser, codec, DRM/giấy phép, header và chính sách của nhà cung cấp.
+
+- Shaka Player 5.2.12.
+- hls.js 1.7.3.
+- flv.js 1.6.2.
+- mpegts.js 1.8.2.
+- Worker có các đường proxy/điều phối manifest và segment cho các trường hợp được hỗ trợ.
+- Sửa lỗi ưu tiên proxy HLS/segment của SCTV4K và đường TCP streaming có điều kiện cho một dạng nguồn Stalker/Xtream; logic này có regression checks và được giữ trong nhánh stable.
+- `/api/stream` là entrypoint proxy stream được sử dụng trong các luồng hỗ trợ.
+
+**Giới hạn:** smoke test về parser, HTTP status hoặc manifest không chứng minh mọi kênh chạy được trên mọi thiết bị. Safari/iOS không được coi là hỗ trợ mọi nguồn DASH/DRM ClearKey; những nguồn đó có thể cần nguồn HLS/FairPlay hợp lệ hoặc ứng dụng chính thức của nhà cung cấp.
+
+### Chạy nền và YouTube
+
+- IPTV dùng Media Session và Picture-in-Picture khi browser/OS cung cấp API tương ứng.
+- PiP, khóa màn hình và phát nền phụ thuộc khả năng và chính sách của thiết bị.
+- Nút YouTube mở trang YouTube chính thức.
+- `tizen-youtube-host/` là scaffold/native EWK host phục vụ nghiên cứu lọc request. Chưa tuyên bố YouTube ad-free hoàn chỉnh trên Samsung Tizen cho tới khi build/sign/install và kiểm tra E2E trên TV thật.
+
+## API chính
+
+| Endpoint | Mục đích |
+|---|---|
+| `GET /api/playlist?source=tv&default=1` | Truyền hình preset 1 |
+| `GET /api/playlist?source=tv&default=2` | Truyền hình preset 2 |
+| `GET /api/playlist?source=sport&refresh=1` | Làm mới nguồn Thể thao, bỏ qua cache |
+| `GET /api/source?u=<URL_đã_encode>` | Nhập playlist tùy chỉnh |
+| `/api/stream` | Proxy/điều phối các stream được hỗ trợ |
+
+## Kiểm thử và xác nhận production gần nhất
+
+Workflow [#38064641220](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38064641220) chạy trên nhánh stable đã **SUCCESS**:
+
+- JavaScript syntax check: `app-safari-policy.js`, `app.js`, `youtube.js`.
+- `SPORT_PLAYLIST_REFRESH_TESTS_OK`.
+- `IPAD_LANDSCAPE_MENU_REGRESSION_TESTS_OK`.
+- Deploy Cloudflare Worker và YouTube proxy.
+- Production smoke tests cho nguồn Truyền hình mặc định, nhóm kênh, player/Safari policy, YouTube launcher, nút menu iPad, nguồn Thể thao và nhập nguồn tùy chỉnh.
+- Source-import smoke test: `CLOUDFLARE_TARGET_SOURCE_SMOKE_OK channels=1028 fetchMode=nm7-ua` tại thời điểm chạy.
+
+Người dùng đã xác nhận bằng kiểm tra thực tế rằng nguồn Thể thao cập nhật được và menu ☰ trên iPad nằm ngang xuất hiện. Những xác nhận này không thay thế cho kiểm tra các kênh khác sau này nếu thay đổi code playback hoặc nguồn.
+
+## Quy trình phát triển tiếp theo
+
+1. Tạo nhánh `feature/*` hoặc `fix/*` từ HEAD mới nhất của `stable/nm7-tv-web-2026-10-09`.
+2. Trước khi sửa, xác định file và hành vi thực sự liên quan; giữ thay đổi cô lập, không làm sạch/tái cấu trúc phần không liên quan.
+3. Chạy các kiểm thử liên quan. Tối thiểu với player/UI: `node --check web-tv/app-safari-policy.js`, `node --check web-tv/app.js`, `node --check web-tv/youtube.js`; test nguồn Thể thao và menu iPad:
+   - `node scripts/test-sport-playlist-refresh.js`
+   - `node scripts/test-ipad-landscape-menu.js`
+4. Chạy workflow Cloudflare đầy đủ và kiểm tra URL production sau deploy. Phân biệt rõ code đã sửa, deploy có thành công, smoke test nào đã qua và những gì cần test trên thiết bị thật.
+5. Chỉ đưa bản mới thành mốc stable sau khi kiểm thử liên quan đạt và đã xác nhận không làm hỏng hành vi hiện tại.
+6. Không chỉnh NM7 TV Android, NM7 Mobile, hay cấu hình deploy Vercel. Không thay nguồn/preset mặc định ngoài phạm vi yêu cầu.
+
+## Tài liệu liên quan
+
+- [Tiến độ và nhật ký chẩn đoán chi tiết](PROGRESS.md)
+- [Quy định mốc ổn định](STABLE_BASELINE.md)
+- [Nhánh stable](https://github.com/phuongnm7/nm7-tv-web/tree/stable/nm7-tv-web-2026-10-09)
+- [Workflow Cloudflare gần nhất đã thành công](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38064641220)

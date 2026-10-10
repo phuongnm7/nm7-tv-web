@@ -1,112 +1,74 @@
-# NM7 TV Web — Tiến độ dự án
+# NM7 TV Web — Tiến độ và trạng thái chuẩn
 
-## Mốc hiện tại
+> **Nguồn sự thật cho trạng thái hiện tại nằm trong phần “Mốc ổn định hiện tại” bên dưới.** Các mục sau đó là nhật ký theo thời điểm; một số mục mô tả chẩn đoán hoặc trạng thái trước khi được sửa, không được dùng thay cho trạng thái hiện tại.
 
-- Ngày: **10/10/2026**
-- Nhánh ổn định: `stable/nm7-tv-web-2026-10-09` (nhận bản TCP socket fix đã được người dùng xác nhận trên test Cloudflare)
-- Tính năng mới nhất: **nguồn Thể thao mặc định ưu tiên Worker danh sách động và bỏ qua cache khi tải lại**; GitHub M3U chỉ là nguồn dự phòng
-- Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
-- Chuẩn giao diện TV: Android TV NM7 1.0.69
-- Nền tảng triển khai: **Cloudflare Workers**
-- Không chuyển dự án sang Vercel.
+## Mốc ổn định hiện tại — chốt ngày 10/10/2026
 
-## Trạng thái hiện tại
+- **Repository:** [phuongnm7/nm7-tv-web](https://github.com/phuongnm7/nm7-tv-web)
+- **Nhánh stable duy nhất để làm gốc:** `stable/nm7-tv-web-2026-10-09`
+- **Mã ứng dụng đã triển khai và kiểm tra gần nhất:** `a5a3a6377a2001e296441d3110d0de9ea4a85bd5`
+- **Production Cloudflare Worker:** https://nm7-tv-web.phuongnm7-iptv.workers.dev/
+- **Workflow deploy production xác nhận thành công:** [Run #38064641220](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38064641220) — SUCCESS.
+- **Baseline giao diện TV:** NM7 TV Android 1.0.69.
+- **Phạm vi:** chỉ NM7 TV Web và Worker/proxy liên quan của dự án này. Không thay đổi NM7 TV Android hoặc NM7 Mobile.
+- **Nơi chạy ứng dụng:** Cloudflare Workers. URL VietMiTV Merge trên Vercel được dùng như **nguồn dữ liệu playlist của Truyền hình mặc định 1**, không phải nơi deploy ứng dụng NM7 TV Web; không triển khai ứng dụng lên Vercel.
 
-Bản hiện tại **giữ nguyên giao diện, player, điều hướng và logic playback**. Tính năng nhập M3U/M3U8 cục bộ vẫn được giữ; bản sửa mới cô lập ở đường tải nguồn URL/Worker-to-Worker trên Cloudflare.
+Sau commit mã ứng dụng `a5a3a637...`, việc cập nhật tài liệu có thể tạo thêm commit tài liệu trên cùng nhánh. Commit tài liệu không thay đổi runtime; nhánh stable vẫn là gốc chuẩn để tạo các nhánh phát triển tiếp theo.
 
-### Nhập nguồn IPTV bằng tệp cục bộ
+## Tóm tắt trạng thái production
 
-- Thêm nút **📁 Chọn tệp M3U** trong hộp thoại **Thêm nguồn IPTV**.
-- Hỗ trợ tệp `.m3u` và `.m3u8`.
-- Tệp được đọc trực tiếp bằng File API của trình duyệt; **không upload tệp lên máy chủ**.
-- Dùng lại parser M3U hiện có để giữ metadata kênh như `tvg-id`, `tvg-logo`, `group-title` và thông tin stream/header/DRM khi có.
-- Giới hạn kích thước tệp: **20 MB**.
-- Tên tệp được hiển thị là **nguồn hiện tại** trong phiên.
-- Sau khi nạp thành công, hộp thoại nguồn tự đóng.
-- Remote TV trong hộp thoại vẫn hỗ trợ **LEFT/UP**, **RIGHT/DOWN** và **OK**.
-- Khi reload nguồn, playlist cục bộ được nạp lại từ nội dung đã đọc trong phiên.
-- Tính năng được triển khai đồng nhất trong `app.js` và `app-safari-policy.js`.
+### Những phần đã sửa và được giữ trong mốc hiện tại
 
-## Bảo toàn bản hiện tại
+- Nguồn **Thể thao** ưu tiên playlist động từ Worker `thethaonm7`; GitHub Raw là nguồn dự phòng. Mỗi lần mở/tải lại Thể thao gửi `refresh=1` để bỏ qua cache playlist 30 giây của Worker NM7 Web.
+- Nhập playlist URL qua `/api/source` được hỗ trợ bằng đường Worker-to-Worker Service Binding cho `thethaonm7`; đã sửa lỗi URL trả 404 khi gọi bằng Fetch API thông thường.
+- Nhập tệp `.m3u`/`.m3u8` cục bộ tối đa 20 MB bằng File API; tệp được đọc trong trình duyệt, không upload lên máy chủ.
+- Nguồn Truyền hình có hai preset. Mặc định tự chọn theo thiết bị: Android và Windows chọn preset 2; iPhone/iPad/iPod chọn preset 1; các thiết bị khác dùng preset 1 mặc định. iPadOS Safari ở chế độ “Yêu cầu trang web cho máy tính” được nhận diện qua Macintosh/MacIntel kết hợp nhiều điểm chạm.
+- VTV1 của preset 1 dùng nguồn trong playlist mặc định 1 theo cấu hình hiện tại; không tự ý thêm lại nguồn VTVGO đã bị loại bỏ.
+- Nút menu ☰ trên iPad nằm ngang đã được sửa bằng nhận diện iPadOS desktop mode; đã tăng cache-buster cho script đang được `index.html` nạp.
+- Các đường xử lý playback hiện có cho HLS/DASH/DRM, fallback của Safari, proxy HLS/segment, SCTV4K và luồng Stalker/Xtream qua Cloudflare được giữ trong baseline. Khả năng phát một kênh cụ thể vẫn phụ thuộc nguồn, codec, DRM, browser và thiết bị.
 
-Đã kiểm tra so với baseline trước khi bổ sung tính năng:
+### Kiến trúc triển khai
 
-- Không thay đổi UI player.
-- Không thay đổi cơ chế DRM/playback hiện có.
-- Không thay đổi giao diện Android TV 1.0.69.
-- Không thay đổi danh sách/nhóm playlist mặc định.
-- Không thay đổi các endpoint nguồn Thể thao và `/api/source`.
-- Chỉ bổ sung code cần thiết cho local M3U import vào hai file player hiện có.
+- `worker.js`: Worker router, playlist API và các đường proxy stream.
+- `wrangler.toml`: Worker `nm7-tv-web`, static assets từ `web-tv/`, Service Bindings `PLAYLIST_SOURCE` và `THETHAO_SOURCE`.
+- `web-tv/index.html`: trang chính; script giao diện/player đang nạp là `web-tv/app-safari-policy.js`. `web-tv/app.js` cũng được duy trì và cần kiểm tra đồng bộ về hành vi khi sửa logic chung.
+- `.github/workflows/cloudflare-deploy.yml`: kiểm tra JavaScript/regression, deploy Cloudflare Worker, deploy YouTube proxy theo workflow hiện hành và chạy smoke test production.
+- `tizen-youtube-host/`: mã nguồn/scaffold native EWK host nghiên cứu. Chưa tuyên bố chặn quảng cáo YouTube hoàn chỉnh trên Samsung Tizen cho tới khi build/cài và kiểm tra thiết bị thật.
 
-## Kiểm tra code
+### API chính
 
-Đã xác nhận trên GitHub:
+| API | Mục đích |
+|---|---|
+| `/api/playlist?source=tv&default=1` | Truyền hình preset 1 |
+| `/api/playlist?source=tv&default=2` | Truyền hình preset 2 |
+| `/api/playlist?source=sport&refresh=1` | Tải mới nguồn Thể thao, bỏ qua cache playlist |
+| `/api/source?u=<URL_đã_encode>` | Nạp playlist URL tùy chỉnh |
+| `/api/stream` | Proxy/điều phối các luồng được hỗ trợ bởi Worker |
 
-- JavaScript `app.js`: **syntax hợp lệ**.
-- `app.js` và `app-safari-policy.js`: **đồng nhất nội dung**.
-- Có đầy đủ marker của file picker, local reader, local loader, local apply và remote focus handling.
-- GitHub branch đã chứa code local M3U với blob SHA `229efe82bd60e71c6b3ea3fd2192eaa51d1f5219`.
+### Kiểm chứng đã hoàn tất
 
-## Cloudflare / GitHub Actions
+Workflow [#38064641220](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38064641220) trên nhánh stable hoàn tất **SUCCESS**, bao gồm:
+- Syntax check cho `app-safari-policy.js`, `app.js` và `youtube.js`.
+- Regression test `SPORT_PLAYLIST_REFRESH_TESTS_OK`.
+- Regression test `IPAD_LANDSCAPE_MENU_REGRESSION_TESTS_OK`.
+- Deploy Worker và YouTube proxy thành công.
+- Production smoke test cho playlist mặc định, endpoint nhập nguồn, UI/player, Safari DRM policy, YouTube launcher và nút menu iPad.
+- Smoke test nguồn tùy chỉnh trả 1.028 kênh tại thời điểm kiểm tra; số lượng kênh là dữ liệu động và có thể thay đổi theo nguồn upstream.
 
-Commit code triển khai `a36b3c0e798fdfc08d3584524ac00f1dc28f07a2`:
+Người dùng đã xác nhận nguồn Thể thao cập nhật được và nút menu iPad nằm ngang đã hoạt động. Kiểm thử tự động không đồng nghĩa mọi kênh đều phát trên mọi thiết bị; không được suy diễn PASS của smoke test thành xác nhận cho tất cả nguồn/DRM.
 
-- GitHub Actions run **#250 attempt 2: SUCCESS**.
-- Checkout: **SUCCESS**.
-- Deploy to Cloudflare Workers: **SUCCESS**.
-- Production smoke test: **SUCCESS**.
-- Smoke test xác nhận HTML/player, background 1.0.69, playlist Android 1.0.69, playlist Thể thao, custom source và các marker Shaka/Safari DRM hiện có.
+## Quy tắc phát triển từ mốc này
 
-Các lần thất bại trước của run #248/#249/#250 là lỗi runner/infrastructure trước khi workflow chạy step; rerun sau đó đã hoàn tất thành công.
+1. **Mọi tính năng/fix tiếp theo phải tạo nhánh mới từ HEAD mới nhất của `stable/nm7-tv-web-2026-10-09`.** Không lấy nhánh thử nghiệm cũ, NM7 Android hoặc NM7 Mobile làm nền.
+2. Không phát triển trực tiếp lên nhánh stable; chỉ đưa thay đổi vào stable sau khi các kiểm thử liên quan đạt và production deploy đã được xác minh.
+3. Sửa đúng phạm vi yêu cầu; giữ nguyên các hành vi đang chạy tốt. Không tự ý thay playlist mặc định, nguồn URL, UI, DRM, proxy, hoặc cấu hình deploy nếu yêu cầu không đụng tới.
+4. Triển khai runtime của NM7 TV Web bằng **Cloudflare Workers**. Không tự chuyển app sang Vercel hoặc thay đổi dự án Vercel; URL Vercel nếu còn trong cấu hình chỉ là upstream playlist đã được nêu rõ.
+5. Không sửa repository/build/cấu hình của NM7 TV Android hoặc NM7 Mobile.
+6. Trước khi chốt bản mới: chạy syntax check; các regression test liên quan; Cloudflare workflow và smoke test production; ghi commit/run URL cùng kết quả vào tài liệu. Nêu rõ phần nào đã test tự động và phần nào đã test bằng thiết bị thực tế.
 
-## Tài liệu
+## Lịch sử chi tiết
 
-Ngày 06/10/2026 đã cập nhật README và PROGRESS để ghi nhận chính thức tính năng local M3U và trạng thái production. Các commit tài liệu sau đó chỉ thay đổi tài liệu, **không thay đổi code player**.
-
-## Nguồn Thể thao và nguồn tùy chỉnh
-
-### Nguồn Thể thao
-
-Nguồn chính:
-`https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com`
-
-Nguồn dự phòng:
-`https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u`
-
-Worker tự thử nguồn dự phòng khi nguồn chính lỗi.
-
-### Thêm nguồn IPTV bằng URL
-
-Trình duyệt dùng:
-`/api/source?u=<URL_playlist>`
-
-Worker lấy playlist ở phía máy chủ, phân tích M3U/JSON, giải quyết URL tương đối và giữ metadata stream/header/DRM khi có. Cơ chế này tiếp tục được giữ nguyên.
-
-## Phát video
-
-- HLS / DASH / DRM / FLV / MPEG-TS vẫn giữ các đường phát hiện tại.
-- Shaka Player hiện tại: **5.2.12**.
-- Các logic playback/DRM đã có trước mốc local M3U không bị thay đổi bởi tính năng mới.
-
-## Giai đoạn test tiếp theo
-
-Test thực tế local M3U trên:
-
-- Chrome Android.
-- Samsung TV/Tizen Web App.
-- Desktop Chrome/Edge/Safari.
-- Playlist M3U/M3U8 nhỏ và lớn.
-- Playlist có group/logo/tvg-id.
-- Playlist có header User-Agent/Referer/Origin.
-- Playlist có metadata DRM/ClearKey.
-- Chuyển nguồn URL ↔ tệp M3U và reload trang.
-
-Nếu phát hiện lỗi, chỉ sửa đúng phần local M3U hoặc lỗi tái hiện cụ thể; không dùng bản thử nghiệm mới làm baseline tùy tiện.
-
-## Quy tắc bàn giao
-
-Không thay đổi UI/player/DRM hiện tại nếu lỗi không liên quan trực tiếp. Mọi bản sửa tiếp theo phải cô lập theo lỗi để bảo vệ mốc Android TV 1.0.69 đang dùng làm chuẩn.
-
+Các mục bên dưới là nhật ký công việc theo thời điểm. Khi mô tả cũ khác với “Mốc ổn định hiện tại”, trạng thái ở đầu file này và các lần cập nhật mới hơn là trạng thái có hiệu lực.
 
 ## iOS DASH/ClearKey fallback — 2026-10-06
 

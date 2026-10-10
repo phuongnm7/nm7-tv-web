@@ -22,10 +22,16 @@ jobs:
       - name: Check web JavaScript
         run: |
           node --check web-tv/app.js
+          node --check web-tv/app-safari-policy.js
+          node --check web-tv/youtube.js
           node --check api/stream.js
           node --check api/probe.js
           node --check api/license.js
           node --check api/playlist.js
+      - name: Regression checks
+        run: |
+          node scripts/test-device-default-preset.js
+          node scripts/test-playback-startup-fallback.js
       - name: Check required web assets
         run: |
           test -s web-tv/index.html

@@ -30,6 +30,7 @@ jobs:
           import json, re, os, tempfile, subprocess, shutil, time, urllib.parse, urllib.request, urllib.error
           from urllib.parse import urlparse, urljoin, parse_qs
           BASE = "https://nm7-tv-web-test.phuongnm7-iptv.workers.dev"
+          VERCEL_TEST_BASE = "https://nm7-tv-web-git-fix-sports-hls-startup-proxy-20261010-phuongnm7.vercel.app"
           UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
 
           def request(url, headers=None, limit=12000, timeout=18):
@@ -263,8 +264,18 @@ jobs:
               if cand.get("ua"): q["ua"] = str(cand["ua"])
               if extra: q["h"] = json.dumps(extra, separators=(",", ":"))
               proxy_url = BASE + "/api/stream?" + urllib.parse.urlencode(q)
-              inspect_path(name.replace(" ", "_") + "_PROXY", proxy_url, {"User-Agent": UA})
+              inspect_path(name.replace(" ", "_") + "_CLOUDFLARE_PROXY", proxy_url, {"User-Agent": UA})
               query_fields = parse_qs(urlparse(url).query)
+              is_stalker = (
+                  urlparse(url).path.lower().endswith("/play/live.php")
+                  and all(key in query_fields for key in ("mac", "stream", "extension"))
+                  and ("play_token" in query_fields or "token" in query_fields)
+              )
+              if is_stalker:
+                  # Compare a different proxy egress using the same source/header metadata.
+                  # Log status/host/container metadata only; never output the query URL or token.
+                  vercel_proxy_url = VERCEL_TEST_BASE + "/api/stream?" + urllib.parse.urlencode(q)
+                  vercel_result = probe(name.replace(" ", "_") + "_VERCEL_PREVIEW_PROXY", vercel_proxy_url, {"User-Agent": UA}, limit=12000, timeout=18)
               is_stalker = (
                   urlparse(url).path.lower().endswith("/play/live.php")
                   and all(key in query_fields for key in ("mac", "stream", "extension"))

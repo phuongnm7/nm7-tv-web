@@ -161,7 +161,7 @@ jobs:
               drm = cand.get("drm")
               print("CANDIDATE", json.dumps({
                   "channel": name, "candidateIndex": i, "type": typ, "host": p.hostname,
-                  "resourcePath": "[redacted]", "extension": ((p.path.match(/\.([a-z0-9]+)$/i)||[])[1]||""), "hasQueryToken": bool(p.query), "refererHost": urlparse(ref).hostname,
+                  "resourcePath": "[redacted]", "extension": (re.search(r"\.([a-z0-9]+)$", p.path, re.I).group(1) if re.search(r"\.([a-z0-9]+)$", p.path, re.I) else ""), "hasQueryToken": bool(p.query), "refererHost": urlparse(ref).hostname,
                   "hasCustomUA": bool(cand.get("ua")), "headerNames": sorted(extra.keys()),
                   "drm": bool(drm), "forceProxy": bool(cand.get("forceProxy"))
               }, ensure_ascii=False))

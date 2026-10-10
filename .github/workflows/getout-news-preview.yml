@@ -1,0 +1,72 @@
+name: Preview GetOut Ban tin on Cloudflare
+
+on:
+  push:
+    branches:
+      - feature/getout-ban-tin-20261010
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nm7-news-preview
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Validate syntax and regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module --check < worker.js
+          node --check web-tv/app.js
+          node scripts/test-sport-playlist-refresh.js
+          node scripts/test-ipad-landscape-menu.js
+          test -f web-tv/ban-tin.html
+          grep -q "/api/news" worker.js
+          grep -q "Bản tin" web-tv/index.html
+          echo "NEWS_PREVIEW_STATIC_CHECKS_OK"
+
+      - name: Deploy isolated preview Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.preview.toml
+
+      - name: Smoke test preview homepage and news API
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web-news-preview.phuongnm7-iptv.workers.dev"
+          curl -fsSL --retry 5 --retry-delay 3 --max-time 45 "$BASE/" -o /tmp/news-preview-home.html
+          curl -fsSL --retry 5 --retry-delay 3 --max-time 45 "$BASE/web-tv/ban-tin.html" -o /tmp/news-preview-page.html
+          grep -q "NM7 TV 1.0.69" /tmp/news-preview-home.html
+          grep -q "Bản tin" /tmp/news-preview-home.html
+          grep -q "Highlights" /tmp/news-preview-page.html
+          curl -fsSL --retry 2 --retry-delay 2 --max-time 30 "$BASE/api/news?source=highlights" -o /tmp/news-preview-api.json
+          python3 - <<'PY'
+          import json
+          p='/tmp/news-preview-api.json'
+          with open(p,encoding='utf-8') as f:
+              data=json.load(f)
+          if data.get('source') != 'highlights':
+              raise SystemExit('Unexpected source in preview API response: '+repr(data.get('source')))
+          if 'items' not in data or not isinstance(data['items'], list):
+              raise SystemExit('Preview API response does not contain an items array')
+          if data.get('error'):
+              raise SystemExit('News upstream failed: '+str(data['error']))
+          print('NEWS_PREVIEW_API_OK items=',len(data['items']),'source=',data.get('sourceUrl'))
+          PY
+          echo "NEWS_PREVIEW_SMOKE_TEST_OK URL=$BASE/web-tv/ban-tin.html"

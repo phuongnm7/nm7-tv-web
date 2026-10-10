@@ -41,7 +41,7 @@ jobs:
           BASE="https://nm7-tv-web-device-test.phuongnm7-iptv.workers.dev"
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/" -o /tmp/nm7-device-test.html
           grep -q "NM7 TV 1.0.69" /tmp/nm7-device-test.html
-          grep -q "app-safari-policy.js?v=20261010-device-default-preset1" /tmp/nm7-device-test.html
+          grep -q "app-safari-policy.js?v=20261010-device-default-preset2" /tmp/nm7-device-test.html
           echo "DEVICE_TEST_WORKER_HTML_SMOKE_OK"
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=1" -o /tmp/nm7-device-test-default1.json
           curl -fsSL --max-redirs 3 --max-time 30 "$BASE/api/playlist?source=tv&default=2" -o /tmp/nm7-device-test-default2.json

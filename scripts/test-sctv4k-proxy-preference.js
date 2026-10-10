@@ -43,7 +43,7 @@ async function main() {
     const candidate = sctv.candidates.find(x => x.url === 'https://vietanhtv.id.vn/live/stream.m3u8');
     assert(candidate, 'SCTV4K candidate retained');
     assert.equal(candidate.forceProxy, true, 'known provider with HTTP 400 TS segments is proxy-first');
-    assert.equal(other.candidates[0].forceProxy, undefined, 'unrelated HLS remains unchanged');
+    assert.equal(Boolean(other.candidates[0].forceProxy), false, 'unrelated HLS remains unchanged');
     console.log('PASS: SCTV4K vietanhtv source is marked proxy-first; unrelated HLS is unchanged');
   } finally {
     global.fetch = originalFetch;

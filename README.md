@@ -367,3 +367,8 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Web Browser Validation #38024369674: PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369674.
 - Browser E2E #38024369686: PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369686. Bài test kiểm tra remote navigation và manifest/segment của fixture; runner không có decoder H.264 nên không thể thay thế test giải mã thực tế SCTV4K.
 - Nhánh `fix/sctv4k-proxy-retry-state-20261010`; chưa deploy sản phẩm tại thời điểm ghi nhận này. Không đổi URL playlist mặc định, không chỉnh NM7 Mobile hoặc NM7 TV Android.
+
+
+### Follow-up fix — SCTV4K direct TS returns HTTP 400 (10/10/2026)
+
+Production diagnostic of the currently deployed Cloudflare Worker reproduced the new recording: the SCTV4K M3U8 manifest returns HTTP 200, but direct child MPEG-TS segment requests return HTTP 400. The same manifest through `/api/stream` and its proxied TS segments return HTTP 200 (`video/mp2t`). The prior player still attempted direct first and had a special 45-second startup watchdog for this channel, which explains the black screen and long wait. The new follow-up change in `fix/sctv4k-proxy-retry-state-20261010` starts the known SCTV4K/VietAnhTV HLS candidate through the Worker proxy first, removes the 45-second exception, and caps the HLS startup watchdog at 8 seconds. Both `app.js` and `app-safari-policy.js` are updated; cache-buster is bumped. Do not claim the final result until browser regression and Cloudflare production smoke tests pass.

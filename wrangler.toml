@@ -2,6 +2,10 @@ name = "nm7-tv-web-test"
 main = "worker.js"
 compatibility_date = "2026-10-04"
 
+# Test-only placement hint: execute near the redirect destination observed for the Stalker source.
+[placement]
+host = "192.142.25.161:80"
+
 [assets]
 directory = "./web-tv"
 binding = "ASSETS"

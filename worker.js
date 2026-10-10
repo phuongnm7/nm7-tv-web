@@ -7,8 +7,8 @@ const SOURCES = {
     'https://iptv-live-merge.phuongnm7-iptv.workers.dev/playlist.m3u'
   ],
   sport: [
-    'https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com',
-    'https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u'
+    'https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u',
+    'https://raw.githubusercontent.com/phuongnm7/Iptv-phuongnm7/main/sports-auto.m3u?utm_source=chatgpt.com'
   ]
 };
 const BUILTIN = {

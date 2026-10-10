@@ -58,10 +58,19 @@ const cases = [
     expected: 1
   },
   {
-    name: 'Desktop browser retains existing preset 1',
+    name: 'Windows desktop browser defaults to preset 2',
     navigator: {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36',
       platform: 'Win32',
+      maxTouchPoints: 0
+    },
+    expected: 2
+  },
+  {
+    name: 'macOS desktop retains preset 1',
+    navigator: {
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15',
+      platform: 'MacIntel',
       maxTouchPoints: 0
     },
     expected: 1
@@ -99,6 +108,6 @@ for (const file of appFiles) {
 }
 
 const indexHtml = fs.readFileSync('web-tv/index.html', 'utf8');
-assert.ok(indexHtml.includes('app-safari-policy.js?v=20261010-device-default-preset1'), 'index.html must bump the active app script cache-buster');
+assert.ok(indexHtml.includes('app-safari-policy.js?v=20261010-device-default-preset2'), 'index.html must bump the active app script cache-buster');
 
 console.log('DEVICE_DEFAULT_TV_PRESET_TESTS_OK');

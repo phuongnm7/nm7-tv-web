@@ -841,7 +841,7 @@ function isStalkerTsCandidate(cand,kind){
  if(kind!=='mpegts'||!cand)return false;
  try{
   var u=new URL(String(cand.resolvedUrl||cand.url||'')),q=u.searchParams;
-  return /\\/play\\/live\\.php$/i.test(u.pathname)&&q.has('mac')&&q.has('stream')&&q.has('extension')&&(q.has('play_token')||q.has('token'));
+  return u.pathname.toLowerCase().endsWith('/play/live.php')&&q.has('mac')&&q.has('stream')&&q.has('extension')&&(q.has('play_token')||q.has('token'));
  }catch(e){return false}
 }
 function nextCandidate(reason){

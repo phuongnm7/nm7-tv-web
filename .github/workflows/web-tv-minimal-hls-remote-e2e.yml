@@ -29,6 +29,8 @@ jobs:
           cp node_modules/hls.js/dist/hls.min.js e2e-site/hls.min.js
           cp web-tv/index.html e2e-site/index.html
           cp web-tv/app.js e2e-site/app.js
+          cp web-tv/youtube.js e2e-site/youtube.js
+          cp web-tv/mobile-background.js e2e-site/mobile-background.js
           cp web-tv/dash.all.min.js e2e-site/dash.all.min.js
           cp web-tv/assets/nm7-default-background.webp e2e-site/assets/nm7-default-background.webp
           cp web-tv/assets/nm7-main-logo.png e2e-site/assets/nm7-main-logo.png
@@ -36,7 +38,7 @@ jobs:
       - name: Write fixture playlist and adapt page
         run: |
           python3 - <<'PY'
-          import json
+          import json, re
           logo="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
           channels=[{"id":chr(65+i),"name":f"Kênh {i+1}","group":"Nhóm 1" if i<25 else "Nhóm 2","logo":logo,"candidates":[{"url":"/test-hls.m3u8","hls":True}]} for i in range(25)]
           with open("e2e-site/playlist.json","w") as f:
@@ -46,6 +48,9 @@ jobs:
           s=s.replace('<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>','<script src="/hls.min.js"></script>')
           s=s.replace('<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.min.js"></script>','')
           s=s.replace('<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.16.51/dist/shaka-player.compiled.js"></script>','')
+          s=re.sub(r'<script src="./app-safari-policy\.js[^"]*"></script>','<script src="./app.js"></script>',s)
+          if 'app-safari-policy.js' in s:
+            raise SystemExit("E2E fixture still points to app-safari-policy.js, which is not copied into the fixture directory")
           open(p,"w",encoding="utf-8").write(s)
           p="e2e-site/app.js"
           s=open(p,encoding="utf-8").read()

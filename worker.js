@@ -377,7 +377,7 @@ async function probeResponse(request,q){
   const requestedReferer=q.get("r")||"";
   if(requestedUA)headers.set("User-Agent",requestedUA);
   if(requestedReferer)headers.set("Referer",requestedReferer);
-  let r=null,bodyText="",headStatus=0,getStatus=0;
+  let r=null,bodyText="",bodyBytes=0,headStatus=0,getStatus=0;
   try{r=await fetchWithTimeout(target,{method:"HEAD",headers},5000);headStatus=r.status}catch{}
   let finalUrl=r?.url||target,ct=(r?.headers.get("content-type")||"").toLowerCase();
   let type=detectMediaType(finalUrl,ct);
@@ -392,7 +392,7 @@ async function probeResponse(request,q){
       const reader=gr.body?.getReader();
       if(reader){
         const chunk=await reader.read();
-        if(chunk?.value)bodyText=new TextDecoder().decode(chunk.value.slice(0,4096));
+        if(chunk?.value){bodyBytes=chunk.value.byteLength;bodyText=new TextDecoder().decode(chunk.value.slice(0,4096));}
         try{await reader.cancel()}catch{}
       }
       type=detectMediaType(finalUrl,ct,bodyText);
@@ -402,7 +402,17 @@ async function probeResponse(request,q){
   }
   const status=r?.status||0;
   const bodyLower=String(bodyText||"").toLowerCase();
-  // Return only a coarse category; never echo upstream body, URLs or credentials.
+  // Return safe response fingerprints only; never echo upstream body, URLs or credentials.
+  const bodyTrim=String(bodyText||"").trimStart();
+  let bodyClass="empty";
+  if(bodyTrim){
+    if(/^<!doctype html|^<html\\b/i.test(bodyTrim))bodyClass="html";
+    else if(/^[{[]/.test(bodyTrim)){try{JSON.parse(bodyTrim);bodyClass="json"}catch{bodyClass="text-or-json"}}
+    else if(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/.test(bodyTrim.slice(0,256)))bodyClass="binary-or-control";
+    else bodyClass="plain-text";
+  }
+  let finalHost="";
+  try{finalHost=new URL(finalUrl).hostname}catch{}
   let errorHint="none";
   if(status===401)errorHint="unauthorized";
   else if(status===403){
@@ -419,7 +429,12 @@ async function probeResponse(request,q){
   else if(status===0)errorHint="network-or-timeout";
   return new Response(JSON.stringify({
     type,contentType:ct,status,headStatus,getStatus,errorHint,
-    serverType:r?.headers.get("server")||""
+    bodyClass,bodyBytes,finalHost,
+    serverType:r?.headers.get("server")||"",
+    viaPresent:!!r?.headers.get("via"),
+    cfRayPresent:!!r?.headers.get("cf-ray"),
+    wwwAuthenticatePresent:!!r?.headers.get("www-authenticate"),
+    retryAfter:r?.headers.get("retry-after")||""
   }),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*"}});
 }
 export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p.startsWith('/api/dash-resource/'))return dashResourceResponse(request,url);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};

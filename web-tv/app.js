@@ -873,9 +873,12 @@ function startByType(c,cand,url,kind,gen){
  else if(kind==='flv')startFlv(c,cand,url,gen);
  else if(kind==='mpegts')startMpegTs(c,cand,url,gen);
  else startDirect(c,cand,url,gen);
- var wait=kind==='hls'?8000:15000;
+ var isKnownSlow4k=kind==='hls'&&(/sctv4k/i.test(String((c&&c.name)||'')+' '+String((c&&c.id)||''))||/vietanhtv\.id\.vn/i.test(String(cand.resolvedUrl||cand.url||'')));
+ var wait=kind==='hls'?(isKnownSlow4k?45000:8000):15000;
  if(isAppleTouchDevice()&&kind==='hls'&&c&&c.candidates&&c.candidates.length>1)wait=5000;
  if(isAppleTouchDevice()&&kind==='dash'&&cand&&cand.drm)wait=30000;
+ // 4K TS chunks are much larger than ordinary TV segments; allow them to buffer.
+ if(isKnownSlow4k)wait=45000;
  S.watchdog=setTimeout(function(){
   if(S.generation!==gen||!S.player)return;
   S.watchdog=null;
@@ -959,18 +962,19 @@ function tryHlsJs(c,cand,url,gen){
   var h=new Hls({enableWorker:false,lowLatencyMode:false,maxBufferLength:30,maxMaxBufferLength:60,maxBufferHole:.5,startPosition:-1,manifestLoadingMaxRetry:4,fragLoadingMaxRetry:5,levelLoadingMaxRetry:5,backBufferLength:30,liveSyncDurationCount:3,liveMaxLatencyDurationCount:6});
   S.hls=h;
   h.on(Hls.Events.MEDIA_ATTACHED,function(){
-   if(gen!==S.generation||!S.player)return;
+   if(gen!==S.generation||!S.player||S.hls!==h)return;
    h.loadSource(url);
   });
   h.on(Hls.Events.MANIFEST_PARSED,function(){
-   if(gen!==S.generation||!S.player)return;
+   if(gen!==S.generation||!S.player||S.hls!==h)return;
    var p=v.play();
    if(p&&p.catch)p.catch(function(){
     try{v.muted=true;S.audioMutedByPolicy=true;var q=v.play();if(q&&q.catch)q.catch(function(){})}catch(e){}
    });
   });
   h.on(Hls.Events.ERROR,function(ev,data){
-   if(gen!==S.generation)return;
+   // Destroyed direct attempts can emit late errors during a newer proxy attempt.
+   if(gen!==S.generation||!S.player||S.hls!==h)return;
    if(S.debug)console.log('NM7 HLS',data&&data.type,data&&data.details,data&&data.response||'');
    var httpStatus=Number(data&&data.response&&(data.response.code||data.response.status)||data&&data.networkDetails&&data.networkDetails.status||0);
    // Do not wait for HLS.js retry backoff when an upstream explicitly rejects

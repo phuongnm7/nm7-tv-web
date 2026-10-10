@@ -63,6 +63,16 @@ async function main() {
     assert(seen.some(x => x.host === 'mag.example.test' && x.ua === nativeNm7Ua),
       'Stalker probe uses native NM7 Android User-Agent');
 
+    // A real upstream 403 should expose only a coarse reason, never body or credentials.
+    acceptedUa = customUa;
+    seen.length = 0;
+    q = new URLSearchParams({ u: stalkerUrl });
+    response = await worker.fetch(makeWorkerRequest('/api/probe?' + q.toString()), {});
+    const denied = await response.json();
+    assert.equal(denied.status, 403, 'probe retains the real upstream HTTP status');
+    assert.equal(denied.errorHint, 'upstream-access-policy', '403 body is classified without returning it');
+    assert.equal(JSON.stringify(denied).includes('SAFE_TEST'), false, 'probe response never exposes tokens');
+
     // An explicitly supplied per-channel User-Agent must override the fallback.
     acceptedUa = customUa;
     seen.length = 0;
@@ -94,6 +104,7 @@ async function main() {
       'non-Stalker requests retain existing UA');
 
     console.log('PASS: Stalker default UA matches native NM7 TV');
+    console.log('PASS: 403 probe returns safe coarse error classification');
     console.log('PASS: explicit per-channel UA overrides default');
     console.log('PASS: explicit playlist Cookie reaches upstream');
     console.log('PASS: non-Stalker UA behavior unchanged');

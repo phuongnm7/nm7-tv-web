@@ -1,0 +1,17 @@
+name = "nm7-tv-web-news-preview"
+main = "worker.js"
+compatibility_date = "2026-10-04"
+
+[assets]
+directory = "./web-tv"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+# Match the stable Worker bindings; this preview has its own Worker name.
+[[services]]
+binding = "PLAYLIST_SOURCE"
+service = "phuongnm7-playlist"
+
+[[services]]
+binding = "THETHAO_SOURCE"
+service = "thethaonm7"

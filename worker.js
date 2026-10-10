@@ -776,4 +776,118 @@ async function probeResponse(request,q){
     retryAfter:r?.headers.get("retry-after")||""
   }),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*"}});
 }
-export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env,q.get('refresh')==='1');if(p.startsWith('/api/dash-resource/'))return dashResourceResponse(request,url);if(p==='/api/source')return sourceResponse(q,env);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};
+
+const NEWS_SOURCES = {
+  highlights: {url:'https://www.24h.com.vn/video-highlight-c953.html', label:'HighLight 24h'},
+  onplus: {url:'https://onplus.com.vn/', label:'Video thể thao · ON Plus'},
+  replay: {url:'', label:'Xem lại · GetOut'}
+};
+// GetOut's BTV adapter reads the current base URL from this public text config.
+// Restrict the result to the provider hosts found in the APK so a changed remote
+// config cannot make the Worker fetch an arbitrary host.
+const GETOUT_BTV_CONFIG_URL = 'https://raw.githubusercontent.com/leeshin5757/getout/main/txt/btv';
+const GETOUT_BTV_ALLOWED_HOSTS = new Set(['bongplus.vip','www.bongplus.vip','bongtv.com','www.bongtv.com']);
+let getoutBtvBaseCache = {at:0, base:'https://bongplus.vip'};
+async function getGetOutBtvBase() {
+  const now = Date.now();
+  if (now - getoutBtvBaseCache.at < 300000 && getoutBtvBaseCache.base) return getoutBtvBaseCache.base;
+  try {
+    const configResponse = await fetch(GETOUT_BTV_CONFIG_URL, {
+      headers:{'User-Agent':'Mozilla/5.0 (compatible; NM7TV/1.0)','Accept':'text/plain'},
+      redirect:'follow', signal:AbortSignal.timeout(5000)
+    });
+    if (configResponse.ok) {
+      const raw = (await configResponse.text()).trim();
+      const parsed = new URL(raw);
+      if (parsed.protocol === 'https:' && GETOUT_BTV_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase()) && parsed.pathname === '/') {
+        getoutBtvBaseCache = {at:now,base:parsed.origin};
+        return parsed.origin;
+      }
+    }
+  } catch (_) {}
+  getoutBtvBaseCache.at = now;
+  return getoutBtvBaseCache.base || 'https://bongplus.vip';
+}
+const newsCache = new Map();
+async function newsResponse(url) {
+  const source = url.searchParams.get('source') || 'highlights';
+  const cfg = NEWS_SOURCES[source];
+  const headersOut = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,HEAD,OPTIONS','Access-Control-Allow-Headers':'Content-Type'};
+  if (!cfg) return new Response(JSON.stringify({error:'unknown source',items:[]}), {status:400,headers:headersOut});
+  const now = Date.now(), cached = newsCache.get(source);
+  if (cached && now-cached.at < 120000) return new Response(JSON.stringify(cached.data), {headers:{...headersOut,'Cache-Control':'public, max-age=60'}});
+  try {
+    const providerBase = source === 'replay' ? await getGetOutBtvBase() : '';
+    const sourceUrl = source === 'replay'
+      ? new URL('/gateway-api/sp/sports/anon/getReplay?pageNo=1&pageSize=30',providerBase).href
+      : cfg.url;
+    const upstream = await fetch(sourceUrl,{headers:{'User-Agent':'Mozilla/5.0 (compatible; NM7TV/1.0)','Accept':source === 'replay' ? 'application/json' : 'text/html,application/xhtml+xml'},redirect:'follow', signal:AbortSignal.timeout(9000)});
+    if (!upstream.ok) throw new Error('upstream-'+upstream.status);
+    if (source === 'replay') {
+      const payload = await upstream.json();
+      const candidates = [];
+      function collect(value, depth) {
+        if (!value || depth > 7) return;
+        if (Array.isArray(value)) { for (const item of value) collect(item, depth + 1); return; }
+        if (typeof value !== 'object') return;
+        const keys = Object.keys(value);
+        if (keys.some(k => /homeTeam|awayTeam|videos|roomId/i.test(k))) candidates.push(value);
+        for (const key of keys) if (value[key] && typeof value[key] === 'object') collect(value[key], depth + 1);
+      }
+      collect(payload, 0);
+      const items = [], seen = new Set();
+      for (const rec of candidates) {
+        const home = rec.homeTeam || rec.home || rec.homeName || rec.homeTeamName || {};
+        const away = rec.awayTeam || rec.away || rec.awayName || rec.awayTeamName || {};
+        const homeName = typeof home === 'string' ? home : (home.name || home.teamName || '');
+        const awayName = typeof away === 'string' ? away : (away.name || away.teamName || '');
+        const title = String(rec.title || rec.matchName || rec.name || (homeName && awayName ? homeName + ' - ' + awayName : '') || 'Video xem lại trận đấu').trim();
+        const videos = Array.isArray(rec.videos) ? rec.videos : [];
+        const videoCandidate = videos.map(v => v && (v.url || v.playUrl || v.videoUrl || v.link)).find(v => typeof v === 'string' && /^https:\/\//i.test(v)) || '';
+        const playbackUrl = /\.(m3u8|mp4)(?:$|[?#])/i.test(videoCandidate) ? videoCandidate : '';
+        const rawHref = rec.url || rec.detailUrl || rec.webUrl || rec.link || videoCandidate || '';
+        let href = '';
+        try { if (rawHref) { const parsed = new URL(String(rawHref), 'https://www.bongtv.com/'); if (parsed.protocol === 'http:' || parsed.protocol === 'https:') href = parsed.href; } } catch {}
+        if (!href || seen.has(href)) continue;
+        seen.add(href);
+        const homeLogo = typeof home === 'object' ? (home.logo || home.logoUrl || home.image || '') : '';
+        const awayLogo = typeof away === 'object' ? (away.logo || away.logoUrl || away.image || '') : '';
+        let image = '';
+        try { image = new URL(homeLogo || awayLogo, 'https://www.bongtv.com/').href; } catch {}
+        items.push({title, href, playbackUrl, image, source: 'Xem lại · GetOut', matchTime: rec.matchTime || rec.time || rec.startTime || ''});
+        if (items.length >= 40) break;
+      }
+      const data = {source, sourceUrl:'https://www.bongtv.com/', updatedAt:new Date().toISOString(), items};
+      newsCache.set(source,{at:now,data});
+      return new Response(JSON.stringify(data),{headers:{...headersOut,'Cache-Control':'public, max-age=60'}});
+    }
+    const html = await upstream.text();
+    const items=[], seen=new Set();
+    const anchors=html.match(/<a\b[^>]*>[\s\S]*?<\/a>/gi)||[];
+    for (const block of anchors) {
+      const hm=/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/i.exec(block);
+      if(!hm) continue;
+      let href; try{href=new URL(hm[1],cfg.url).href}catch{continue}
+      if(!/^https?:$/.test(new URL(href).protocol)||seen.has(href)||href===cfg.url)continue;
+      const im=/<img\b[^>]*>/i.exec(block);
+      let image='';
+      if(im){const sm=/(?:src|data-src|data-original)\s*=\s*["']([^"']+)["']/i.exec(im[0]);if(sm){try{image=new URL(sm[1],cfg.url).href}catch{}}}
+      let title='';
+      const tm=/\btitle\s*=\s*["']([^"']+)["']/i.exec(hm[0]);
+      if(tm) title=tm[1];
+      if(!title) title=block.replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'").replace(/\s+/g,' ').trim();
+      if(title.length<8||title.length>220)continue;
+      if(source==='highlights'&&!/video|highlight|bàn thắng|bong da|bóng đá|trận/i.test(href+' '+title))continue;
+      if(!image && !/video|highlight|match|tran|clip/i.test(href+' '+title))continue;
+      seen.add(href);items.push({title,href,image,source:cfg.label});
+      if(items.length>=40)break;
+    }
+    const data={source,sourceUrl:cfg.url,updatedAt:new Date().toISOString(),items};
+    newsCache.set(source,{at:now,data});
+    return new Response(JSON.stringify(data),{headers:{...headersOut,'Cache-Control':'public, max-age=60'}});
+  } catch (e) {
+    return new Response(JSON.stringify({source,sourceUrl:cfg.url,items:[],error:'Không lấy được danh sách từ nguồn. Hãy mở nguồn gốc hoặc thử lại.'}),{status:502,headers:{...headersOut,'Cache-Control':'no-store'}});
+  }
+}
+
+export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/news')return newsResponse(url);if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env,q.get('refresh')==='1');if(p.startsWith('/api/dash-resource/'))return dashResourceResponse(request,url);if(p==='/api/source')return sourceResponse(q,env);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};

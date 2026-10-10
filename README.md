@@ -135,3 +135,8 @@ Người dùng đã xác nhận bằng kiểm tra thực tế rằng nguồn Th�
 - [Quy định mốc ổn định](STABLE_BASELINE.md)
 - [Nhánh stable](https://github.com/phuongnm7/nm7-tv-web/tree/stable/nm7-tv-web-2026-10-09)
 - [Workflow Cloudflare gần nhất đã thành công](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38064641220)
+
+
+## Mục Bản tin (nhánh tính năng)
+
+Nhánh `feature/getout-ban-tin-20261010` bổ sung trang Bản tin độc lập tại `/web-tv/ban-tin.html`, với các nhóm Highlights 24h, video thể thao ON Plus và trang trận đấu BongTV. Danh sách được lấy qua endpoint giới hạn nguồn `/api/news`; khi chọn nội dung, NM7 mở trang video gốc trong trình xem nhúng và có nút mở nguồn nếu nhà cung cấp chặn iframe. Đây là bản tích hợp thử nghiệm, chưa triển khai production; cần xác minh khả năng nhúng và độ ổn định từng nguồn trên thiết bị đích.

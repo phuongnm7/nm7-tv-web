@@ -83,6 +83,33 @@ jobs:
           print('KNOWN_M3U_SOURCE_IMPORT_OK channels='+str(len(channels)))
           PY
 
+          echo "=== Direct upstream diagnostics (root and playlist paths) ==="
+          for path in "/" "/playlist.m3u" "/playlist.m3u8"; do
+            for ua_name in "nm7" "chrome"; do
+              if [ "$ua_name" = "nm7" ]; then
+                UA="NM7-TV-Web/1.0.69"
+              else
+                UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+              fi
+              url="https://thethaonm7.phuongnm7-iptv.workers.dev$path"
+              code="$(curl -sS -L --max-time 20 -A "$UA" -H 'Accept: application/vnd.apple.mpegurl,application/json,text/plain,*/*' -D /tmp/nm7-upstream-headers.txt -o /tmp/nm7-upstream-body.bin -w '%{http_code}' "$url" || true)"
+              ctype="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); v=$0} END{print v}' /tmp/nm7-upstream-headers.txt)"
+              bytes="$(wc -c < /tmp/nm7-upstream-body.bin 2>/dev/null || echo 0)"
+              kind="$(python3 - <<'PY'
+          from pathlib import Path
+          b=Path('/tmp/nm7-upstream-body.bin').read_bytes()[:1024].lstrip()
+          if b.startswith(b'#EXTM3U'): print('m3u')
+          elif b.startswith((b'{',b'[')): print('json')
+          elif b[:50].lower().startswith((b'<!doctype html',b'<html')): print('html')
+          elif len(b)>376 and b[0]==0x47 and b[188]==0x47 and b[376]==0x47: print('mpeg-ts')
+          elif not b: print('empty')
+          else: print('other')
+          PY
+          )"
+              echo "UPSTREAM_DIAG path=$path ua=$ua_name status=$code content_type=${ctype:-unknown} bytes=$bytes body_kind=$kind"
+            done
+          done
+
           TARGET_URL="https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"
           TARGET_ENCODED="$(encode_url "$TARGET_URL")"
           curl -sS --max-time 45 "$BASE/api/source?u=$TARGET_ENCODED" -o /tmp/nm7-source-target.json

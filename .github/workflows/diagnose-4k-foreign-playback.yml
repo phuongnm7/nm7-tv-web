@@ -278,7 +278,7 @@ jobs:
               )
               if is_stalker:
                   # Inspect the first response before redirects, without printing any token-bearing URL.
-                  manual_q = dict(q, manualRedirect="1")
+                  manual_q = dict(q, manualRedirect="1", rewriteHost="1")
                   manual_url = BASE + "/api/probe?" + urllib.parse.urlencode(manual_q)
                   manual_result = request(manual_url, {"User-Agent": UA}, limit=2000, timeout=10)
                   try:

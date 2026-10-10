@@ -421,7 +421,7 @@ function logoSource(c){
 }
 
 function renderMenu(){
- var labels=['⌂  Trang chính','▶  YouTube gốc · AdBlock','⌕  Tìm kiếm kênh','TV  Tất cả các kênh','▣  Truyền hình','⚽  Thể thao','★  Yêu thích','◷  Gần đây','+  Thêm nguồn','☷  Chỉnh sửa nguồn','↻  Tải lại nguồn'];
+ var labels=['⌂  Trang chính','▶  YouTube gốc · AdBlock','⌕  Tìm kiếm kênh','TV  Tất cả các kênh','▣  Truyền hình','⚽  Thể thao','★  Yêu thích','◷  Gần đây','+  Thêm nguồn','☷  Chỉnh sửa nguồn','↻  Tải lại nguồn','▣  Bản tin · Highlights / Xem lại'];
  var menu=$('sideList'),html='';
  for(var i=0;i<labels.length;i++)html+='<button class="menuBtn" type="button" tabindex="'+(i===S.menu?'0':'-1')+'" data-menu="'+i+'">'+labels[i]+'</button>';
  menu.innerHTML=html;
@@ -448,6 +448,7 @@ function selectMenu(){
  if(p===7){showSubset('recent');return}
  if(p===8){showAddSource();return}
  if(p===9){showSources();return}
+ if(p===11){location.href='/web-tv/ban-tin.html';return}
  if(p===10){
   closeMenu();
   if(S.source==='local-m3u'&&S.localM3uText){applyLocalM3U(S.localM3uText,S.localM3uName,'Đã tải lại tệp M3U · '+S.list.length+' kênh');return}

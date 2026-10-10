@@ -61,8 +61,9 @@ console.log('PASS: startup fallback and status text checks');
 // production diagnostics confirm the same children return HTTP 200 through the Worker proxy.
 for (const file of ['web-tv/app.js', 'web-tv/app-safari-policy.js']) {
   const source = require('node:fs').readFileSync(file, 'utf8');
-  assert.match(source, /vietanhtv\\\\\.id\\\\\.vn/i.test(String(cand.resolvedUrl\\|\\|cand.url\\|\\|['\"]['\"]\\)\\)return true/,
+  assert.ok(source.includes("if(/vietanhtv\\.id\\.vn/i.test(String(cand.resolvedUrl||cand.url||'')))return true;"),
     file + ': SCTV4K provider is configured to start through proxy first');
-  assert.ok(source.includes("var wait=kind==='hls'?(isKnownSlow4k?15000:8000):15000;") || source.includes('var wait=kind==="hls"?(isKnownSlow4k?15000:8000):15000;'),
+  assert.ok(source.includes("var wait=kind==='hls'?(isKnownSlow4k?15000:8000):15000;") ||
+    source.includes('var wait=kind==="hls"?(isKnownSlow4k?15000:8000):15000;'),
     file + ': known 4K startup timeout is capped at 15 seconds, not 45 seconds');
 }

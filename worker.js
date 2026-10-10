@@ -341,7 +341,13 @@ function detectMediaType(url,contentType,bodyText=""){
 async function probeResponse(request,q){
   const target=q.get("u");
   if(!isHttp(target))return new Response(JSON.stringify({type:"http",error:"bad url"}),{status:400,headers:{"Content-Type":"application/json"}});
+  // Mirror playback request metadata (UA, Referer and playlist headers) so the
+  // diagnostic tests the same request shape as the stream proxy.
   const headers=headersFromQuery(request,q);
+  const requestedUA=q.get("ua")||"";
+  const requestedReferer=q.get("r")||"";
+  if(requestedUA)headers.set("User-Agent",requestedUA);
+  if(requestedReferer)headers.set("Referer",requestedReferer);
   let r=null,bodyText="";
   try{r=await fetchWithTimeout(target,{method:"HEAD",headers},5000)}catch{}
   let finalUrl=r?.url||target,ct=(r?.headers.get("content-type")||"").toLowerCase();

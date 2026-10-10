@@ -79,7 +79,7 @@ function dbg(s){
  dbg.lines.push(new Date().toLocaleTimeString()+' '+String(s||''));
  if(dbg.lines.length>120)dbg.lines.splice(0,dbg.lines.length-120);
  d.style.display='block';
- d.textContent=dbg.lines.join('\\n');
+ d.textContent=dbg.lines.join('\n');
  d.scrollTop=d.scrollHeight;
 }
 function toast(s){var t=$('toast');t.textContent=s;t.className='show';clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.className=''},2600)}
@@ -818,7 +818,7 @@ function nextCandidate(reason){
     setTimeout(tryCandidate,120);return;
    }
   }
-  setStatus('Không thể ổn định DRM trên Safari\\n'+c.name);dbg(String(reason||'Apple DRM failure'));return;
+  setStatus('Không thể ổn định DRM trên Safari\n'+c.name);dbg(String(reason||'Apple DRM failure'));return;
  }
  if(S.attemptStep<1){
   S.attemptStep++;
@@ -833,7 +833,7 @@ function nextCandidate(reason){
   showSafariOfficialFallback(c,S.generation);
   return;
  }
- setStatus('Không phát được '+c.name+'\\nĐã thử '+(c.candidates?c.candidates.length:0)+' nguồn');dbg(reason||'playback failed');
+ setStatus('Không phát được '+c.name+'\nĐã thử '+(c.candidates?c.candidates.length:0)+' nguồn.\nLỗi cuối: '+String(reason||'Không rõ').slice(0,160));dbg(reason||'playback failed');
 }
 
 function tryCandidate(){
@@ -842,10 +842,10 @@ function tryCandidate(){
  clearPlayers();kind=classify(cand);
  S.proxyAttempt=attemptUsesProxy(cand,kind);
  var sourceUrl=cand.resolvedUrl||cand.url,url=makeProxy(sourceUrl,cand);
- setStatus('Đang mở '+c.name+'\\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
+ setStatus('Đang mở '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
  v.style.display='block';v.autoplay=true;v.controls=false;v.muted=false;v.defaultMuted=false;v.volume=1;
  if(kind==='rtsp'||kind==='rtmp'||kind==='udp'||kind==='srt'){
-  setStatus('Web Browser không phát trực tiếp '+kind.toUpperCase()+'.\\nNguồn này cần máy chủ chuyển đổi sang HLS/DASH.');return
+  setStatus('Web Browser không phát trực tiếp '+kind.toUpperCase()+'.\nNguồn này cần máy chủ chuyển đổi sang HLS/DASH.');return
  }
  if(kind==='http'&&!cand.mime&&!cand.type){probeCandidate(c,cand,generation);return}
  startByType(c,cand,url,kind,generation);
@@ -859,7 +859,18 @@ function startByType(c,cand,url,kind,gen){
  var wait=15000;
  if(isAppleTouchDevice()&&kind==='hls'&&c&&c.candidates&&c.candidates.length>1)wait=5000;
  if(isAppleTouchDevice()&&kind==='dash'&&cand&&cand.drm)wait=30000;
- S.watchdog=setTimeout(function(){if(S.generation!==gen||!S.player)return;if($('video').readyState<2||$('video').paused)nextCandidate('Timeout phát '+Math.round(wait/1000)+'s')},wait)
+ S.watchdog=setTimeout(function(){
+  if(S.generation!==gen||!S.player)return;
+  S.watchdog=null;
+  var status=$('status'),statusText=String(status&&status.textContent||'');
+  var waitingForPlayback=!!(status&&status.style.display!=='none'&&statusText.trim());
+  // Safari's explicit external-service fallback is intentional, not a stalled inline player.
+  if(waitingForPlayback&&/^Safari không phát được DASH\\/ClearKey nội tuyến\\./i.test(statusText))return;
+  // readyState can be >= 2 even when no decoded frame ever starts. Use the visible
+  // startup status as the primary signal, and retry direct -> proxy if still waiting.
+  if(waitingForPlayback||$('video').readyState<2||$('video').paused)
+   nextCandidate('Timeout phát '+Math.round(wait/1000)+'s · chưa xác nhận video chạy');
+ },wait)
 }
 function probeCandidate(c,cand,gen){
  setStatus('Đang xác định định dạng '+c.name+'…');
@@ -1073,7 +1084,7 @@ function retryDrmInPlace(c,cand,url,p,gen,reason){
    Promise.resolve(p.retryStreaming(.15)).then(function(ok){
     if(gen!==S.generation||!S.player||S.shaka!==p)return;
     if(ok){
-     setStatus('Đang tự khôi phục DRM · lần '+n+'/3\\n'+c.name);
+     setStatus('Đang tự khôi phục DRM · lần '+n+'/3\n'+c.name);
      var v=$('video');var x=v.play();if(x&&x.catch)x.catch(function(){});
     }else if(n>=3){
      hardRestartDrm(c,cand,gen,'retryStreaming=false');
@@ -1095,7 +1106,7 @@ function eCode(e){return e&&e.code?e.code:(e&&e.detail&&e.detail.code?e.detail.c
 function hardRestartDrm(c,cand,gen,reason){
  if(gen!==S.generation||!S.player||!isDashDrmCandidate(cand))return false;
  if(S.drmHardRecoveryCount>=2){
-  setStatus('Không thể ổn định DRM trực tiếp trên Safari\\n'+c.name);
+  setStatus('Không thể ổn định DRM trực tiếp trên Safari\n'+c.name);
   dbg('DRM hard recovery exhausted '+String(reason||''));
   return false;
  }
@@ -1104,7 +1115,7 @@ function hardRestartDrm(c,cand,gen,reason){
  var sourceUrl=cand.resolvedUrl||cand.url;
  clearPlayers();
  S.proxyAttempt=false;
- setStatus('Đang khởi tạo lại DRM trực tiếp · lần '+n+'/2\\n'+c.name);
+ setStatus('Đang khởi tạo lại DRM trực tiếp · lần '+n+'/2\n'+c.name);
  setTimeout(function(){
   if(gen!==S.generation||!S.player)return;
   startShaka(c,cand,sourceUrl,browserDrm(cand),gen);
@@ -1240,7 +1251,7 @@ function startShaka(c,cand,url,drm,gen){
      return;
     }
     if(hardRestartDrm(c,cand,gen,'fatal DRM/manifest '+code))return;
-    setStatus('DRM lỗi '+code+'\\n'+c.name);
+    setStatus('DRM lỗi '+code+'\n'+c.name);
     return;
    }
    nextCandidate('DASH/DRM lỗi '+code);
@@ -1255,7 +1266,7 @@ function startShaka(c,cand,url,drm,gen){
    if(appleDrm){
     if(transientDrmError(e)&&retryDrmInPlace(c,cand,url,p,gen,e))return;
     if(hardRestartDrm(c,cand,gen,'load failure '+(e.code||'')))return;
-    setStatus('DRM không khởi tạo được '+(e.code||'')+'\\n'+c.name);
+    setStatus('DRM không khởi tạo được '+(e.code||'')+'\n'+c.name);
     return;
    }
    nextCandidate('DASH/DRM lỗi '+(e.code||''));
@@ -1340,7 +1351,7 @@ function startDashJs(c,cand,url,gen){
    modifyRequestHeader:function(xhr){if(cand.ua)try{xhr.setRequestHeader('User-Agent',cand.ua)}catch(e){}if(cand.ref)try{xhr.setRequestHeader('Referer',cand.ref)}catch(e){}return xhr}
   }});
   p.on(dashjs.MediaPlayer.events.ERROR,function(e){if(gen===S.generation)nextCandidate('DASH '+((e||{}).error||{}).message||'lỗi')});
-  p.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED,function(){markPlaying(gen);var x=$('video').play();if(x&&x.catch)x.catch(function(){})});
+  p.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED,function(){var x=$('video').play();if(x&&x.catch)x.catch(function(){})});
   p.initialize($('video'),url,true)
  }catch(e){nextCandidate('dash.js khởi tạo lỗi')}
 }
@@ -1814,7 +1825,7 @@ function remoteCode(e){
 }
 
 $('video').addEventListener('playing',function(){markPlaying(S.generation)});
-$('video').addEventListener('canplay',function(){if(S.player)markPlaying(S.generation)});
+$('video').addEventListener('canplay',function(){var v=$('video');if(S.player&&!v.paused&&v.currentTime>0.1)markPlaying(S.generation)});
 $('video').addEventListener('error',function(){
  if(!S.player)return;
  var cand=getCandidate(),v=$('video'),ve=v.error;

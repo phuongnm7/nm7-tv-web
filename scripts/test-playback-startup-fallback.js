@@ -56,7 +56,11 @@ for (const file of files) {
   assert.ok(source.includes('function scheduleCandidateRetry()'),
     file + ': simultaneous video-element and HLS.js errors are serialized');
   assert.ok(source.includes('!(proxyFirst&&S.proxyAttempt)'),
-    file + ': failed proxy-first providers are not retried through the same proxy');
+    file + ': non-Stalker proxy-first providers are not retried through the same proxy');
+  assert.ok(source.includes('function isStalkerTsCandidate(cand,kind)') &&
+    source.includes('var allowStalkerDirectFallback=isStalkerTsCandidate(cand,kind);') &&
+    source.includes('||allowStalkerDirectFallback'),
+    file + ': Stalker MPEG-TS tries the direct endpoint once after proxy failure');
   assert.ok(source.includes('if(S.hls)return;'),
     file + ': generic video error listener does not race HLS.js diagnostics');
   assert.ok(source.includes('startFragPrefetch:true'),

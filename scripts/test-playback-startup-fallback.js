@@ -20,10 +20,10 @@ for (const file of files) {
     file + ': does not wait for the 15-second watchdog on explicit HTTP failures');
   assert.match(source, /if\(data&&!S\.proxyAttempt&&data\.type===Hls\.ErrorTypes\.NETWORK_ERROR\)/,
     file + ': direct HLS CORS/network failures switch to proxy before retry backoff');
-  assert.match(source, /var wait=kind===\'hls\'\?\(isKnownSlow4k\?45000:8000\):15000/,
+  assert.match(source, /var wait=kind===\'hls\'\?\(isKnownSlow4k\?15000:8000\):15000/,
     file + ': regular HLS remains short while known 4K uses a longer timeout');
-  assert.match(source, /if\(isKnownSlow4k\)wait=45000/,
-    file + ': SCTV4K receives enough buffering time for multi-megabyte TS chunks');
+  assert.match(source, /if\(isKnownSlow4k\)wait=15000/,
+    file + ': SCTV4K does not wait 45 seconds before fallback');
   assert.match(source, /S\.hls!==h/,
     file + ': late events from destroyed HLS instances cannot cancel the current attempt');
   assert.match(source, /thử '\+\(nextViaProxy\?'proxy':'trực tiếp'\)/,
@@ -56,3 +56,11 @@ for (const file of files) {
 }
 
 console.log('PASS: startup fallback and status text checks');
+
+// Regression: SCTV4K's direct manifest is valid but its direct TS children return HTTP 400.
+for (const file of ['web-tv/app.js', 'web-tv/app-safari-policy.js']) {
+  const source = require('node:fs').readFileSync(file, 'utf8');
+  assert.ok(source.includes("if(/vietanhtv\\.id\\.vn/i.test(String(cand.resolvedUrl||cand.url||'')))return true;"),
+    file + ': SCTV4K provider is configured to start through proxy first');
+  assert.ok(source.includes("var wait=kind==='hls'?(isKnownSlow4k?15000:8000):15000;"),
+    file + ': known 4K startup timeout is capped at 15 seconds, not 45 seconds');}

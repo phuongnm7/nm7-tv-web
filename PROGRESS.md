@@ -492,3 +492,10 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Web Browser Validation #38024485612 PASS; Browser E2E #38024485476 PASS trên fixture (manifest và segment trả 200, remote navigation hoạt động). Fixture/CI không xác nhận giải mã HEVC của stream thật.
 - **Cần người dùng thử lại trên thiết bị sau Deploy #448** tại `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`; 45 giây là timeout dự phòng chứ không phải trì hoãn chủ động.
 - Không thay playlist mặc định, không chỉnh NM7 Mobile hoặc NM7 TV Android.
+
+## 2026-10-10 — SCTV4K proxy-first correction
+
+- Confirmed direct SCTV4K manifest returns HTTP 200 but direct TS child requests return HTTP 400.
+- Marked `vietanhtv.id.vn` as `forceProxy: true` in Worker playlist parsing and proxy-first in both web player entrypoints.
+- Capped known 4K startup watchdog at 15 seconds instead of 45; ordinary HLS remains 8 seconds. Updated cache-buster.
+- Added regression test `scripts/test-sctv4k-proxy-preference.js`. DAZN is absent from server presets 1/2 and sports playlist; need the exact custom M3U entry to reproduce its upstream. No default URLs changed.

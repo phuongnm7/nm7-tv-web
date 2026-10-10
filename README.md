@@ -377,3 +377,11 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Web Browser Validation PASS: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024485612. Browser E2E PASS: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024485476. E2E xác minh UI/remote và tải manifest/segment của fixture; môi trường CI không có decoder H.264 nên không xác nhận giải mã HEVC của kênh thật.
 - **Chưa có xác nhận phát thành công trên thiết bị người dùng sau Deploy #448.** Hãy thử lại tại `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`; timeout 45 giây là giới hạn dự phòng, không phải thời gian chờ bắt buộc. Khi video phát được, watchdog sẽ bị hủy ngay.
 - Chỉ thay đổi NM7 TV Web. Không thay URL playlist mặc định, không sửa NM7 Mobile/Android.
+
+### 2026-10-10 — SCTV4K proxy-first correction
+
+- Live Cloudflare diagnostic: the SCTV4K manifest at `vietanhtv.id.vn` responds HTTP 200 directly, but direct child TS segment requests return HTTP 400.
+- The Worker parser now marks this provider `forceProxy: true`; both web player entrypoints start it through the same-origin Cloudflare proxy first.
+- Known SCTV4K startup watchdog is bounded at 15 seconds (not 45 seconds); normal HLS remains 8 seconds. Cache-buster updated.
+- Regression test: `scripts/test-sctv4k-proxy-preference.js` checks that this provider is proxy-first without changing unrelated HLS.
+- DAZN was not present in server-served presets 1/2 or sports playlist. Its local/custom source entry is not visible to server diagnostics, so its exact upstream still requires the exact M3U line/URL.

@@ -309,3 +309,28 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Phạm vi chỉ NM7 TV Web. Không sửa NM7 Mobile/Android hoặc đổi URL playlist.
 - Giới hạn kiểm thử: Playwright browser E2E cho HLS fixture vẫn fail ở `hls.js bufferAddCodecError` trên runner CI; regression test proxy nhị phân và syntax/regression suite đều PASS. Cần tiếp tục xác minh phát trực tiếp trên trình duyệt/thiết bị người dùng.
 - Kênh `|UK| DAZN PPV FHD` chưa có trong playlist mặc định 1, mặc định 2 hoặc playlist Thể thao; cần entry M3U/URL của nguồn tùy chỉnh để xác định đúng kênh này.
+
+## 2026-10-10 — Vòng sửa tiếp theo theo video SCTV4K và nguồn kênh quốc tế
+
+### SCTV4K chờ 15 giây mới phát
+
+- Video 224587 cho thấy player khởi chạy nguồn trực tiếp, giữ màn hình chờ, đến watchdog 15 giây mới chuyển qua proxy; sau khi proxy tải media thì hình mới xuất hiện.
+- Nguyên nhân trong logic cũ: lỗi HLS ở tầng mạng/CORS có thể bị HLS.js retry/backoff thay vì chuyển proxy ngay; watchdog chung là 15 giây.
+- Sửa ở app.js và app-safari-policy.js: khi HLS phát sinh lỗi mạng trực tiếp hoặc HTTP 4xx/5xx thì chuyển sang đường còn lại ngay, không chờ hết watchdog; timeout khởi động HLS giảm xuống 8 giây.
+- Cập nhật query cache-buster trong index.html để trình duyệt tải player mới.
+
+### Kênh từ nguồn M3U người dùng thêm vào không phát
+
+- Video 224588 cho thấy kênh quốc tế ban đầu hiện “Đang xác định định dạng”, sau đó thử proxy và kết thúc “Video error”.
+- Probe cũ chỉ dùng HEAD. Một số nhà cung cấp chặn HEAD hoặc trả Content-Type không hữu ích; player vì thế có thể nhận nhầm link HLS thành URL video HTTP thường.
+- Worker /api/probe hiện dùng User-Agent, Referer và header tùy chỉnh của candidate; nếu HEAD không dùng được hoặc không xác định được loại stream, thử GET Range có giới hạn và nhận diện HLS/DASH từ Content-Type, phần mở rộng hoặc phần đầu manifest.
+- Cả parser M3U trong Worker và player hiện đọc tag #EXTHTTP JSON. User-Agent, Referer/Referrer, Origin và header bổ sung được giữ trong candidate để tiếp tục gửi cho manifest/segment qua proxy.
+- DASH MPD khi phát qua proxy hiện viết BaseURL và segment URL tuyệt đối qua endpoint cùng miền /api/dash-resource; endpoint giải quyết URL upstream, giữ header tùy chỉnh và trả media segment dạng nhị phân. Điều này tránh để segment DASH rời khỏi proxy khi nhà cung cấp yêu cầu Referer/Origin/User-Agent.
+
+### Kiểm thử
+
+- Thêm scripts/test-custom-m3u-headers-probe.js: kiểm tra EXTHTTP được phân tích, HEAD bị từ chối thì GET Range nhận diện được HLS và các header được truyền.
+- Thêm scripts/test-worker-dash-proxy.js: kiểm tra BaseURL/SegmentURL DASH được viết lại cùng miền, giữ nguyên bytes media và gửi custom headers.
+- Mở rộng scripts/test-playback-startup-fallback.js để kiểm tra chuyển proxy HLS ngay, timeout HLS ngắn hơn và parser M3U cục bộ.
+- Regression suite chạy trên nhánh fix/fast-hls-fallback-custom-m3u-headers-20261010. Không thay URL playlist mặc định; không sửa NM7 Mobile hoặc NM7 TV Android.
+- Ghi chú E2E: runner Playwright hiện không có decoder H.264 tích hợp (MediaSource.isTypeSupported trả false). Bài E2E được chỉnh để kiểm tra việc tải manifest/segment HTTP 200 trong môi trường thiếu codec, và vẫn buộc playback thật nếu codec H.264 có sẵn.

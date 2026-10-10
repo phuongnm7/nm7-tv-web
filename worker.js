@@ -42,14 +42,15 @@ function enrichChannels(channels){
   return out
 }
 function parseM3U(t,base=''){
-  const lines=String(t||'').replace(/^\uFEFF/,'').split(/\r?\n/),out=[];let m=null,ua='',ref='',origin='',manifestType='',licenseType='',licenseKey='';
+  const lines=String(t||'').replace(/^\uFEFF/,'').split(/\r?\n/),out=[];let m=null,ua='',ref='',origin='',extraHeaders={},manifestType='',licenseType='',licenseKey='';
   const finish=()=>{if(m&&m.candidates.length)out.push(m);m=null};
   for(const raw of lines){
     const l=raw.trim();if(!l)continue;
-    if(l.startsWith('#EXTINF:')){finish();const p=l.indexOf(','),h=p<0?l:l.slice(0,p);m={name:p<0?'Kênh':l.slice(p+1).trim(),group:(/group-title="([^"]*)"/i.exec(h)||[])[1]||'Khác',logo:(/tvg-logo="([^"]*)"/i.exec(h)||[])[1]||'',id:(/tvg-id="([^"]*)"/i.exec(h)||[])[1]||'',candidates:[]};ua='';ref='';origin='';manifestType='';licenseType='';licenseKey=''}
+    if(l.startsWith('#EXTINF:')){finish();const p=l.indexOf(','),h=p<0?l:l.slice(0,p);m={name:p<0?'Kênh':l.slice(p+1).trim(),group:(/group-title="([^"]*)"/i.exec(h)||[])[1]||'Khác',logo:(/tvg-logo="([^"]*)"/i.exec(h)||[])[1]||'',id:(/tvg-id="([^"]*)"/i.exec(h)||[])[1]||'',candidates:[]};ua='';ref='';origin='';extraHeaders={};manifestType='';licenseType='';licenseKey=''}
     else if(m&&l.startsWith('#EXTVLCOPT:')){const um=/http-user-agent=(?:"([^"]+)"|([^\s]+))/i.exec(l),rm=/(?:http-referrer|http-referer)=(?:"([^"]+)"|([^\s]+))/i.exec(l),om=/http-origin=(?:"([^"]+)"|([^\s]+))/i.exec(l);if(um)ua=um[1]||um[2];if(rm)ref=rm[1]||rm[2];if(om)origin=om[1]||om[2]}
+    else if(m&&l.startsWith('#EXTHTTP:')){try{const parsed=JSON.parse(l.slice(l.indexOf(':')+1).trim());if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){for(const [k,v] of Object.entries(parsed)){if(typeof v!=='string'||!v.trim())continue;const lk=String(k).toLowerCase();if(lk==='user-agent')ua=v;else if(lk==='referer'||lk==='referrer')ref=v;else if(lk==='origin')origin=v;else extraHeaders[k]=v}}}catch{}}
     else if(m&&l.startsWith('#KODIPROP:')){const mt=/inputstream\.adaptive\.manifest_type=(.+)/i.exec(l),lt=/inputstream\.adaptive\.license_type=(.+)/i.exec(l),lk=/inputstream\.adaptive\.license_key=(.+)/i.exec(l);if(mt)manifestType=mt[1].trim();if(lt)licenseType=lt[1].trim();if(lk)licenseKey=lk[1].trim()}
-    else if(m&&!l.startsWith('#')&&/^(https?|rtsp|rtmp|udp|srt|rtp):/i.test(l)){const ps=l.split('|');let r=ref,u=ua,o=origin;for(let i=1;i<ps.length;i++){const z=ps[i],eq=z.indexOf('=');if(eq<0)continue;const k=z.slice(0,eq),v=z.slice(eq+1);if(/^referer(?:er)?$/i.test(k))r=v;if(/^http-user-agent$/i.test(k))u=v;if(/^origin$/i.test(k))o=v}const lm=manifestType.toLowerCase();m.candidates.push({url:safeUrl(ps[0],base),ref:r,ua:u,headers:o?{Origin:o}:{},type:lm==='mpd'?'dash':lm==='hls'?'hls':'',dash:lm==='mpd',hls:lm==='hls'||/\.(m3u8|m3u)(?:$|[?#])/i.test(ps[0])||/playlist|index\.m3u|manifest/i.test(ps[0]),drm:licenseType&&licenseKey?{type:licenseType,key:licenseKey}:null})}
+    else if(m&&!l.startsWith('#')&&/^(https?|rtsp|rtmp|udp|srt|rtp):/i.test(l)){const ps=l.split('|');let r=ref,u=ua,o=origin;for(let i=1;i<ps.length;i++){const z=ps[i],eq=z.indexOf('=');if(eq<0)continue;const k=z.slice(0,eq),v=z.slice(eq+1);if(/^referer(?:er)?$/i.test(k))r=v;if(/^http-user-agent$/i.test(k))u=v;if(/^origin$/i.test(k))o=v}const lm=manifestType.toLowerCase();m.candidates.push({url:safeUrl(ps[0],base),ref:r,ua:u,headers:{...extraHeaders,...(o?{Origin:o}:{})},type:lm==='mpd'?'dash':lm==='hls'?'hls':'',dash:lm==='mpd',hls:lm==='hls'||/\.(m3u8|m3u)(?:$|[?#])/i.test(ps[0])||/playlist|index\.m3u|manifest/i.test(ps[0]),drm:licenseType&&licenseKey?{type:licenseType,key:licenseKey}:null})}
   }
   finish();
   const merged=[],byKey=new Map();
@@ -60,16 +61,91 @@ function parseM3U(t,base=''){
 function headersFromQuery(req,q){const h=new Headers();h.set('User-Agent',q.get('ua')||req.headers.get('user-agent')||'NM7-TV-Web/1.0.69');if(q.get('r'))h.set('Referer',q.get('r'));for(const k of ['range','accept','accept-language','origin','if-none-match','if-modified-since']){const v=req.headers.get(k);if(v)h.set(k,v)}try{const extra=JSON.parse(q.get('h')||'{}');for(const [k,v] of Object.entries(extra||{})){const lk=k.toLowerCase();if(['host','connection','content-length','cookie','user-agent','referer'].includes(lk))continue;if(typeof v==='string'&&v.length<4000)h.set(k,v)}}catch{}return h}
 function apiUrl(path,u,q){let x=path+'?u='+encodeURIComponent(u);for(const k of ['r','ua','h']){const v=q.get(k)||'';if(v)x+='&'+k+'='+encodeURIComponent(v)}return x}
 function rewriteHls(text,finalUrl,q){const px=u=>{try{const abs=safeUrl(u,finalUrl);if(/^data:|^blob:/i.test(abs))return u;return apiUrl('/api/stream',abs,q)}catch{return u}};text=String(text||'').replace(/URI\s*=\s*"([^"]+)"/gi,(m,u)=>'URI="'+px(u)+'"');const lines=text.split(/\r?\n/);for(let i=0;i<lines.length;i++){const z=lines[i].trim();if(z&&!z.startsWith('#')&&!/^data:|^blob:/i.test(z))lines[i]=px(z)}return lines.join('\n')}
-function rewriteDash(text,finalUrl){
+function encodeDashContext(value){
+  const bytes=new TextEncoder().encode(JSON.stringify(value));
+  let binary='';
+  for(let i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decodeDashContext(token){
+  const s=String(token||'').replace(/-/g,'+').replace(/_/g,'/');
+  const binary=atob(s+'='.repeat((4-s.length%4)%4));
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function dashProxyBase(base,q,origin){
+  const payload={
+    base:String(base||''),
+    r:q.get('r')||'',
+    ua:q.get('ua')||'',
+    h:q.get('h')||''
+  };
+  return origin+'/api/dash-resource/'+encodeDashContext(payload)+'/';
+}
+function proxyAbsoluteDashUri(value,base,q,origin){
+  // Protect DASH template tokens (for example $Number%05d$) while resolving URLs.
+  const tokens=[];
+  const protectedValue=String(value||'').replace(/\$[^$]+\$/g,function(token){
+    const marker='NM7DASHTEMPLATE'+tokens.length+'X';
+    tokens.push(token);return marker;
+  });
+  let resolved;
+  try{resolved=new URL(protectedValue,base)}catch{return value}
+  const path=resolved.pathname||'/';
+  const slash=path.lastIndexOf('/');
+  const directory=resolved.origin+path.slice(0,slash+1);
+  let leaf=path.slice(slash+1)+(resolved.search||'')+(resolved.hash||'');
+  leaf=leaf.replace(/NM7DASHTEMPLATE(\d+)X/g,function(_,n){return tokens[Number(n)]||''});
+  return dashProxyBase(directory,q,origin)+leaf;
+}
+function rewriteDash(text,finalUrl,q,origin){
   text=String(text||'');
-  const base=safeUrl('./',finalUrl);
+  q=q||new URLSearchParams();
+  origin=origin||'https://nm7-tv-web.phuongnm7-iptv.workers.dev';
+  let sourceBase=safeUrl('./',finalUrl);
+  const baseMatch=/<BaseURL\b[^>]*>([\s\S]*?)<\/BaseURL>/i.exec(text);
+  if(baseMatch&&baseMatch[1].trim()){
+    sourceBase=safeUrl(baseMatch[1].trim(),finalUrl);
+    if(!sourceBase.endsWith('/'))sourceBase+='/';
+  }
+  const proxyBase=dashProxyBase(sourceBase,q,origin);
+  // Absolute or root-relative SegmentTemplate/SegmentURL resources need their own
+  // upstream base context; relative resources inherit the proxied BaseURL above.
+  text=text.replace(/\b(media|initialization|sourceURL|href)\s*=\s*"([^"]+)"/gi,function(m,attr,value){
+    const v=String(value||'').trim();
+    if(/^https?:\/\//i.test(v)||v.startsWith('/')){
+      return attr+'="'+proxyAbsoluteDashUri(v,sourceBase,q,origin)+'"';
+    }
+    return m;
+  });
   if(/<BaseURL\b[^>]*\/\s*>/i.test(text)){
-    return text.replace(/<BaseURL\b[^>]*\/\s*>/i,'<BaseURL>'+base+'</BaseURL>');
+    return text.replace(/<BaseURL\b[^>]*\/\s*>/i,'<BaseURL>'+proxyBase+'</BaseURL>');
   }
   if(/<BaseURL\b[^>]*>[\s\S]*?<\/BaseURL>/i.test(text)){
-    return text.replace(/<BaseURL\b[^>]*>[\s\S]*?<\/BaseURL>/i,'<BaseURL>'+base+'</BaseURL>');
+    return text.replace(/<BaseURL\b[^>]*>[\s\S]*?<\/BaseURL>/i,'<BaseURL>'+proxyBase+'</BaseURL>');
   }
-  return text.replace(/(<MPD\b[^>]*>)/i,'$1<BaseURL>'+base+'</BaseURL>');
+  return text.replace(/(<MPD\b[^>]*>)/i,'$1<BaseURL>'+proxyBase+'</BaseURL>');
+}
+async function dashResourceResponse(request,url){
+  const prefix='/api/dash-resource/';
+  if(!url.pathname.startsWith(prefix))return new Response('bad url',{status:400});
+  const rest=url.pathname.slice(prefix.length);
+  const slash=rest.indexOf('/');
+  if(slash<1)return new Response('bad dash resource path',{status:400});
+  const token=rest.slice(0,slash),resourcePath=rest.slice(slash+1);
+  let context;
+  try{context=decodeDashContext(token)}catch{return new Response('bad dash context',{status:400})}
+  if(!context||!isHttp(context.base))return new Response('bad dash base',{status:400});
+  let target;
+  try{target=new URL(resourcePath,context.base)}
+  catch{return new Response('bad dash resource',{status:400})}
+  url.searchParams.forEach((value,key)=>target.searchParams.append(key,value));
+  const q=new URLSearchParams({u:target.toString()});
+  if(context.r)q.set('r',context.r);
+  if(context.ua)q.set('ua',context.ua);
+  if(context.h)q.set('h',context.h);
+  return streamResponse(request,q);
 }
 function cors(h){h.set('Access-Control-Allow-Origin','*');h.set('Access-Control-Allow-Methods','GET,HEAD,POST,OPTIONS');h.set('Access-Control-Allow-Headers','Range,Accept,Content-Type,Origin,Referer,User-Agent,X-Requested-With');h.set('Access-Control-Expose-Headers','Content-Length,Content-Range,Accept-Ranges,Content-Type,ETag');return h}
 async function fetchWithTimeout(url,init={},ms=9000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{return await fetch(url,{...init,signal:c.signal,redirect:'follow',cache:'no-store'})}finally{clearTimeout(t)}}
@@ -139,7 +215,7 @@ async function streamResponse(request,q){
   if(looksDash&&r.ok){
     const body=await r.text();
     h.set('Content-Type','application/dash+xml; charset=utf-8');
-    return new Response(rewriteDash(body,finalUrl),{status:r.status,headers:h});
+    return new Response(rewriteDash(body,finalUrl,q,new URL(request.url).origin),{status:r.status,headers:h});
   }
   if(!h.get('Content-Type')){
     const low=finalUrl.toLowerCase();
@@ -178,5 +254,45 @@ async function sourceResponse(q){
     return new Response(JSON.stringify({channels:[],source:'custom',error:String(e?.message||e)}),{status:502,headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
   }
 }
-async function probeResponse(q){const u=q.get('u');if(!isHttp(u))return new Response(JSON.stringify({type:'http',error:'bad url'}),{status:400,headers:{'Content-Type':'application/json'}});const h=new Headers({'User-Agent':q.get('ua')||'NM7-TV-Web/1.0.69'});if(q.get('r'))h.set('Referer',q.get('r'));try{const r=await fetch(u,{method:'HEAD',headers:h,redirect:'follow',cache:'no-store'}).catch(()=>null),finalUrl=r?.url||u,ct=(r?.headers.get('content-type')||'').toLowerCase();let type='http';if(ct.includes('dash+xml')||/\.mpd(?:$|[?#])/i.test(finalUrl))type='dash';else if(ct.includes('mpegurl')||/\.(m3u8|m3u)(?:$|[?#])/i.test(finalUrl))type='hls';else if(ct.includes('flv')||/\.flv(?:$|[?#])/i.test(finalUrl))type='flv';else if(ct.includes('mp2t')||/\.ts(?:$|[?#])/i.test(finalUrl))type='mpegts';else if(ct.includes('video/mp4')||/\.mp4(?:$|[?#])/i.test(finalUrl))type='mp4';return new Response(JSON.stringify({type,finalUrl,resolvedUrl:finalUrl,contentType:ct,serverType:r?.headers.get('server')||''}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch{return new Response(JSON.stringify({type:'http',finalUrl:u,resolvedUrl:u,error:'probe failed'}),{headers:{'Content-Type':'application/json'}})}}
-export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};
+function detectMediaType(url,contentType,bodyText=""){
+  const ct=String(contentType||"").toLowerCase(),u=String(url||"").toLowerCase();
+  if(ct.includes("dash+xml")||/\.mpd(?:$|[?#])/.test(u)||/<MPD\b/i.test(bodyText))return "dash";
+  if(ct.includes("mpegurl")||/\.(m3u8|m3u)(?:$|[?#])/.test(u)||bodyText.trimStart().startsWith("#EXTM3U"))return "hls";
+  if(ct.includes("x-flv")||/\.flv(?:$|[?#])/.test(u)||bodyText.startsWith("FLV"))return "flv";
+  if(ct.includes("mp2t")||/\.(ts|m2ts)(?:$|[?#])/.test(u))return "mpegts";
+  if(ct.includes("video/mp4")||/\.(mp4|m4v)(?:$|[?#])/.test(u))return "mp4";
+  return "http";
+}
+async function probeResponse(request,q){
+  const target=q.get("u");
+  if(!isHttp(target))return new Response(JSON.stringify({type:"http",error:"bad url"}),{status:400,headers:{"Content-Type":"application/json"}});
+  const headers=headersFromQuery(request,q);
+  let r=null,bodyText="";
+  try{r=await fetchWithTimeout(target,{method:"HEAD",headers},5000)}catch{}
+  let finalUrl=r?.url||target,ct=(r?.headers.get("content-type")||"").toLowerCase();
+  let type=detectMediaType(finalUrl,ct);
+  // HEAD is frequently blocked by IPTV hosts, even when GET is allowed.
+  // Retry with a small range and inspect only a short prefix of the body.
+  if(!r||!r.ok||type==="http"){
+    try{
+      const getHeaders=new Headers(headers);
+      getHeaders.set("Range","bytes=0-2047");
+      const gr=await fetchWithTimeout(target,{method:"GET",headers:getHeaders},7000);
+      r=gr;finalUrl=gr.url||target;ct=(gr.headers.get("content-type")||"").toLowerCase();
+      const reader=gr.body?.getReader();
+      if(reader){
+        const chunk=await reader.read();
+        if(chunk?.value)bodyText=new TextDecoder().decode(chunk.value.slice(0,4096));
+        try{await reader.cancel()}catch{}
+      }
+      type=detectMediaType(finalUrl,ct,bodyText);
+    }catch{
+      if(type==="http")type=detectMediaType(target,ct);
+    }
+  }
+  return new Response(JSON.stringify({
+    type,finalUrl,resolvedUrl:finalUrl,contentType:ct,status:r?.status||0,
+    serverType:r?.headers.get("server")||""
+  }),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*"}});
+}
+export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p.startsWith('/api/dash-resource/'))return dashResourceResponse(request,url);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};

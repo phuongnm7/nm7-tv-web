@@ -14,6 +14,21 @@ for (const file of files) {
     file + ': startup timeout retries when status remains visible');
   assert.match(source, /nextCandidate\('Timeout phát '\+Math\.round\(wait\/1000\)\+'s · chưa xác nhận video chạy'\)/,
     file + ': timeout reports unconfirmed playback');
+  assert.match(source, /var httpStatus=Number\(data&&data\.response/,
+    file + ': reads HTTP status from HLS manifest/segment errors');
+  assert.match(source, /if\(httpStatus>=400&&httpStatus<=599\)\{\s*nextCandidate\('HLS HTTP '/,
+    file + ': does not wait for the 15-second watchdog on explicit HTTP failures');
+  assert.match(source, /if\(data&&!S\.proxyAttempt&&data\.type===Hls\.ErrorTypes\.NETWORK_ERROR\)/,
+    file + ': direct HLS CORS/network failures switch to proxy before retry backoff');
+  assert.ok(source.includes("var wait=kind==='hls'?8000:15000;") ||
+    source.includes('var wait=kind==="hls"?8000:15000;'),
+    file + ': HLS startup watchdog is shorter than the generic 15-second timeout');
+  assert.match(source, /thử '\+\(nextViaProxy\?'proxy':'trực tiếp'\)/,
+    file + ': retry toast reflects whether next attempt is direct or proxied');
+  assert.match(source, /if\(l\.indexOf\('#EXTHTTP:'\)===0\)/,
+    file + ': local M3U parser reads EXTHTTP headers');
+  assert.match(source, /headers:Object\.assign\(\{\},headers\)/,
+    file + ': local M3U candidate preserves custom headers');
   assert.match(source, /statusText\.indexOf\('Safari không phát được DASH\/ClearKey nội tuyến\.'\)===0/,
     file + ': preserves intentional Safari external fallback');
   assert.match(source, /addEventListener\('playing',function\(\)\{markPlaying\(S\.generation\)\}\)/,

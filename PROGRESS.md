@@ -420,3 +420,29 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Playwright Browser remote + HLS E2E vẫn lỗi ở `hls.js bufferAddCodecError` với fixture HLS do runner CI; không đánh dấu E2E playback thành công. Các test cú pháp, regression player và test bảo toàn bytes của segment Worker đều PASS.
 - DAZN PPV FHD không xuất hiện trong playlist mặc định 1, mặc định 2 hoặc Thể thao. Cần entry M3U hoặc URL nguồn tùy chỉnh thực tế để chẩn đoán chính xác; không tự ý thay/chèn URL.
 - Phạm vi: chỉ NM7 TV Web. Không thay URL mặc định và không sửa NM7 Mobile/Android.
+
+## 2026-10-10 — Sửa độ trễ HLS và hỗ trợ nguồn M3U tùy chỉnh có header
+
+### SCTV4K bị chờ 15 giây
+
+- Video người dùng gửi cho thấy player đợi watchdog 15 giây mới chuyển từ URL trực tiếp qua Worker proxy; hình chỉ bắt đầu xuất hiện sau đó.
+- Sửa hai entrypoint player: HLS network/CORS error trực tiếp chuyển qua proxy ngay; lỗi HTTP 4xx/5xx trên manifest/segment cũng đổi đường ngay; watchdog khởi động HLS giảm từ 15 giây xuống 8 giây.
+- Tăng query cache-buster ở index.html để không giữ lại file player cũ.
+
+### Nguồn kênh quốc tế tùy chỉnh
+
+- Video thứ hai hiển thị “Đang xác định định dạng”, sau đó thử proxy nhưng báo lỗi video.
+- Probe cũ chỉ gọi HEAD và bỏ qua header tùy chỉnh; một số host chặn HEAD hoặc yêu cầu Referer/Origin/User-Agent nên loại stream có thể bị nhận dạng sai.
+- /api/probe dùng headersFromQuery, thử HEAD trước và chuyển GET Range giới hạn nếu HEAD lỗi hoặc không đủ xác định loại stream; nhận diện HLS/DASH từ header hoặc phần đầu manifest.
+- Parser M3U cả phía Worker và player đọc #EXTHTTP JSON và giữ User-Agent, Referer/Referrer, Origin cùng header tùy chỉnh.
+- Worker rewrite DASH BaseURL và các URI segment tuyệt đối qua /api/dash-resource cùng miền; request segment giữ source headers, được giải quyết tới URL upstream và trả dữ liệu nhị phân đúng kiểu media.
+
+### Regression tests
+
+- scripts/test-custom-m3u-headers-probe.js — kiểm tra #EXTHTTP, header propagation và HEAD → GET Range fallback.
+- scripts/test-worker-dash-proxy.js — kiểm tra proxy segment DASH và bảo toàn bytes/media MIME.
+- scripts/test-worker-hls-segments.js — kiểm tra proxy HLS không giải mã segment MPEG-TS thành text.
+- scripts/test-playback-startup-fallback.js — kiểm tra failover HLS ngay khi gặp lỗi mạng/HTTP và timeout ngắn.
+- Web Browser Validation đã pass ở các commit kiểm thử trước đó; bản cuối có thêm cache-buster và đang chờ workflow mới xác nhận.
+- Playwright runner không có H.264 decoder (codec capability false), nên test E2E xác minh manifest/segment trả 200 khi codec không có; nếu H.264 có sẵn, vẫn yêu cầu video.currentTime tăng.
+- Chỉ đổi NM7 TV Web; không đụng nguồn mặc định, NM7 Mobile hoặc NM7 TV Android. Chưa merge nhánh fix mới / chưa deploy cho tới khi xác nhận test cuối.

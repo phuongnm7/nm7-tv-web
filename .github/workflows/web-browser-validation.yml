@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/**
+      - fix/**
   pull_request:
     branches:
       - main
@@ -34,6 +35,8 @@ jobs:
           node scripts/test-device-default-preset.js
           node scripts/test-playback-startup-fallback.js
           node scripts/test-worker-hls-segments.js
+          node scripts/test-custom-m3u-headers-probe.js
+          node scripts/test-worker-dash-proxy.js
       - name: Check required web assets
         run: |
           test -s web-tv/index.html

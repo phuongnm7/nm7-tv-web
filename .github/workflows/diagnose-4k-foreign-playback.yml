@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - fix/sctv4k-proxy-retry-state-20261010
+      - fix/sports-hls-startup-proxy-20261010
     paths:
       - ".github/workflows/diagnose-4k-foreign-playback.yml"
       - "web-tv/app-safari-policy.js"
@@ -26,22 +27,39 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import json, re, os, tempfile, subprocess, shutil, urllib.parse, urllib.request, urllib.error
+          import json, re, os, tempfile, subprocess, shutil, time, urllib.parse, urllib.request, urllib.error
           from urllib.parse import urlparse, urljoin, parse_qs
           BASE = "https://nm7-tv-web.phuongnm7-iptv.workers.dev"
           UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
 
           def request(url, headers=None, limit=12000, timeout=18):
+              started = time.monotonic()
               req = urllib.request.Request(url, headers=headers or {"User-Agent": UA}, method="GET")
               try:
                   with urllib.request.urlopen(req, timeout=timeout) as r:
+                      headers_at = time.monotonic()
+                      body = r.read(limit)
+                      finished = time.monotonic()
                       return {"status": r.status, "contentType": r.headers.get("Content-Type", ""),
-                              "body": r.read(limit), "finalUrl": r.geturl()}
+                              "contentLength": r.headers.get("Content-Length"),
+                              "headerMs": round((headers_at-started)*1000),
+                              "bodyReadMs": round((finished-headers_at)*1000),
+                              "totalMs": round((finished-started)*1000),
+                              "body": body, "finalUrl": r.geturl()}
               except urllib.error.HTTPError as e:
+                  headers_at = time.monotonic()
+                  body = e.read(min(limit, 1200))
+                  finished = time.monotonic()
                   return {"status": e.code, "contentType": e.headers.get("Content-Type", ""),
-                          "body": e.read(min(limit, 1200)), "finalUrl": e.geturl()}
+                          "contentLength": e.headers.get("Content-Length"),
+                          "headerMs": round((headers_at-started)*1000),
+                          "bodyReadMs": round((finished-headers_at)*1000),
+                          "totalMs": round((finished-started)*1000),
+                          "body": body, "finalUrl": e.geturl()}
               except Exception as e:
-                  return {"error": type(e).__name__ + ": " + str(e)[:160], "body": b"", "finalUrl": url}
+                  return {"error": type(e).__name__ + ": " + str(e)[:160],
+                          "headerMs": None, "bodyReadMs": round((time.monotonic()-started)*1000),
+                          "totalMs": round((time.monotonic()-started)*1000), "body": b"", "finalUrl": url}
 
           def safe_url(url):
               # Signed CDN credentials can be encoded in path segments, not only query strings.
@@ -68,6 +86,8 @@ jobs:
               is_html = b"<html" in body[:500].lower() or b"<!doctype html" in body[:500].lower()
               print(label, json.dumps({
                   "status": result.get("status"), "contentType": result.get("contentType"),
+                  "contentLength": result.get("contentLength"), "headerMs": result.get("headerMs"),
+                  "bodyReadMs": result.get("bodyReadMs"), "totalMs": result.get("totalMs"),
                   "bytesRead": len(body), "isHLS": is_hls, "isDASH": is_dash, "isHTML": is_html,
                   "resolutions": list(dict.fromkeys(resolutions))[:12],
                   "codecs": list(dict.fromkeys(codecs))[:8], "error": result.get("error")

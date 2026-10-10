@@ -39,11 +39,19 @@ jobs:
                   return {"error": type(e).__name__ + ": " + str(e)[:160], "body": b"", "finalUrl": url}
 
           def safe_url(url):
+              # Signed CDN credentials can be encoded in path segments, not only query strings.
+              # Diagnostic logs therefore report host + resource kind, never the stream path.
               try:
                   p = urlparse(url)
-                  return (p.scheme + "://" if p.scheme else "") + (p.hostname or "") + p.path
+                  suffix = ""
+                  path = (p.path or "").lower()
+                  if path.endswith((".m3u8", ".m3u")): suffix = "/[manifest]"
+                  elif path.endswith((".ts", ".m2ts")): suffix = "/[transport-segment]"
+                  elif path.endswith((".m4s", ".mp4", ".cmfv", ".cmfa")): suffix = "/[media-segment]"
+                  elif path.endswith(".mpd"): suffix = "/[dash-manifest]"
+                  return (p.scheme + "://" if p.scheme else "") + (p.hostname or "") + suffix
               except Exception:
-                  return "[unparseable]"
+                  return "[redacted-url]"
 
           def output_summary(label, result):
               body = result.get("body", b"")

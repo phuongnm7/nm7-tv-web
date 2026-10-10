@@ -218,7 +218,7 @@ jobs:
                   targets.append((name, i, cand, url))
           targets.sort(key=lambda item: (0 if "bournemouth" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) else 1 if "sctv4k" in re.sub(r"[^a-z0-9]+", "", item[0].lower()) else 2))
           print("TARGET_CANDIDATES", len(targets))
-          for name, i, cand, url in targets[:18]:
+          for name, i, cand, url in targets[:4]:
               typ = str(cand.get("type") or ("dash" if cand.get("dash") else "hls" if cand.get("hls") else "unknown"))
               p = urlparse(url)
               ref = str(cand.get("ref") or "")

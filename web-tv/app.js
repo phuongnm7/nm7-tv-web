@@ -153,8 +153,8 @@ function parseM3U(text,base){
    continue
   }
   if(l.indexOf('#EXTVLCOPT:')===0){
-   um=/http-user-agent=(?:"([^"]+)"|([^\s]+))/i.exec(l);rm=/(?:http-referrer|http-referer)=(?:"([^"]+)"|([^\s]+))/i.exec(l);
-   if(um)ua=um[1]||um[2];
+   um=/http-user-agent=(?:"([^"]+)"|(.*))/i.exec(l);rm=/(?:http-referrer|http-referer)=(?:"([^"]+)"|([^\s]+))/i.exec(l);
+   if(um)ua=(um[1]||um[2]||'').trim();
    if(rm)ref=rm[1]||rm[2];
    var om=/http-origin=(?:"([^"]+)"|([^\s]+))/i.exec(l);if(om)origin=om[1]||om[2];
    continue

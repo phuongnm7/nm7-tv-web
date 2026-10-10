@@ -889,6 +889,7 @@ function tryCandidate(){
  if(!cand){setStatus('Kênh chưa có URL phát');return}
  clearPlayers();kind=classify(cand);
  S.proxyAttempt=attemptUsesProxy(cand,kind);
+ dbg('Playback attempt: kind='+kind+' route='+(S.proxyAttempt?'proxy':'direct')+' source='+(S.candidateIndex+1)+'/'+(c.candidates?c.candidates.length:0));
  var sourceUrl=cand.resolvedUrl||cand.url,url=makeProxy(sourceUrl,cand);
  setStatus('Đang mở '+c.name+'\nNguồn '+(S.candidateIndex+1)+'/'+c.candidates.length+(S.proxyAttempt?' · proxy':' · trực tiếp'));
  v.style.display='block';v.autoplay=true;v.controls=false;v.muted=false;v.defaultMuted=false;v.volume=1;

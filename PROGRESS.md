@@ -457,3 +457,27 @@ Smoke test không xác minh được video VTV1 phát xuyên suốt trên TV th�
 - Nguồn tùy chỉnh: #EXTHTTP được parse và header User-Agent/Referer/Origin/header khác được bảo toàn. Probe dùng GET Range nếu HEAD bị chặn/không xác định được loại. DASH BaseURL/segment tuyệt đối được proxy qua Worker cùng miền và giữ header cần thiết.
 - Địa chỉ kiểm thử chính thức: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`.
 - Chỉ NM7 TV Web thay đổi; không đổi URL playlist mặc định, không sửa NM7 Mobile/Android.
+
+## 2026-10-10 — SCTV4K vẫn đen sau fallback: phân tích video và sửa lần hai
+
+### Kết quả chẩn đoán trực tiếp
+
+- Lỗi trong video: player đã thử proxy nhưng timeout ở 8 giây; màn hình vẫn đen.
+- Manifest SCTV4K trực tiếp trả HTTP 200, nhưng các segment TS trực tiếp trả HTTP 400.
+- Worker proxy tải lại segment thành công HTTP 200, MIME `video/mp2t`, bytes hợp lệ theo sync MPEG-TS.
+- `ffprobe` xác nhận nguồn video là HEVC/H.265 Main 3840×2160 25 fps, segment mẫu khoảng 3.9 MB và ít nhất 8 MB. Vì vậy watchdog 8 giây không phù hợp với luồng này.
+
+### Code sửa trên branch
+
+- Worker đánh dấu SCTV4K từ host `vietanhtv.id.vn` dùng proxy trước tiên.
+- `app.js` và `app-safari-policy.js` xác minh identity của HLS instance trong callbacks; bỏ qua sự kiện lỗi đến muộn từ instance đã hủy để không phá lượt proxy mới.
+- HLS watchdog riêng cho SCTV4K/vietanhtv là 45 giây; HLS khác vẫn dùng timeout ngắn. Lỗi HTTP 4xx/5xx hoặc lỗi mạng được xử lý ngay.
+- Cache-buster mới đảm bảo thiết bị tải file player đã sửa.
+- Regression test mới xác minh candidate SCTV4K được đánh dấu proxy-first và không ảnh hưởng candidate HLS khác.
+
+### Kết quả CI
+
+- Live diagnostic #38024197006: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024197006.
+- Web Browser Validation #38024369674: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369674.
+- Browser E2E #38024369686: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369686. Runner xác nhận các lượt tải manifest và segment cho fixture, nhưng không có decoder H.264; chưa thể dùng CI để xác nhận playback thật của HEVC 4K.
+- Code trên nhánh `fix/sctv4k-proxy-retry-state-20261010`, chưa deploy lúc ghi nhận. Không thay đổi playlist mặc định, NM7 Mobile hoặc NM7 TV Android.

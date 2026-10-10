@@ -37,6 +37,7 @@ jobs:
           node scripts/test-worker-hls-segments.js
           node scripts/test-custom-m3u-headers-probe.js
           node scripts/test-worker-dash-proxy.js
+          node scripts/test-sctv4k-proxy-preference.js
       - name: Check required web assets
         run: |
           test -s web-tv/index.html

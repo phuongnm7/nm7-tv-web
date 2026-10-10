@@ -68,6 +68,16 @@ jobs:
                           "headerMs": None, "bodyReadMs": round((time.monotonic()-started)*1000),
                           "totalMs": round((time.monotonic()-started)*1000), "body": b"", "finalUrl": url}
 
+          def safe_error_class(body):
+              text = (body or b"")[:1200].decode("utf-8", "ignore").lower()
+              if "cf-ray" in text or "cloudflare" in text: return "cloudflare-waf"
+              if "access denied" in text or "forbidden" in text or "not allowed" in text: return "access-denied"
+              if "function_invocation_failed" in text or "serverless function" in text or "function has crashed" in text: return "vercel-function-runtime"
+              if "internal server error" in text or "internal error" in text: return "internal-server-error"
+              if text.lstrip().startswith(("{", "[")): return "json-error"
+              if text.lstrip().startswith(("<html", "<!doctype html")): return "html-error"
+              return "plain-text-error"
+
           def safe_url(url):
               # Signed CDN credentials can be encoded in path segments, not only query strings.
               # Diagnostic logs therefore report host + resource kind, never the stream path.
@@ -292,6 +302,7 @@ jobs:
                       "totalMs": vercel_result.get("totalMs"), "bytesRead": len(vercel_body),
                       "host": safe_url(vercel_result.get("finalUrl") or vercel_proxy_url),
                       "tsSync188": ts_sync, "bodyClass": ("json" if vercel_body.lstrip().startswith((b"{",b"[")) else "html" if vercel_body.lstrip().lower().startswith((b"<html",b"<!doctype html")) else "plain-text"),
+                      "safeErrorClass": safe_error_class(vercel_body) if int(vercel_result.get("status") or 0) >= 400 else "none",
                       "error": vercel_result.get("error")
                   }, ensure_ascii=False))
                   # Check whether the origin supports HTTPS directly, avoiding browser mixed-content restrictions.

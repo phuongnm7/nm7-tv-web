@@ -401,7 +401,7 @@ async function stalkerSocketProbe(target,q){
     const pathAndQuery=dest.pathname+dest.search;
     const lines=[
       "GET "+pathAndQuery+" HTTP/1.1",
-      "Host: "+dest.host,
+      "Host: "+(q.get("socketHostMode")==="origin" ? u.host : dest.host),
       "User-Agent: "+(headers.get("User-Agent")||"NM7-TV/1.0.36 Android-TV"),
       "Accept: */*",
       "Accept-Encoding: identity",
@@ -457,7 +457,8 @@ async function stalkerSocketProbe(target,q){
     const sync=body.length>376&&body[0]===0x47&&body[188]===0x47&&body[376]===0x47;
     return new Response(JSON.stringify({
       firstStatus:first.status,redirectHost:dest.hostname,redirectPort:dest.port||"80",
-      socketHttpStatus:status,contentType:responseHeaders["content-type"]||"",
+      socketHttpStatus:status,hostMode:q.get("socketHostMode")==="origin"?"origin":"redirect-ip",
+      contentType:responseHeaders["content-type"]||"",
       transferEncoding:responseHeaders["transfer-encoding"]||"",contentLength:responseHeaders["content-length"]||"",
       bytesRead:body.byteLength,tsSync188:sync,server:responseHeaders["server"]||"",
       errorClass:status>=400?"upstream-http-error":"none"

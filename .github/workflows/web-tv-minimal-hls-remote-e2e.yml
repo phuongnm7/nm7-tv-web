@@ -23,12 +23,12 @@ jobs:
       - name: Generate HLS fixture
         run: |
           mkdir -p e2e-site/assets
-          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=640x360:rate=25 -t 8 -vf format=yuv420p -c:v libx264 -profile:v main -level 3.1 -preset veryfast -g 50 -keyint_min 50 -sc_threshold 0 -movflags +faststart -f hls -hls_segment_type fmp4 -hls_time 2 -hls_list_size 0 e2e-site/test-hls.m3u8
-          cp e2e-site/test-hls*.m4s e2e-site/ 2>/dev/null || true
-          cp e2e-site/init.mp4 e2e-site/ 2>/dev/null || true
+          ffmpeg -hide_banner -loglevel error -f lavfi -i sine=frequency=440:sample_rate=44100 -t 8 -vn -c:a aac -b:a 128k -f hls -hls_segment_type mpegts -hls_time 2 -hls_list_size 0 e2e-site/test-hls.m3u8
           cp node_modules/hls.js/dist/hls.min.js e2e-site/hls.min.js
           cp web-tv/index.html e2e-site/index.html
           cp web-tv/app.js e2e-site/app.js
+          cp web-tv/youtube.js e2e-site/youtube.js
+          cp web-tv/mobile-background.js e2e-site/mobile-background.js
           cp web-tv/dash.all.min.js e2e-site/dash.all.min.js
           cp web-tv/assets/nm7-default-background.webp e2e-site/assets/nm7-default-background.webp
           cp web-tv/assets/nm7-main-logo.png e2e-site/assets/nm7-main-logo.png
@@ -36,7 +36,7 @@ jobs:
       - name: Write fixture playlist and adapt page
         run: |
           python3 - <<'PY'
-          import json
+          import json, re
           logo="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
           channels=[{"id":chr(65+i),"name":f"Kênh {i+1}","group":"Nhóm 1" if i<25 else "Nhóm 2","logo":logo,"candidates":[{"url":"/test-hls.m3u8","hls":True}]} for i in range(25)]
           with open("e2e-site/playlist.json","w") as f:
@@ -46,12 +46,21 @@ jobs:
           s=s.replace('<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>','<script src="/hls.min.js"></script>')
           s=s.replace('<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.min.js"></script>','')
           s=s.replace('<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.16.51/dist/shaka-player.compiled.js"></script>','')
+          s=re.sub(r'<script src="./app-safari-policy\.js[^"]*"></script>','<script src="./app.js"></script>',s)
+          if 'app-safari-policy.js' in s:
+            raise SystemExit("E2E fixture still points to app-safari-policy.js, which is not copied into the fixture directory")
           open(p,"w",encoding="utf-8").write(s)
           p="e2e-site/app.js"
           s=open(p,encoding="utf-8").read()
-          s=s.replace("tv:'/api/playlist?source=tv&default=android1069'","tv:'/playlist.json'")
-          s=s.replace("tv:'/api/playlist?source=tv'","tv:'/playlist.json'")
+          # Match the current preset-aware PLAYLISTS declarations in app.js.
+          # The test page must not hit production APIs when the local fixture is present.
+          s=s.replace("tv:'/api/playlist?source=tv&default=1'","tv:'/playlist.json'")
+          s=s.replace("tv2:'/api/playlist?source=tv&default=2'","tv2:'/playlist.json'")
           s=s.replace("sport:'/api/playlist?source=sport'","sport:'/playlist.json'")
+          if "/api/playlist?source=tv&default=1" in s or "/api/playlist?source=tv&default=2" in s:
+            raise SystemExit("E2E fixture adaptation failed: source preset endpoint still points to production API")
+          if "tv:'/playlist.json'" not in s or "tv2:'/playlist.json'" not in s:
+            raise SystemExit("E2E fixture adaptation failed: local playlist fixture not configured")
           open(p,"w",encoding="utf-8").write(s)
           PY
           node --check e2e-site/app.js
@@ -62,7 +71,7 @@ jobs:
           cat > e2e-site/server.cjs <<'NODE_SERVER'
           const http=require('http'),fs=require('fs'),path=require('path');
           const root=path.resolve('.');
-          const types={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.m3u8':'application/vnd.apple.mpegurl','.m4s':'video/iso.segment','.mp4':'video/mp4','.webp':'image/webp','.png':'image/png'};
+          const types={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.m3u8':'application/vnd.apple.mpegurl','.ts':'video/mp2t','.m4s':'video/iso.segment','.mp4':'video/mp4','.webp':'image/webp','.png':'image/png'};
           const server=http.createServer((req,res)=>{
             let p=decodeURIComponent(new URL(req.url,'http://127.0.0.1').pathname);
             if(p==='/'||p==='')p='/index.html';

@@ -1,0 +1,182 @@
+name: Diagnose NM7 4K and foreign channel playback
+on:
+  push:
+    branches:
+      - feat/diagnose-4k-foreign-playback-20261010
+    paths:
+      - ".github/workflows/diagnose-4k-foreign-playback.yml"
+      - "web-tv/app-safari-policy.js"
+      - "web-tv/app.js"
+      - "worker.js"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect production playlist candidates and nested HLS resources
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, re, urllib.parse, urllib.request, urllib.error
+          from urllib.parse import urlparse, urljoin, parse_qs
+          BASE = "https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
+
+          def request(url, headers=None, limit=12000, timeout=18):
+              req = urllib.request.Request(url, headers=headers or {"User-Agent": UA}, method="GET")
+              try:
+                  with urllib.request.urlopen(req, timeout=timeout) as r:
+                      return {"status": r.status, "contentType": r.headers.get("Content-Type", ""),
+                              "body": r.read(limit), "finalUrl": r.geturl()}
+              except urllib.error.HTTPError as e:
+                  return {"status": e.code, "contentType": e.headers.get("Content-Type", ""),
+                          "body": e.read(min(limit, 1200)), "finalUrl": e.geturl()}
+              except Exception as e:
+                  return {"error": type(e).__name__ + ": " + str(e)[:160], "body": b"", "finalUrl": url}
+
+          def safe_url(url):
+              # Signed CDN credentials can be encoded in path segments, not only query strings.
+              # Diagnostic logs therefore report host + resource kind, never the stream path.
+              try:
+                  p = urlparse(url)
+                  suffix = ""
+                  path = (p.path or "").lower()
+                  if path.endswith((".m3u8", ".m3u")): suffix = "/[manifest]"
+                  elif path.endswith((".ts", ".m2ts")): suffix = "/[transport-segment]"
+                  elif path.endswith((".m4s", ".mp4", ".cmfv", ".cmfa")): suffix = "/[media-segment]"
+                  elif path.endswith(".mpd"): suffix = "/[dash-manifest]"
+                  return (p.scheme + "://" if p.scheme else "") + (p.hostname or "") + suffix
+              except Exception:
+                  return "[redacted-url]"
+
+          def output_summary(label, result):
+              body = result.get("body", b"")
+              text = body[:10000].decode("utf-8", "ignore")
+              resolutions = re.findall(r'RESOLUTION=(\d+x\d+)', text, re.I)
+              codecs = re.findall(r'CODECS="([^"]+)"', text, re.I)
+              is_hls = body.lstrip().startswith(b"#EXTM3U")
+              is_dash = b"<MPD" in body[:5000]
+              is_html = b"<html" in body[:500].lower() or b"<!doctype html" in body[:500].lower()
+              print(label, json.dumps({
+                  "status": result.get("status"), "contentType": result.get("contentType"),
+                  "bytesRead": len(body), "isHLS": is_hls, "isDASH": is_dash, "isHTML": is_html,
+                  "resolutions": list(dict.fromkeys(resolutions))[:12],
+                  "codecs": list(dict.fromkeys(codecs))[:8], "error": result.get("error")
+              }, ensure_ascii=False))
+              return text
+
+          def extract_uris(text, base_url):
+              rows = []
+              previous_variant = False
+              for line in text.splitlines():
+                  s = line.strip()
+                  if s.startswith("#EXT-X-STREAM-INF"):
+                      attrs = []
+                      for key in ("BANDWIDTH", "AVERAGE-BANDWIDTH", "RESOLUTION", "FRAME-RATE", "CODECS"):
+                          m = re.search(key + r'="([^"]+)"|' + key + r'=([^,]+)', s, re.I)
+                          if m: attrs.append(key + "=" + (m.group(1) or m.group(2)))
+                      print("HLS_VARIANT", json.dumps(attrs, ensure_ascii=False))
+                      previous_variant = True
+                  elif s.startswith("#EXT-X-KEY"):
+                      method = re.search(r'METHOD=([^,]+)', s, re.I)
+                      uri = re.search(r'URI="([^"]+)"', s, re.I)
+                      print("HLS_KEY", json.dumps({
+                          "method": method.group(1) if method else None,
+                          "uri": safe_url(urljoin(base_url, uri.group(1))) if uri else None
+                      }, ensure_ascii=False))
+                  elif s and not s.startswith("#"):
+                      resolved = urljoin(base_url, s)
+                      # If the proxy rewrote the URI, unwrap only for safe path reporting.
+                      q = parse_qs(urlparse(resolved).query)
+                      upstream = q.get("u", [""])[0] if urlparse(resolved).path == "/api/stream" else ""
+                      rows.append({"url": resolved, "kind": "variant" if previous_variant or ".m3u8" in urlparse(upstream or resolved).path.lower() else "segment"})
+                      print("HLS_URI", json.dumps({
+                          "kind": rows[-1]["kind"], "url": safe_url(upstream or resolved)
+                      }, ensure_ascii=False))
+                      previous_variant = False
+              return rows
+
+          def inspect_path(label, url, headers, depth=0):
+              result = request(url, headers, 12000, 15)
+              text = output_summary(label, result)
+              if not text.startswith("#EXTM3U") or depth >= 1:
+                  return
+              items = extract_uris(text, result.get("finalUrl") or url)
+              if not items:
+                  print(label + "_NO_MEDIA_URI")
+                  return
+              # Check up to two playlist/segment references to keep the probe bounded.
+              for index, item in enumerate(items[:2]):
+                  child = item["url"]
+                  child_path = urlparse(child).path.lower()
+                  is_manifest = item["kind"] == "variant" or child_path.endswith((".m3u8", ".m3u"))
+                  if is_manifest:
+                      inspect_path(label + "_CHILD" + str(index+1), child, headers if not child.startswith(BASE) else {"User-Agent": UA}, depth+1)
+                  else:
+                      seg = request(child, headers if not child.startswith(BASE) else {"User-Agent": UA}, 2048, 12)
+                      output_summary(label + "_SEGMENT" + str(index+1), seg)
+
+          def fetch_playlist(source, default=None):
+              q = {"source": source}
+              if default is not None: q["default"] = default
+              endpoint = BASE + "/api/playlist?" + urllib.parse.urlencode(q)
+              result = request(endpoint, {"User-Agent": UA, "Cache-Control": "no-cache"}, 2_000_000, 30)
+              if result.get("status") != 200:
+                  print("PLAYLIST_FETCH_ERROR", source, default, result.get("status"), result.get("error"))
+                  return []
+              try:
+                  data = json.loads(result["body"].decode("utf-8"))
+                  channels = data.get("channels") or []
+                  print("PLAYLIST", json.dumps({"source":source,"preset":default,"channelCount":len(channels),"cached":data.get("cached")}))
+                  return channels
+              except Exception as e:
+                  print("PLAYLIST_JSON_ERROR", source, default, type(e).__name__, str(e)[:120])
+                  return []
+
+          channels = fetch_playlist("tv", "1") + fetch_playlist("tv", "2") + fetch_playlist("sport")
+          dazn_names = sorted(set(str(c.get("name") or "") for c in channels if "dazn" in str(c.get("name") or "").lower()))
+          print("PRODUCTION_DAZN_CHANNEL_NAMES", json.dumps(dazn_names[:30], ensure_ascii=False))
+          targets, seen = [], set()
+          for c in channels:
+              name = str(c.get("name") or "")
+              flat = re.sub(r"[^a-z0-9]+", "", name.lower())
+              if not ("sctv4k" in flat or "dazn" in flat):
+                  continue
+              for i, cand in enumerate(c.get("candidates") or []):
+                  url = str(cand.get("url") or cand.get("resolvedUrl") or "")
+                  key = (flat, url)
+                  if not url.startswith(("http://", "https://")) or key in seen: continue
+                  seen.add(key)
+                  targets.append((name, i, cand, url))
+          print("TARGET_CANDIDATES", len(targets))
+          for name, i, cand, url in targets[:18]:
+              typ = str(cand.get("type") or ("dash" if cand.get("dash") else "hls" if cand.get("hls") else "unknown"))
+              p = urlparse(url)
+              ref = str(cand.get("ref") or "")
+              extra = cand.get("headers") if isinstance(cand.get("headers"), dict) else {}
+              drm = cand.get("drm")
+              print("CANDIDATE", json.dumps({
+                  "channel": name, "candidateIndex": i, "type": typ, "host": p.hostname,
+                  "resourcePath": "[redacted]", "extension": (re.search(r"\.([a-z0-9]+)$", p.path, re.I).group(1) if re.search(r"\.([a-z0-9]+)$", p.path, re.I) else ""), "hasQueryToken": bool(p.query), "refererHost": urlparse(ref).hostname,
+                  "hasCustomUA": bool(cand.get("ua")), "headerNames": sorted(extra.keys()),
+                  "drm": bool(drm), "forceProxy": bool(cand.get("forceProxy"))
+              }, ensure_ascii=False))
+              upstream_headers = {"User-Agent": str(cand.get("ua") or UA)}
+              if ref: upstream_headers["Referer"] = ref
+              for k, v in extra.items():
+                  if str(k).lower() not in ("host", "connection", "content-length", "cookie", "user-agent", "referer") and isinstance(v, str):
+                      upstream_headers[str(k)] = v
+              inspect_path(name.replace(" ", "_") + "_DIRECT", url, upstream_headers)
+              q = {"u": url}
+              if ref: q["r"] = ref
+              if cand.get("ua"): q["ua"] = str(cand["ua"])
+              if extra: q["h"] = json.dumps(extra, separators=(",", ":"))
+              proxy_url = BASE + "/api/stream?" + urllib.parse.urlencode(q)
+              inspect_path(name.replace(" ", "_") + "_PROXY", proxy_url, {"User-Agent": UA})
+          if not targets:
+              print("NO_MATCHING_TARGETS — the tested channels are not in the three currently served production playlists; likely a local/custom playlist or another source.")
+          PY

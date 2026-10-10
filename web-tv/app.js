@@ -570,6 +570,9 @@ function loadSource(source,force,tvPreset){
  else $('homeRows').innerHTML='<div class="empty">Đang tải '+(source==='sport'?'thể thao':'truyền hình')+'…</div>';
 
  var playlistUrl=source==='tv'&&requestPreset===2?PLAYLISTS.tv2:PLAYLISTS[source];
+ // The default sport playlist is dynamic; do not let the Worker return its cached snapshot
+ // when the user opens Sports or presses Reload source.
+ if(source==='sport')playlistUrl+='&refresh=1';
  fetchJsonTimeout(playlistUrl,15000).then(function(d){
   if(source==='tv'&&S.tvPreset!==requestPreset)return;
   applyPlaylist(d,source,'Đã cập nhật '+d.channels.length+' kênh'+(source==='tv'?' · mặc định '+requestPreset:''));

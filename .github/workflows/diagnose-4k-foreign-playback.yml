@@ -288,6 +288,21 @@ jobs:
                   and ("play_token" in query_fields or "token" in query_fields)
               )
               if is_stalker:
+                  # Hold source URL and Worker fixed; change only UA to isolate the cause of HTTP 403.
+                  q_browser = dict(q)
+                  q_browser["ua"] = UA
+                  browser_ua_url = BASE + "/api/stream?" + urllib.parse.urlencode(q_browser)
+                  browser_ua_result = request(browser_ua_url, {"User-Agent": UA}, limit=12000, timeout=12)
+                  browser_ua_body = browser_ua_result.get("body", b"")
+                  browser_ua_ts = bool(len(browser_ua_body) > 376 and browser_ua_body[0] == 0x47 and browser_ua_body[188] == 0x47 and browser_ua_body[376] == 0x47)
+                  print(name.replace(" ", "_") + "_CLOUDFLARE_PROXY_CHROME_UA", json.dumps({
+                      "status": browser_ua_result.get("status"), "contentType": browser_ua_result.get("contentType"),
+                      "bytesRead": len(browser_ua_body), "tsSync188": browser_ua_ts,
+                      "totalMs": browser_ua_result.get("totalMs"), "server": browser_ua_result.get("server"),
+                      "cfRayPresent": browser_ua_result.get("cfRayPresent"),
+                      "host": safe_url(browser_ua_result.get("finalUrl") or browser_ua_url),
+                      "error": browser_ua_result.get("error")
+                  }, ensure_ascii=False))
                   # Compare a different proxy egress using the same source/header metadata.
                   # Log status/host/container metadata only; never output the query URL or token.
                   vercel_proxy_url = VERCEL_PROXY_BASE + "/api/stream?" + urllib.parse.urlencode(q)

@@ -42,14 +42,15 @@ function enrichChannels(channels){
   return out
 }
 function parseM3U(t,base=''){
-  const lines=String(t||'').replace(/^\uFEFF/,'').split(/\r?\n/),out=[];let m=null,ua='',ref='',origin='',manifestType='',licenseType='',licenseKey='';
+  const lines=String(t||'').replace(/^\uFEFF/,'').split(/\r?\n/),out=[];let m=null,ua='',ref='',origin='',extraHeaders={},manifestType='',licenseType='',licenseKey='';
   const finish=()=>{if(m&&m.candidates.length)out.push(m);m=null};
   for(const raw of lines){
     const l=raw.trim();if(!l)continue;
-    if(l.startsWith('#EXTINF:')){finish();const p=l.indexOf(','),h=p<0?l:l.slice(0,p);m={name:p<0?'Kênh':l.slice(p+1).trim(),group:(/group-title="([^"]*)"/i.exec(h)||[])[1]||'Khác',logo:(/tvg-logo="([^"]*)"/i.exec(h)||[])[1]||'',id:(/tvg-id="([^"]*)"/i.exec(h)||[])[1]||'',candidates:[]};ua='';ref='';origin='';manifestType='';licenseType='';licenseKey=''}
+    if(l.startsWith('#EXTINF:')){finish();const p=l.indexOf(','),h=p<0?l:l.slice(0,p);m={name:p<0?'Kênh':l.slice(p+1).trim(),group:(/group-title="([^"]*)"/i.exec(h)||[])[1]||'Khác',logo:(/tvg-logo="([^"]*)"/i.exec(h)||[])[1]||'',id:(/tvg-id="([^"]*)"/i.exec(h)||[])[1]||'',candidates:[]};ua='';ref='';origin='';extraHeaders={};manifestType='';licenseType='';licenseKey=''}
     else if(m&&l.startsWith('#EXTVLCOPT:')){const um=/http-user-agent=(?:"([^"]+)"|([^\s]+))/i.exec(l),rm=/(?:http-referrer|http-referer)=(?:"([^"]+)"|([^\s]+))/i.exec(l),om=/http-origin=(?:"([^"]+)"|([^\s]+))/i.exec(l);if(um)ua=um[1]||um[2];if(rm)ref=rm[1]||rm[2];if(om)origin=om[1]||om[2]}
+    else if(m&&l.startsWith('#EXTHTTP:')){try{const parsed=JSON.parse(l.slice(l.indexOf(':')+1).trim());if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){for(const [k,v] of Object.entries(parsed)){if(typeof v!=='string'||!v.trim())continue;const lk=String(k).toLowerCase();if(lk==='user-agent')ua=v;else if(lk==='referer'||lk==='referrer')ref=v;else if(lk==='origin')origin=v;else extraHeaders[k]=v}}}catch{}}
     else if(m&&l.startsWith('#KODIPROP:')){const mt=/inputstream\.adaptive\.manifest_type=(.+)/i.exec(l),lt=/inputstream\.adaptive\.license_type=(.+)/i.exec(l),lk=/inputstream\.adaptive\.license_key=(.+)/i.exec(l);if(mt)manifestType=mt[1].trim();if(lt)licenseType=lt[1].trim();if(lk)licenseKey=lk[1].trim()}
-    else if(m&&!l.startsWith('#')&&/^(https?|rtsp|rtmp|udp|srt|rtp):/i.test(l)){const ps=l.split('|');let r=ref,u=ua,o=origin;for(let i=1;i<ps.length;i++){const z=ps[i],eq=z.indexOf('=');if(eq<0)continue;const k=z.slice(0,eq),v=z.slice(eq+1);if(/^referer(?:er)?$/i.test(k))r=v;if(/^http-user-agent$/i.test(k))u=v;if(/^origin$/i.test(k))o=v}const lm=manifestType.toLowerCase();m.candidates.push({url:safeUrl(ps[0],base),ref:r,ua:u,headers:o?{Origin:o}:{},type:lm==='mpd'?'dash':lm==='hls'?'hls':'',dash:lm==='mpd',hls:lm==='hls'||/\.(m3u8|m3u)(?:$|[?#])/i.test(ps[0])||/playlist|index\.m3u|manifest/i.test(ps[0]),drm:licenseType&&licenseKey?{type:licenseType,key:licenseKey}:null})}
+    else if(m&&!l.startsWith('#')&&/^(https?|rtsp|rtmp|udp|srt|rtp):/i.test(l)){const ps=l.split('|');let r=ref,u=ua,o=origin;for(let i=1;i<ps.length;i++){const z=ps[i],eq=z.indexOf('=');if(eq<0)continue;const k=z.slice(0,eq),v=z.slice(eq+1);if(/^referer(?:er)?$/i.test(k))r=v;if(/^http-user-agent$/i.test(k))u=v;if(/^origin$/i.test(k))o=v}const lm=manifestType.toLowerCase();m.candidates.push({url:safeUrl(ps[0],base),ref:r,ua:u,headers:{...extraHeaders,...(o?{Origin:o}:{})},type:lm==='mpd'?'dash':lm==='hls'?'hls':'',dash:lm==='mpd',hls:lm==='hls'||/\.(m3u8|m3u)(?:$|[?#])/i.test(ps[0])||/playlist|index\.m3u|manifest/i.test(ps[0]),drm:licenseType&&licenseKey?{type:licenseType,key:licenseKey}:null})}
   }
   finish();
   const merged=[],byKey=new Map();
@@ -178,5 +179,45 @@ async function sourceResponse(q){
     return new Response(JSON.stringify({channels:[],source:'custom',error:String(e?.message||e)}),{status:502,headers:cors(new Headers({'Content-Type':'application/json','Cache-Control':'no-store'}))});
   }
 }
-async function probeResponse(q){const u=q.get('u');if(!isHttp(u))return new Response(JSON.stringify({type:'http',error:'bad url'}),{status:400,headers:{'Content-Type':'application/json'}});const h=new Headers({'User-Agent':q.get('ua')||'NM7-TV-Web/1.0.69'});if(q.get('r'))h.set('Referer',q.get('r'));try{const r=await fetch(u,{method:'HEAD',headers:h,redirect:'follow',cache:'no-store'}).catch(()=>null),finalUrl=r?.url||u,ct=(r?.headers.get('content-type')||'').toLowerCase();let type='http';if(ct.includes('dash+xml')||/\.mpd(?:$|[?#])/i.test(finalUrl))type='dash';else if(ct.includes('mpegurl')||/\.(m3u8|m3u)(?:$|[?#])/i.test(finalUrl))type='hls';else if(ct.includes('flv')||/\.flv(?:$|[?#])/i.test(finalUrl))type='flv';else if(ct.includes('mp2t')||/\.ts(?:$|[?#])/i.test(finalUrl))type='mpegts';else if(ct.includes('video/mp4')||/\.mp4(?:$|[?#])/i.test(finalUrl))type='mp4';return new Response(JSON.stringify({type,finalUrl,resolvedUrl:finalUrl,contentType:ct,serverType:r?.headers.get('server')||''}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch{return new Response(JSON.stringify({type:'http',finalUrl:u,resolvedUrl:u,error:'probe failed'}),{headers:{'Content-Type':'application/json'}})}}
-export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};
+function detectMediaType(url,contentType,bodyText=""){
+  const ct=String(contentType||"").toLowerCase(),u=String(url||"").toLowerCase();
+  if(ct.includes("dash+xml")||/\.mpd(?:$|[?#])/.test(u)||/<MPD\b/i.test(bodyText))return "dash";
+  if(ct.includes("mpegurl")||/\.(m3u8|m3u)(?:$|[?#])/.test(u)||bodyText.trimStart().startsWith("#EXTM3U"))return "hls";
+  if(ct.includes("x-flv")||/\.flv(?:$|[?#])/.test(u)||bodyText.startsWith("FLV"))return "flv";
+  if(ct.includes("mp2t")||/\.(ts|m2ts)(?:$|[?#])/.test(u))return "mpegts";
+  if(ct.includes("video/mp4")||/\.(mp4|m4v)(?:$|[?#])/.test(u))return "mp4";
+  return "http";
+}
+async function probeResponse(request,q){
+  const target=q.get("u");
+  if(!isHttp(target))return new Response(JSON.stringify({type:"http",error:"bad url"}),{status:400,headers:{"Content-Type":"application/json"}});
+  const headers=headersFromQuery(request,q);
+  let r=null,bodyText="";
+  try{r=await fetchWithTimeout(target,{method:"HEAD",headers},5000)}catch{}
+  let finalUrl=r?.url||target,ct=(r?.headers.get("content-type")||"").toLowerCase();
+  let type=detectMediaType(finalUrl,ct);
+  // HEAD is frequently blocked by IPTV hosts, even when GET is allowed.
+  // Retry with a small range and inspect only a short prefix of the body.
+  if(!r||!r.ok||type==="http"){
+    try{
+      const getHeaders=new Headers(headers);
+      getHeaders.set("Range","bytes=0-2047");
+      const gr=await fetchWithTimeout(target,{method:"GET",headers:getHeaders},7000);
+      r=gr;finalUrl=gr.url||target;ct=(gr.headers.get("content-type")||"").toLowerCase();
+      const reader=gr.body?.getReader();
+      if(reader){
+        const chunk=await reader.read();
+        if(chunk?.value)bodyText=new TextDecoder().decode(chunk.value.slice(0,4096));
+        try{await reader.cancel()}catch{}
+      }
+      type=detectMediaType(finalUrl,ct,bodyText);
+    }catch{
+      if(type==="http")type=detectMediaType(target,ct);
+    }
+  }
+  return new Response(JSON.stringify({
+    type,finalUrl,resolvedUrl:finalUrl,contentType:ct,status:r?.status||0,
+    serverType:r?.headers.get("server")||""
+  }),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*"}});
+}
+export default {async fetch(request,env){const url=new URL(request.url),p=url.pathname,q=url.searchParams;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(new Headers())});try{if(p==='/api/playlist')return playlistResponse(q.get('source')||'tv',q.get('default')||'',env);if(p==='/api/source')return sourceResponse(q);if(p==='/api/stream')return streamResponse(request,q);if(p==='/api/image')return imageResponse(q);if(p==='/api/license')return licenseResponse(request,q);if(p==='/api/probe')return probeResponse(request,q);if(p==='/'||p==='/tv')return env.ASSETS.fetch(new Request(new URL('/index.html',request.url),request));if(p.startsWith('/web-tv/'))return env.ASSETS.fetch(new Request(new URL(p.replace(/^\/web-tv\//,'/'),request.url),request));return env.ASSETS.fetch(request)}catch(e){return new Response(JSON.stringify({error:'worker error',message:String(e?.message||e)}),{status:502,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}})}}};

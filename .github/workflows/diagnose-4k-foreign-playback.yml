@@ -17,6 +17,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Install ffprobe for bounded media inspection
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
       - name: Inspect production playlist candidates and nested HLS resources
         shell: bash
         run: |

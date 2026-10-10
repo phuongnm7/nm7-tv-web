@@ -1,4 +1,4 @@
-name: Deploy NM7 TV Web Device Test to Cloudflare
+name: Deploy Isolated NM7 TV Device Test to Cloudflare
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout isolated test branch
+      - name: Checkout isolated Cloudflare test branch
         uses: actions/checkout@v6
 
       - name: Validate JavaScript

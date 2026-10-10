@@ -1,3 +1,4 @@
+import { connect } from "cloudflare:sockets";
 const SOURCES = {
   tv: [
     'https://nm7-tv-web.vercel.app/api/vietmitv-merge',
@@ -367,8 +368,110 @@ function detectMediaType(url,contentType,bodyText=""){
   if(ct.includes("video/mp4")||/\.(mp4|m4v)(?:$|[?#])/.test(u))return "mp4";
   return "http";
 }
+async function stalkerSocketProbe(target,q){
+  let u;
+  try{u=new URL(target)}catch{return new Response(JSON.stringify({errorClass:"bad-url"}),{status:400,headers:cors(new Headers({"Content-Type":"application/json"}))})}
+  if(u.hostname!=="mag.tivi-one-iptv.net"||u.pathname.toLowerCase()!=="/play/live.php"||
+     !u.searchParams.has("mac")||!u.searchParams.has("stream")||
+     !/^(ts|m2ts)$/i.test(u.searchParams.get("extension")||"")||
+     !(u.searchParams.has("play_token")||u.searchParams.has("token"))){
+    return new Response(JSON.stringify({errorClass:"stalker-host-not-allowed"}),{status:403,headers:cors(new Headers({"Content-Type":"application/json"}))});
+  }
+  const headers=new Headers({"User-Agent":q.get("ua")||"NM7-TV/1.0.36 Android-TV","Accept":"*/*","Accept-Encoding":"identity"});
+  const ref=q.get("r");if(ref)headers.set("Referer",ref);
+  let first;
+  try{first=await fetchWithTimeout(target,{method:"GET",headers,redirect:"manual"},5000)}
+  catch(e){return new Response(JSON.stringify({errorClass:"initial-fetch-"+String(e?.name||"Error")}),{status:502,headers:cors(new Headers({"Content-Type":"application/json"}))})}
+  const location=first.headers.get("location")||"";
+  try{await first.body?.cancel()}catch{}
+  if(first.status<300||first.status>=400||!location){
+    return new Response(JSON.stringify({firstStatus:first.status,redirectPresent:!!location,errorClass:"expected-redirect-not-found"}),{status:502,headers:cors(new Headers({"Content-Type":"application/json"}))});
+  }
+  let dest;
+  try{dest=new URL(location,target)}catch{return new Response(JSON.stringify({firstStatus:first.status,errorClass:"bad-redirect"}),{status:502,headers:cors(new Headers({"Content-Type":"application/json"}))})}
+  // Restrict this experiment to the single public IP returned by this provider, on HTTP/80.
+  if(dest.protocol!=="http:"||dest.hostname!=="192.142.25.161"||(dest.port&&dest.port!=="80")){
+    return new Response(JSON.stringify({firstStatus:first.status,redirectHost:dest.hostname,redirectPort:dest.port||"80",errorClass:"redirect-not-allowlisted"}),{status:403,headers:cors(new Headers({"Content-Type":"application/json"}))});
+  }
+  let socket,reader,writer;
+  try{
+    socket=connect({hostname:dest.hostname,port:80});
+    reader=socket.readable.getReader();
+    writer=socket.writable.getWriter();
+    const pathAndQuery=dest.pathname+dest.search;
+    const lines=[
+      "GET "+pathAndQuery+" HTTP/1.1",
+      "Host: "+dest.host,
+      "User-Agent: "+(headers.get("User-Agent")||"NM7-TV/1.0.36 Android-TV"),
+      "Accept: */*",
+      "Accept-Encoding: identity",
+      "Range: bytes=0-32767",
+      "Connection: close"
+    ];
+    if(ref)lines.push("Referer: "+ref.replace(/[\\r\\n]/g,""));
+    await writer.write(new TextEncoder().encode(lines.join("\r\n")+"\r\n\r\n"));
+    try{await writer.close()}catch{}
+    let raw=new Uint8Array(0),deadline=Date.now()+6500,headerEnd=-1,needed=12000;
+    while(raw.byteLength<50000&&Date.now()<deadline){
+      const remaining=deadline-Date.now();
+      const item=await Promise.race([
+        reader.read(),
+        new Promise(resolve=>setTimeout(()=>resolve({timeout:true}),remaining))
+      ]);
+      if(item?.timeout||item.done||!item.value)break;
+      const chunk=item.value;
+      const next=new Uint8Array(Math.min(50000,raw.byteLength+chunk.byteLength));
+      next.set(raw,0);next.set(chunk.subarray(0,next.byteLength-raw.byteLength),raw.byteLength);raw=next;
+      if(headerEnd<0){
+        for(let i=0;i+3<raw.length;i++){
+          if(raw[i]===13&&raw[i+1]===10&&raw[i+2]===13&&raw[i+3]===10){headerEnd=i+4;break}
+        }
+      }
+      if(headerEnd>=0&&raw.length-headerEnd>=needed)break;
+    }
+    if(headerEnd<0){
+      return new Response(JSON.stringify({firstStatus:first.status,connected:true,bytesReceived:raw.byteLength,errorClass:"no-http-header"}),{status:502,headers:cors(new Headers({"Content-Type":"application/json"}))});
+    }
+    const headerText=new TextDecoder().decode(raw.subarray(0,headerEnd-4));
+    const statusLine=headerText.split("\r\n")[0]||"";
+    const sm=statusLine.match(/^HTTP\/\d(?:\.\d)?\s+(\d{3})/i);
+    const status=sm?Number(sm[1]):0;
+    const responseHeaders={};
+    for(const line of headerText.split("\r\n").slice(1)){
+      const i=line.indexOf(":");if(i>0)responseHeaders[line.slice(0,i).trim().toLowerCase()]=line.slice(i+1).trim();
+    }
+    let body=raw.subarray(headerEnd);
+    if(/chunked/i.test(responseHeaders["transfer-encoding"]||"")){
+      const decoded=[];let p=0,total=0,done=false;
+      while(p<body.length&&total<16000){
+        let e=-1;for(let i=p;i+1<body.length;i++)if(body[i]===13&&body[i+1]===10){e=i;break}
+        if(e<0)break;
+        const sizeText=new TextDecoder().decode(body.subarray(p,e)).split(";")[0].trim();
+        const size=parseInt(sizeText,16);if(!Number.isFinite(size)||size<0)break;
+        p=e+2;if(size===0){done=true;break}
+        if(p+size>body.length)break;
+        const piece=body.subarray(p,p+size);decoded.push(piece);total+=piece.length;p+=size+2;
+      }
+      const merged=new Uint8Array(total);let o=0;for(const piece of decoded){merged.set(piece,o);o+=piece.length}body=merged;
+    }
+    const sync=body.length>376&&body[0]===0x47&&body[188]===0x47&&body[376]===0x47;
+    return new Response(JSON.stringify({
+      firstStatus:first.status,redirectHost:dest.hostname,redirectPort:dest.port||"80",
+      socketHttpStatus:status,contentType:responseHeaders["content-type"]||"",
+      transferEncoding:responseHeaders["transfer-encoding"]||"",contentLength:responseHeaders["content-length"]||"",
+      bytesRead:body.byteLength,tsSync188:sync,server:responseHeaders["server"]||"",
+      errorClass:status>=400?"upstream-http-error":"none"
+    }),{headers:cors(new Headers({"Content-Type":"application/json","Cache-Control":"no-store"}))});
+  }catch(e){
+    return new Response(JSON.stringify({firstStatus:first.status,redirectHost:dest.hostname,redirectPort:dest.port||"80",errorClass:"socket-"+String(e?.name||"Error"),errorMessage:String(e?.message||"").slice(0,120)}),{status:502,headers:cors(new Headers({"Content-Type":"application/json","Cache-Control":"no-store"}))});
+  }finally{
+    try{await reader?.cancel()}catch{}
+    try{socket?.close()}catch{}
+  }
+}
 async function probeResponse(request,q){
   const target=q.get("u");
+  if(q.get("socketProbe")==="1")return stalkerSocketProbe(target,q);
   if(!isHttp(target))return new Response(JSON.stringify({type:"http",error:"bad url"}),{status:400,headers:{"Content-Type":"application/json"}});
   // Mirror playback request metadata (UA, Referer and playlist headers) so the
   // diagnostic tests the same request shape as the stream proxy.

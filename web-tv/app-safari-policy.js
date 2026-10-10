@@ -1068,7 +1068,7 @@ function diagnoseMpegTs(c,cand,gen){
   if(cand&&cand.headers&&typeof cand.headers==='object'){
    var safeHeaders={};
    Object.keys(cand.headers).forEach(function(k){
-    if(/^(host|connection|content-length|cookie|user-agent|referer)$/i.test(k))return;
+    if(/^(host|connection|content-length|user-agent|referer)$/i.test(k))return;
     var v=cand.headers[k];if(typeof v==='string'&&v.length<4000)safeHeaders[k]=v;
    });
    if(Object.keys(safeHeaders).length)params.set('h',JSON.stringify(safeHeaders));

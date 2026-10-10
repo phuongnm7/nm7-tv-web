@@ -106,3 +106,5 @@ main().catch(error => {
   console.error(error);
   process.exitCode = 1;
 });
+
+// Cookie-forwarding regression is included above; never print cookie values.

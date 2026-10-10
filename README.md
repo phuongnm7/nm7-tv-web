@@ -404,3 +404,35 @@ Branch: `fix/sports-hls-startup-proxy-20261010`. This work has **not** been merg
 - Browser remote + HLS E2E #419: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027250824. This uses a test HLS fixture; it does not verify the user's real sports URLs or decode SCTV4K HEVC on the target device.
 - No production deploy, playlist/default URL changes, or modifications to NM7 Mobile / NM7 TV Android were made.
 - To finish diagnosis for the user-added sports channels, inspect one failing entry including its `#EXTINF`, any `#EXTHTTP` / `#EXTVLCOPT` lines, and the stream URL (sensitive query tokens may be redacted after the host and URL shape). A source-specific 401/403, required header, DRM requirement, or unsupported codec must be confirmed from that entry before changing source handling.
+
+## 2026-10-10 — Custom M3U User-Agent parsing and SCTV4K live-stream timing
+
+Branch: `fix/sports-hls-startup-proxy-20261010`. The following remains isolated from the stable branch and production Worker.
+
+### Confirmed SCTV4K timing
+
+- Live diagnostic #26: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710.
+- Production manifest response-to-headers time was approximately **3.46 s direct** and **3.01 s through the Worker**.
+- The direct TS segment request returns HTTP 400. In the proxy sample, one segment read timed out after 12 seconds; another TS segment returned **4,417,248 bytes in 4.69 s** and was confirmed by ffprobe as **HEVC Main, 3840×2160, 25 fps**.
+- The playlist is live, not VOD: target duration 6 seconds, six segments, no `#EXT-X-ENDLIST`, and the media sequence changed between requests. Do not cache the manifest for a long TTL: a stale sequence may refer to expired segments.
+- These measurements show that the remaining delay is not just a player watchdog. The upstream manifest itself is slow, and 4K HEVC segments are multi-megabyte with variable response times. A CI HTTP 200 result is not proof of a fast first frame or successful device decoding.
+
+### Confirmed parser defect for an M3U header format
+
+- An earlier user-provided sports playlist in the file library uses unquoted `#EXTVLCOPT:http-user-agent=` values containing spaces. The old parser stopped at the first whitespace and sent only a truncated User-Agent (for example, `Mozilla/5.0`), unlike a native player that reads the full option value. This can make a provider return an error page or reject a manifest even when the same entry plays in the app.
+- Fixed the parser in `worker.js`, `web-tv/app.js` and `web-tv/app-safari-policy.js`: for an unquoted User-Agent, capture the remainder of that `#EXTVLCOPT` line and trim it. Referer and Origin options remain parsed as before.
+- Expanded `scripts/test-custom-m3u-headers-probe.js` to assert that the entire unquoted User-Agent, Referer and Origin survive parsing and reach the HEAD → GET Range probe. The same regression checks both frontend entrypoints.
+
+### Other isolated-branch safeguards
+
+- The Worker sniffs a small response prefix to distinguish extensionless/text HLS manifests from binary TS/fMP4 segments with a misleading MIME type.
+- Playback candidate retries are serialized to prevent a generic media error and HLS.js error from triggering overlapping retries. A failed proxy-first candidate is not retried again through the same proxy for a full watchdog interval.
+- HLS.js fragment prefetch is enabled and its transmuxing worker is enabled outside older Tizen/SMART-TV user agents. The active script cache-buster is updated.
+
+### Validation and release status
+
+- Web Browser Validation #397: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027577281.
+- Browser remote + HLS E2E #428: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027577190. It uses a test HLS fixture and does not verify the real custom sports stream or SCTV4K decoding on the user's device.
+- Live diagnostic #26: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710.
+- The names shown in the video (Sky Sports+ 12/39 and TNT Sports 1) were not found in the three server-served playlist presets or the older M3U file searched. The User-Agent defect is confirmed for this M3U format, but it is not yet proven that those three video entries use that exact provider.
+- No playlist/default URL was changed; no production deploy; NM7 Mobile and NM7 TV Android remain untouched. Do not merge/deploy until one of the actual failing video entries is probed end-to-end and tested on the target device.

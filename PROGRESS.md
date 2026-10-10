@@ -526,3 +526,27 @@ Nhánh: `fix/sports-hls-startup-proxy-20261010`. **Chưa merge vào stable và c
 
 - Cần lấy đúng một entry đang lỗi từ nguồn M3U tùy chỉnh: dòng `#EXTINF`, các dòng `#EXTHTTP`/`#EXTVLCOPT` nếu có, và URL stream. Có thể che token nhạy cảm sau khi giữ lại hostname và cấu trúc đường dẫn phù hợp. Sau đó phải kiểm tra status và Content-Type của manifest, URI con, segment/fragment, header bắt buộc, codec/DRM và thời gian tải thực.
 - Độ trễ SCTV4K cần đo từ khi bấm kênh đến các mốc manifest, segment đầu, `loadeddata`/`playing` và khung hình giải mã trên thiết bị. E2E CI giả lập không thay thế phép đo đó.
+
+## 2026-10-10 — Video 224593: source latency and unquoted M3U User-Agent fix
+
+### Evidence from production Cloudflare
+
+- Diagnostic run #26: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710 (**SUCCESS**; path/query values remain redacted in logs).
+- SCTV4K manifest returned HTTP 200 but needed about 3.46 s for direct response headers; through the Worker, about 3.01 s. Direct media segments returned HTTP 400.
+- The live manifest has target duration 6 s, six listed segments and no `#EXT-X-ENDLIST`; the media sequence changed between direct and proxy requests. Long-lived manifest caching is unsafe because stale entries may point to segments that have rolled out of the live window.
+- One proxied TS segment sample timed out while reading after 12 s; another returned 4,417,248 bytes in 4.689 s. ffprobe reports HEVC Main, 3840×2160, 25 fps. Prior samples were also several MB and had variable response times. This is strong evidence that upstream startup latency and 4K segment delivery/decoding are contributors; the browser watchdog alone is not the cause.
+
+### M3U parser bug found and fixed in this branch
+
+- A saved user sports M3U uses lines like `#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Linux; Android 15) ...` without quotes around the full value.
+- The old regex captured only up to the first whitespace, truncating the UA and potentially causing a provider to reject the playlist or return HTML instead of HLS. Native playback can still work because its parser retains the full value.
+- Patched `worker.js`, `web-tv/app.js` and `web-tv/app-safari-policy.js` to capture and trim the entire unquoted User-Agent value. Referer and Origin are retained.
+- Extended `scripts/test-custom-m3u-headers-probe.js`: it loads a representative unquoted-User-Agent M3U entry, checks the full value in the parsed candidate, and asserts the exact UA, Referer and Origin reach the GET Range probe. Static regression assertions cover both web player entrypoints.
+
+### Current branch test results
+
+- Web Browser Validation #397: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027577281.
+- Browser remote + HLS E2E #428: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027577190.
+- Live diagnostic #26: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710.
+- These checks validate parser/proxy logic and a controlled HLS fixture. They do not prove the three named real sports channels now play; their exact M3U entries were not available in the server presets or found in the older saved M3U file, and no target-device playback has yet been verified.
+- Branch remains `fix/sports-hls-startup-proxy-20261010`. No merge/deploy or source URL changes. Do not deploy before confirming at least one actual failing sports entry through manifest, variant/segment and playback on the target device.

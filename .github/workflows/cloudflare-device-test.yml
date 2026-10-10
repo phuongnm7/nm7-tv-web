@@ -127,6 +127,28 @@ jobs:
               raise SystemExit(summary)
           PY
 
+      - name: Verify production Cloudflare source import (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          TARGET_URL="https://thethaonm7.phuongnm7-iptv.workers.dev/playlist.m3u"
+          ENCODED="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=""))' "$TARGET_URL")"
+          curl -sS --max-time 45 "$BASE/api/source?u=$ENCODED" -o /tmp/nm7-production-source.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.load(open('/tmp/nm7-production-source.json',encoding='utf-8'))
+          channels=d.get('channels') or []
+          summary=('PRODUCTION_SOURCE_IMPORT_OK channels='+str(len(channels))+
+                   ' fetchMode='+str(d.get('fetchMode'))) if channels else (
+                   'PRODUCTION_SOURCE_IMPORT_FAILED '+str(d.get('error')))
+          Path('/tmp/nm7-production-source-summary.txt').write_text(summary,encoding='utf-8')
+          print(summary)
+          if not channels:
+              raise SystemExit(summary)
+          PY
+
       - name: Publish isolated source-test status for verification
         if: always()
         env:
@@ -137,7 +159,7 @@ jobs:
           set -euo pipefail
           state="success"
           if [ "$JOB_STATUS" != "success" ]; then state="failure"; fi
-          summary="$(cat /tmp/nm7-source-target-summary.txt 2>/dev/null || true)"
+          summary="$(cat /tmp/nm7-production-source-summary.txt 2>/dev/null || cat /tmp/nm7-source-target-summary.txt 2>/dev/null || true)"
           if [ -z "$summary" ]; then summary="Cloudflare source import test $state; inspect workflow logs"; fi
           summary="${summary:0:140}"
           gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \

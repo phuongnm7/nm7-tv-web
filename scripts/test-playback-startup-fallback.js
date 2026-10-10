@@ -56,3 +56,13 @@ for (const file of files) {
 }
 
 console.log('PASS: startup fallback and status text checks');
+
+// Regression: SCTV4K's direct manifest is valid but its direct TS children return HTTP 400;
+// production diagnostics confirm the same children return HTTP 200 through the Worker proxy.
+for (const file of ['web-tv/app.js', 'web-tv/app-safari-policy.js']) {
+  const source = require('node:fs').readFileSync(file, 'utf8');
+  assert.match(source, /kind===['\"]hls['\"]&&\(\/sctv4k\/i.test\(String\(cand\.name\|\|['\"]['\"]\)\+['\"] ['\"]\+String\(cand\.id\|\|['\"]['\"]\)\)\|\|\/vietanhtv/,
+    file + ': SCTV4K/vietanhtv HLS starts through proxy first');
+  assert.ok(source.includes("var wait=kind==='hls'?8000:15000;") || source.includes('var wait=kind==="hls"?8000:15000;'),
+    file + ': HLS startup timeout is capped at 8 seconds, not 45 seconds');
+}

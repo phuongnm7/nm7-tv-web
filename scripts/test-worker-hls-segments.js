@@ -108,6 +108,29 @@ async function main() {
     console.log('PASS: extensionless text/plain HLS manifests are sniffed and rewritten');
     console.log('PASS: User-Agent, Referer and custom headers are preserved by the proxy');
 
+    // Regression: Stalker/Xtream live.php declares MPEG-TS through extension=ts.
+    const stalkerUrl = 'http://mag.example.test:80/play/live.php?mac=masked&stream=1314077&extension=ts&play_token=masked';
+    const stalkerBytes = new Uint8Array(564);
+    stalkerBytes[0] = 0x47;
+    stalkerBytes[188] = 0x47;
+    stalkerBytes[376] = 0x47;
+    global.fetch = async (input) => {
+      assert.equal(String(input), stalkerUrl, 'Stalker live.php URL is preserved');
+      return new Response(stalkerBytes, {
+        status: 200,
+        headers: { 'Content-Type': 'application/octet-stream' }
+      });
+    };
+    const stalkerResponse = await worker.fetch(new Request(
+      'https://nm7-test.example/api/stream?u=' + encodeURIComponent(stalkerUrl)
+    ), {});
+    assert.equal(stalkerResponse.status, 200, 'Stalker stream is proxied');
+    assert.equal(stalkerResponse.headers.get('content-type'), 'video/mp2t',
+      'extension=ts query selects MPEG-TS MIME');
+    assert.deepEqual(new Uint8Array(await stalkerResponse.arrayBuffer()), stalkerBytes,
+      'Stalker TS payload is passed through byte-for-byte');
+    console.log('PASS: Stalker live.php?extension=ts is served as MPEG-TS');
+
     // Regression: some CDNs give an opaque binary TS child the same misleading
     // mpegurl MIME as its manifest. It must remain byte-for-byte media.
     const opaqueSegmentUrl = 'https://cdn.example.test/opaque/segment?sig=segment';

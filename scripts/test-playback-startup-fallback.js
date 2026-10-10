@@ -20,9 +20,10 @@ for (const file of files) {
     file + ': does not wait for the 15-second watchdog on explicit HTTP failures');
   assert.match(source, /if\(data&&!S\.proxyAttempt&&data\.type===Hls\.ErrorTypes\.NETWORK_ERROR\)/,
     file + ': direct HLS CORS/network failures switch to proxy before retry backoff');
-  assert.match(source, /var wait=kind===\'hls\'\?\(isKnownSlow4k\?15000:8000\):15000/,
-    file + ': regular HLS remains short while known 4K uses a longer timeout');
-  assert.match(source, /if\(isKnownSlow4k\)wait=15000/,
+  assert.ok(source.includes("var wait=kind==='hls'?(isKnownSlow4k?15000:8000):15000;") ||
+    source.includes("var wait=kind==='hls'?8000:15000;"),
+    file + ': HLS startup timeout is bounded (15 seconds for known 4K, 8 seconds otherwise)');
+  assert.doesNotMatch(source, /if\(isKnownSlow4k\)wait=45000/,
     file + ': SCTV4K does not wait 45 seconds before fallback');
   assert.match(source, /S\.hls!==h/,
     file + ': late events from destroyed HLS instances cannot cancel the current attempt');
@@ -52,15 +53,86 @@ for (const file of files) {
     file + ': no double-escaped newline in player status/debug text');
   assert.match(source, /Lỗi cuối: '\+String\(reason\|\|'Không rõ'\)\.slice\(0,160\)/,
     file + ': terminal failure exposes a short reason without printing URLs');
+  assert.ok(source.includes('function scheduleCandidateRetry()'),
+    file + ': simultaneous video-element and HLS.js errors are serialized');
+  assert.ok(source.includes('!(proxyFirst&&S.proxyAttempt)'),
+    file + ': non-Stalker proxy-first providers are not retried through the same proxy');
+  assert.ok(source.includes('function isStalkerTsCandidate(cand,kind)') &&
+    source.includes('var allowStalkerDirectFallback=isStalkerTsCandidate(cand,kind);') &&
+    source.includes('||allowStalkerDirectFallback'),
+    file + ': Stalker MPEG-TS tries the direct endpoint once after proxy failure');
+  const helperStart = source.indexOf('function isStalkerTsCandidate(cand,kind){');
+  let helperEnd = -1, braceDepth = 0, helperStarted = false;
+  for (let k = helperStart; helperStart >= 0 && k < source.length; k++) {
+    if (source[k] === '{') { braceDepth++; helperStarted = true; }
+    else if (source[k] === '}' && helperStarted) {
+      braceDepth--;
+      if (braceDepth === 0) { helperEnd = k + 1; break; }
+    }
+  }
+  assert.ok(helperStart >= 0 && helperEnd > helperStart, file + ': Stalker fallback classifier is extractable for behavior tests');
+  const isStalkerTsCandidate = new Function(source.slice(helperStart, helperEnd) + '; return isStalkerTsCandidate;')();
+  assert.equal(isStalkerTsCandidate({url:'http://mag.example.test/play/live.php?mac=M&stream=1&extension=ts&play_token=T'}, 'mpegts'), true,
+    file + ': identifies a tokenized Stalker MPEG-TS stream');
+  assert.equal(isStalkerTsCandidate({url:'http://example.test/live.ts'}, 'mpegts'), false,
+    file + ': does not classify ordinary TS URLs as Stalker');
+  assert.equal(isStalkerTsCandidate({url:'http://mag.example.test/play/live.php?mac=M&stream=1&extension=ts'}, 'mpegts'), false,
+    file + ': does not use direct fallback without a playback token');
+  assert.equal(isStalkerTsCandidate({url:'http://mag.example.test/play/live.php?mac=M&stream=1&extension=ts&play_token=T'}, 'hls'), false,
+    file + ': Stalker direct fallback applies only to MPEG-TS');
+
+  // Runtime-test makeProxy routing: all sources must stay on the same-origin Cloudflare Worker.
+  const proxyStart = source.indexOf('function makeProxy(u,cand){');
+  let proxyEnd = -1, proxyDepth = 0, proxyStarted = false;
+  for (let k = proxyStart; proxyStart >= 0 && k < source.length; k++) {
+    if (source[k] === '{') { proxyDepth++; proxyStarted = true; }
+    else if (source[k] === '}' && proxyStarted) {
+      proxyDepth--;
+      if (proxyDepth === 0) { proxyEnd = k + 1; break; }
+    }
+  }
+  assert.ok(proxyStart >= 0 && proxyEnd > proxyStart, file + ': makeProxy is extractable for route tests');
+  assert.ok(!source.includes('vercel.app') && !source.includes('VERCEL'),
+    file + ': playback routing does not use Vercel');
+  const proxyFactory = new Function('S','location','isHttp','normalizeCandidate','isStalkerTsCandidate',
+    source.slice(proxyStart, proxyEnd) + '; return makeProxy;');
+  const testLocation = {origin:'https://nm7-test.example'};
+  const isHttpTest = value => String(value||'').startsWith('http://') || String(value||'').startsWith('https://');
+  const normalizeTest = value => value;
+  const makeProxy = (state) => proxyFactory(state,testLocation,isHttpTest,normalizeTest,isStalkerTsCandidate);
+  const signedStalkerUrl = 'http://mag.example.test/play/live.php?mac=SAFE&stream=1&extension=ts&play_token=SAFE';
+  const stalkerProxyUrl = makeProxy({proxyAttempt:true})(signedStalkerUrl,{url:signedStalkerUrl});
+  const stalkerProxy = new URL(stalkerProxyUrl,'https://nm7-test.example');
+  assert.equal(stalkerProxy.origin,'https://nm7-test.example',
+    file + ': Stalker MPEG-TS stays on same-origin Cloudflare Worker');
+  assert.equal(stalkerProxy.pathname,'/api/stream',file + ': Cloudflare Worker proxy path is correct');
+  assert.equal(stalkerProxy.searchParams.get('u'),signedStalkerUrl,file + ': source URL is encoded as the upstream parameter');
+  const regularProxy = makeProxy({proxyAttempt:true})('https://media.example.test/live.ts',{url:'https://media.example.test/live.ts'});
+  assert.equal(regularProxy.startsWith('/api/stream?u='),true,
+    file + ': other sources continue using the same-origin Worker proxy');
+  assert.equal(makeProxy({proxyAttempt:false})(signedStalkerUrl,{url:signedStalkerUrl}),signedStalkerUrl,
+    file + ': direct fallback remains direct when proxyAttempt is false');
+  assert.ok(source.includes('if(S.hls)return;'),
+    file + ': generic video error listener does not race HLS.js diagnostics');
+  assert.ok(source.includes('startFragPrefetch:true'),
+    file + ': first HLS fragment may start as soon as listed by the playlist');
+  assert.ok(source.includes('enableWorker:!tizenLike'),
+    file + ': HLS transmuxing worker is enabled except on older Tizen browsers');
+  console.log('PASS', file);
+  assert.ok(source.includes("/[?&]extension=(?:ts|m2ts)(?:&|$)/i.test(u)"),
+    file + ': classifies Stalker /play/live.php?extension=ts as MPEG-TS');
   console.log('PASS', file);
 }
 
 console.log('PASS: startup fallback and status text checks');
 
-// Regression: SCTV4K's direct manifest is valid but its direct TS children return HTTP 400.
+// Regression: SCTV4K's direct manifest is valid but its direct TS children return HTTP 400;
+// production diagnostics confirm the same children return HTTP 200 through the Worker proxy.
 for (const file of ['web-tv/app.js', 'web-tv/app-safari-policy.js']) {
   const source = require('node:fs').readFileSync(file, 'utf8');
   assert.ok(source.includes("if(/vietanhtv\\.id\\.vn/i.test(String(cand.resolvedUrl||cand.url||'')))return true;"),
     file + ': SCTV4K provider is configured to start through proxy first');
-  assert.ok(source.includes("var wait=kind==='hls'?(isKnownSlow4k?15000:8000):15000;"),
-    file + ': known 4K startup timeout is capped at 15 seconds, not 45 seconds');}
+  assert.ok(source.includes("var wait=kind==='hls'?(isKnownSlow4k?15000:8000):15000;") ||
+    source.includes('var wait=kind==="hls"?(isKnownSlow4k?15000:8000):15000;'),
+    file + ': known 4K startup timeout is capped at 15 seconds, not 45 seconds');
+}

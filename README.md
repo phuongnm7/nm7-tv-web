@@ -2,7 +2,7 @@
 
 Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi của bản Android TV **1.0.69**.
 
-## Stable baseline hiện tại — 09/10/2026
+## Mốc baseline gốc — 09/10/2026
 
 - Nhánh gốc ổn định cho các bản kế tiếp: `stable/nm7-tv-web-2026-10-09`.
 - Commit production đã xác minh: `52a51a8447735259db92f33cf5a67748cdf94c40` (Deploy #428 PASS; YouTube Original E2E #114 PASS).
@@ -14,7 +14,7 @@ Phiên bản Web của NM7 TV được xây dựng theo giao diện và hành vi
 
 - Ngày cập nhật: **10/10/2026**
 - Nhánh ổn định: `stable/nm7-tv-web-2026-10-09`
-- Cập nhật mới nhất: **tự chọn Nguồn mặc định theo hệ điều hành trình duyệt; production Cloudflare Deploy #438 đã PASS**
+- Cập nhật mới nhất: **Stalker/Xtream `live.php?extension=ts` được xử lý qua TCP socket cùng Cloudflare Worker khi origin redirect sang IP; bản test đã được người dùng xác nhận hoạt động**
 - Cloudflare Worker: `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`
 - Nơi triển khai: **Cloudflare Workers**
 - Chuẩn giao diện TV: Android TV NM7 1.0.69
@@ -368,20 +368,102 @@ Qua kiểm thử Chromium thực tế, reverse-proxy Cloudflare vẫn có thể 
 - Browser E2E #38024369686: PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024369686. Bài test kiểm tra remote navigation và manifest/segment của fixture; runner không có decoder H.264 nên không thể thay thế test giải mã thực tế SCTV4K.
 - Nhánh `fix/sctv4k-proxy-retry-state-20261010`; chưa deploy sản phẩm tại thời điểm ghi nhận này. Không đổi URL playlist mặc định, không chỉnh NM7 Mobile hoặc NM7 TV Android.
 
-## 2026-10-10 — Vòng sửa SCTV4K đã triển khai lên Cloudflare
 
-- PR #21 đã merge vào nhánh ổn định. Commit: `d97ed0286dd02cbe2bc94ffffb9cfe3cec87c8d5`.
-- **Cloudflare Deploy #448: SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024535545. Deploy Worker, deploy YouTube reverse proxy, YouTube smoke test và Cloudflare Worker smoke test đều PASS.
-- Chẩn đoán production đã nhận diện SCTV4K là HLS dùng **HEVC/H.265 Main, 3840×2160, 25 fps**. Manifest trực tiếp trả HTTP 200 nhưng segment trực tiếp trả HTTP 400; segment qua Worker proxy trả HTTP 200 với MIME `video/mp2t`. Xem log đã khử URL/token: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024197006.
-- Worker hiện đánh dấu candidate SCTV4K từ host đã xác minh `vietanhtv.id.vn` dùng proxy trước tiên. Player bỏ qua late callback từ HLS instance đã hủy, timeout khởi động riêng cho 4K tăng lên 45 giây và cache-buster đã đổi để thiết bị nạp JavaScript mới.
-- Web Browser Validation PASS: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024485612. Browser E2E PASS: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38024485476. E2E xác minh UI/remote và tải manifest/segment của fixture; môi trường CI không có decoder H.264 nên không xác nhận giải mã HEVC của kênh thật.
-- **Chưa có xác nhận phát thành công trên thiết bị người dùng sau Deploy #448.** Hãy thử lại tại `https://nm7-tv-web.phuongnm7-iptv.workers.dev/`; timeout 45 giây là giới hạn dự phòng, không phải thời gian chờ bắt buộc. Khi video phát được, watchdog sẽ bị hủy ngay.
-- Chỉ thay đổi NM7 TV Web. Không thay URL playlist mặc định, không sửa NM7 Mobile/Android.
+### Follow-up fix — SCTV4K direct TS returns HTTP 400 (10/10/2026)
 
-### 2026-10-10 — SCTV4K proxy-first correction
+Production diagnostic of the currently deployed Cloudflare Worker reproduced the new recording: the SCTV4K M3U8 manifest returns HTTP 200, but direct child MPEG-TS segment requests return HTTP 400. The same manifest through `/api/stream` and its proxied TS segments return HTTP 200 (`video/mp2t`). The prior player still attempted direct first and had a special 45-second startup watchdog for this channel, which explains the black screen and long wait. The new follow-up change in `fix/sctv4k-proxy-retry-state-20261010` starts the known SCTV4K/VietAnhTV HLS candidate through the Worker proxy first, removes the 45-second exception, and caps the HLS startup watchdog at 8 seconds. Both `app.js` and `app-safari-policy.js` are updated; cache-buster is bumped. Do not claim the final result until browser regression and Cloudflare production smoke tests pass.
 
-- Live Cloudflare diagnostic: the SCTV4K manifest at `vietanhtv.id.vn` responds HTTP 200 directly, but direct child TS segment requests return HTTP 400.
-- The Worker parser now marks this provider `forceProxy: true`; both web player entrypoints start it through the same-origin Cloudflare proxy first.
-- Known SCTV4K startup watchdog is bounded at 15 seconds (not 45 seconds); normal HLS remains 8 seconds. Cache-buster updated.
-- Regression test: `scripts/test-sctv4k-proxy-preference.js` checks that this provider is proxy-first without changing unrelated HLS.
-- DAZN was not present in server-served presets 1/2 or sports playlist. Its local/custom source entry is not visible to server diagnostics, so its exact upstream still requires the exact M3U line/URL.
+### 2026-10-10 — SCTV4K proxy-first follow-up
+
+- Live Cloudflare diagnostic verified the SCTV4K manifest at `vietanhtv.id.vn` responds HTTP 200 directly, but direct child TS segment requests respond HTTP 400. This is a provider-specific failure pattern: a successful manifest does not mean direct segment delivery works.
+- The Worker playlist parser now marks this provider as `forceProxy: true`. Both player entrypoints also recognize the provider hostname as proxy-first, so the first playback attempt goes through the Cloudflare Worker instead of waiting for a direct-source failure.
+- Known SCTV4K startup watchdog is bounded at 15 seconds (not 45 seconds); normal HLS remains 8 seconds. Cache-buster updated so the client loads the new player code.
+- Added `scripts/test-sctv4k-proxy-preference.js`: confirms only `vietanhtv.id.vn` HLS is forced through proxy and unrelated HLS remains unchanged.
+- Validation: Web Browser Validation PASS — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38025807061. Browser HLS E2E is still running; its CI browser has no H.264 decoder, so that job can verify resource delivery but not real H.264 decoding.
+- DAZN/foreign custom channel was not present in the three server-served playlists (default 1, default 2, sports). The local/custom source URL/entry is not exposed to server diagnostics, so its exact upstream failure cannot be reproduced without the exact M3U entry. No default source URLs were changed.
+
+## 2026-10-10 — HLS manifest sniffing and playback retry-state fix (isolated branch)
+
+Branch: `fix/sports-hls-startup-proxy-20261010`. This work has **not** been merged into the stable branch or deployed to the production Worker.
+
+### What the new video establishes
+
+- SCTV4K now opens but still has a noticeable startup delay. Earlier live diagnostics established that its direct manifest returns HTTP 200 while direct TS segment requests return HTTP 400; proxy segment requests return HTTP 200. Earlier stream inspection identified HEVC/H.265 3840×2160 media, which can add first-frame delay on devices with limited HEVC decoding or large initial segments. HTTP success does not prove playback starts quickly.
+- The latest video shows several user-added international sports entries reaching the “proxy” attempt but remaining black. These entries are from a local/custom playlist and were not found in the three server-served playlist presets, so the exact upstream response and codec/DRM cannot be concluded from the current video alone.
+
+### Code changes on the isolated branch
+
+- Worker `/api/stream` now inspects a small cloned response prefix before rewriting ambiguous manifest payloads. It can identify an HLS manifest at an extensionless `text/plain` URL and rewrite its relative segment URIs; it identifies common MPEG-TS/fMP4 payloads and passes their binary bytes through without treating them as playlist text.
+- The player entrypoints serialize candidate retries so HLS.js and the generic video-element error listener cannot race each other. If a provider is marked proxy-first and that proxy attempt fails, the player moves on rather than spending another full watchdog interval retrying the same proxy URL.
+- HLS.js enables fragment prefetch and its transmuxing worker on non-Tizen browsers; the worker remains disabled on older Tizen/SMART-TV user agents. The active script cache-buster was bumped.
+- Regression tests cover extensionless `text/plain` HLS manifests, correctly rewritten child URIs, custom User-Agent/Referer/other M3U headers, misleading HLS MIME on binary TS, byte-for-byte passthrough, retry serialization, and HLS prefetch configuration.
+
+### Validation and limits
+
+- Web Browser Validation #388: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027250808.
+- Browser remote + HLS E2E #419: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027250824. This uses a test HLS fixture; it does not verify the user's real sports URLs or decode SCTV4K HEVC on the target device.
+- No production deploy, playlist/default URL changes, or modifications to NM7 Mobile / NM7 TV Android were made.
+- To finish diagnosis for the user-added sports channels, inspect one failing entry including its `#EXTINF`, any `#EXTHTTP` / `#EXTVLCOPT` lines, and the stream URL (sensitive query tokens may be redacted after the host and URL shape). A source-specific 401/403, required header, DRM requirement, or unsupported codec must be confirmed from that entry before changing source handling.
+
+## 2026-10-10 — Custom M3U User-Agent parsing and SCTV4K live-stream timing
+
+Branch: `fix/sports-hls-startup-proxy-20261010`. The following remains isolated from the stable branch and production Worker.
+
+### Confirmed SCTV4K timing
+
+- Live diagnostic #26: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710.
+- Production manifest response-to-headers time was approximately **3.46 s direct** and **3.01 s through the Worker**.
+- The direct TS segment request returns HTTP 400. In the proxy sample, one segment read timed out after 12 seconds; another TS segment returned **4,417,248 bytes in 4.69 s** and was confirmed by ffprobe as **HEVC Main, 3840×2160, 25 fps**.
+- The playlist is live, not VOD: target duration 6 seconds, six segments, no `#EXT-X-ENDLIST`, and the media sequence changed between requests. Do not cache the manifest for a long TTL: a stale sequence may refer to expired segments.
+- These measurements show that the remaining delay is not just a player watchdog. The upstream manifest itself is slow, and 4K HEVC segments are multi-megabyte with variable response times. A CI HTTP 200 result is not proof of a fast first frame or successful device decoding.
+
+### Confirmed parser defect for an M3U header format
+
+- An earlier user-provided sports playlist in the file library uses unquoted `#EXTVLCOPT:http-user-agent=` values containing spaces. The old parser stopped at the first whitespace and sent only a truncated User-Agent (for example, `Mozilla/5.0`), unlike a native player that reads the full option value. This can make a provider return an error page or reject a manifest even when the same entry plays in the app.
+- Fixed the parser in `worker.js`, `web-tv/app.js` and `web-tv/app-safari-policy.js`: for an unquoted User-Agent, capture the remainder of that `#EXTVLCOPT` line and trim it. Referer and Origin options remain parsed as before.
+- Expanded `scripts/test-custom-m3u-headers-probe.js` to assert that the entire unquoted User-Agent, Referer and Origin survive parsing and reach the HEAD → GET Range probe. The same regression checks both frontend entrypoints.
+
+### Other isolated-branch safeguards
+
+- The Worker sniffs a small response prefix to distinguish extensionless/text HLS manifests from binary TS/fMP4 segments with a misleading MIME type.
+- Playback candidate retries are serialized to prevent a generic media error and HLS.js error from triggering overlapping retries. A failed proxy-first candidate is not retried again through the same proxy for a full watchdog interval.
+- HLS.js fragment prefetch is enabled and its transmuxing worker is enabled outside older Tizen/SMART-TV user agents. The active script cache-buster is updated.
+
+### Validation and release status
+
+- Web Browser Validation #397: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027577281.
+- Browser remote + HLS E2E #428: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027577190. It uses a test HLS fixture and does not verify the real custom sports stream or SCTV4K decoding on the user's device.
+- Live diagnostic #26: **SUCCESS** — https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027633710.
+- The names shown in the video (Sky Sports+ 12/39 and TNT Sports 1) were not found in the three server-served playlist presets or the older M3U file searched. The User-Agent defect is confirmed for this M3U format, but it is not yet proven that those three video entries use that exact provider.
+- No playlist/default URL was changed; no production deploy; NM7 Mobile and NM7 TV Android remain untouched. Do not merge/deploy until one of the actual failing video entries is probed end-to-end and tested on the target device.
+
+### Follow-up diagnostic #27 — custom sports source is still unverified
+
+- Diagnostic #27 completed successfully: https://github.com/phuongnm7/nm7-tv-web/actions/runs/38027818973.
+- A representative, older Film4k TNT Sports 1 endpoint returned HTTP 403 JSON with both the full User-Agent and truncated User-Agent; the proxied attempt also returned 403. That indicates the particular endpoint currently refuses the request from the CI environment. It does not prove the exact channels shown in video 224593 share that endpoint or error.
+- The video’s exact labels (UK - SKY SPORTS+ 12 FHD, UK - SKY SPORTS+ 39 FHD, UK - TNT SPORTS 1 FHD) were not found in the current server-served presets or older saved M3U files searched. The actual playlist entry/URL is still required for a source-specific diagnosis.
+- SCTV4K live diagnostic #27 measured about 4.0 s to direct manifest headers and 2.2 s through proxy; the proxied 3.9 MB HEVC 3840×2160 segment took ~5.7 s end-to-end in that sample. Direct TS segments still return HTTP 400. The HLS playlist is live and sequence numbers change, so long-lived manifest caching would risk stale segments.
+- Web Browser Validation #400 and browser fixture E2E #431 both passed. These are code/regression checks, not confirmation that the actual video channels play on the user’s device.
+- Production remains unchanged. No stable merge/deploy or default playlist URL changes were made.
+
+
+## 2026-10-10 — Sửa luồng Stalker/Xtream ngay trên Cloudflare Workers
+
+### Nguyên nhân
+- Nguồn Stalker trả HTTP 302 từ `mag.tivi-one-iptv.net/play/live.php?extension=ts` sang địa chỉ IP stream.
+- Đường `fetch()` theo redirect thông thường của Worker bị upstream trả HTTP 403, trong khi kiểm tra TCP socket tới đích stream trả HTTP 200 cùng dữ liệu MPEG-TS hợp lệ.
+- Vì vậy, chỉ nhận diện `extension=ts` và đặt MIME đúng là chưa đủ; cần mở luồng TCP theo redirect đã kiểm tra.
+
+### Thay đổi
+- `worker.js`: thêm `stalkerSocketStreamResponse()` bằng Cloudflare `cloudflare:sockets`; gửi HTTP GET tới đích được kiểm tra và trả body dưới dạng stream, không nạp toàn bộ video vào bộ nhớ.
+- Chỉ bật cho host `mag.tivi-one-iptv.net`, đường dẫn `/play/live.php`, `extension=ts|m2ts` và có trường nhận diện nguồn/phiên cần thiết. Đích redirect được giới hạn chặt vào IP `192.142.25.161`, cổng 80; không biến Worker thành proxy TCP tùy ý.
+- Giữ nguyên đường phát cùng origin qua Cloudflare Worker `/api/stream`. `app.js` và `app-safari-policy.js` không chuyển luồng video sang Vercel; URL VietMiTV Merge đang có trong cấu hình vẫn chỉ là nguồn playlist, không phải proxy phát video.
+- Bổ sung regression test cho nhận diện Stalker, bảo toàn payload MPEG-TS, header M3U và ưu tiên proxy của SCTV4K.
+
+### Kiểm chứng trên bản test Cloudflare
+- [Chẩn đoán Cloudflare TCP socket #38038333778](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38038333778): socket stream trả HTTP 200, `video/mp2t` và byte sync MPEG-TS hợp lệ.
+- [Web Browser Validation #38038333749](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38038333749): PASS.
+- [Browser remote + HLS E2E #38038333758](https://github.com/phuongnm7/nm7-tv-web/actions/runs/38038333758): PASS.
+- Người dùng đã xác nhận bản test Cloudflare này hoạt động và yêu cầu đưa mã cùng tài liệu sang nhánh ổn định.
+
+Phạm vi thay đổi: chỉ NM7 TV Web và Cloudflare Worker; không đổi NM7 Mobile hoặc NM7 TV Android. Việc triển khai production được xác minh riêng qua workflow Cloudflare của nhánh stable.

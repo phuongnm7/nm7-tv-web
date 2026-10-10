@@ -38,6 +38,7 @@ jobs:
           node scripts/test-custom-m3u-headers-probe.js
           node scripts/test-worker-dash-proxy.js
           node scripts/test-sctv4k-proxy-preference.js
+          node scripts/test-stalker-default-user-agent.js
       - name: Check required web assets
         run: |
           test -s web-tv/index.html

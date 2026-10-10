@@ -1,0 +1,127 @@
+name: Diagnose NM7 4K and foreign channel playback
+on:
+  push:
+    branches:
+      - feat/diagnose-4k-foreign-playback-20261010
+    paths:
+      - ".github/workflows/diagnose-4k-foreign-playback.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect production playlist candidates and direct/proxy responses
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, re, urllib.parse, urllib.request, urllib.error
+          from urllib.parse import urlparse
+          BASE = "https://nm7-tv-web.phuongnm7-iptv.workers.dev"
+          UA = "Mozilla/5.0 (Linux; Android 15; SM-G998B) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36"
+
+          def request(url, headers=None, limit=12000, timeout=18):
+              req = urllib.request.Request(url, headers=headers or {"User-Agent": UA}, method="GET")
+              try:
+                  with urllib.request.urlopen(req, timeout=timeout) as r:
+                      body = r.read(limit)
+                      return {"status": r.status, "contentType": r.headers.get("Content-Type", ""),
+                              "bytesRead": len(body), "body": body, "finalUrl": r.geturl()}
+              except urllib.error.HTTPError as e:
+                  body = e.read(min(limit, 1000))
+                  return {"status": e.code, "contentType": e.headers.get("Content-Type", ""),
+                          "bytesRead": len(body), "body": body, "finalUrl": e.geturl()}
+              except Exception as e:
+                  return {"error": type(e).__name__ + ": " + str(e)[:180], "body": b"", "bytesRead": 0}
+
+          def safe_type(c):
+              u = str(c.get("url") or c.get("resolvedUrl") or "")
+              ext = urlparse(u).path.rsplit(".", 1)[-1].lower() if "." in urlparse(u).path else ""
+              typ = str(c.get("type") or "").lower()
+              if not typ:
+                  typ = "dash" if c.get("dash") or ext == "mpd" else "hls" if c.get("hls") or ext in ("m3u8","m3u") else "flv" if c.get("flv") or ext == "flv" else "unknown"
+              return typ, ext
+
+          def summarize(label, result):
+              body = result.get("body", b"")
+              text = body[:10000].decode("utf-8", "ignore")
+              resolutions = re.findall(r'RESOLUTION=(\d+x\d+)', text, re.I)
+              codecs = re.findall(r'CODECS="([^"]+)"', text, re.I)
+              is_m3u = body.lstrip().startswith(b"#EXTM3U")
+              is_mpd = b"<MPD" in body[:5000]
+              is_html = b"<html" in body[:500].lower() or b"<!doctype html" in body[:500].lower()
+              print(label, json.dumps({
+                  "status": result.get("status"), "contentType": result.get("contentType"),
+                  "bytesRead": result.get("bytesRead"), "isHLS": is_m3u, "isDASH": is_mpd,
+                  "isHTML": is_html, "resolutions": list(dict.fromkeys(resolutions))[:12],
+                  "codecs": list(dict.fromkeys(codecs))[:8],
+                  "error": result.get("error")
+              }, ensure_ascii=False))
+
+          def fetch_playlist(source, default=None):
+              q={"source":source}
+              if default is not None: q["default"]=default
+              endpoint=BASE+"/api/playlist?"+urllib.parse.urlencode(q)
+              r=request(endpoint, {"User-Agent": UA, "Cache-Control":"no-cache"}, 2_000_000, 30)
+              if r.get("status") != 200:
+                  print("PLAYLIST_FETCH_ERROR", source, default, r.get("status"), r.get("error"))
+                  return []
+              try:
+                  data=json.loads(r["body"].decode("utf-8"))
+                  channels=data.get("channels") or []
+                  print("PLAYLIST", json.dumps({"source":source,"preset":default,"channelCount":len(channels),"reportedSource":data.get("source"),"cached":data.get("cached")}))
+                  return channels
+              except Exception as e:
+                  print("PLAYLIST_JSON_ERROR", source, default, type(e).__name__, str(e)[:160])
+                  return []
+
+          all_channels=[]
+          all_channels += fetch_playlist("tv","1")
+          all_channels += fetch_playlist("tv","2")
+          all_channels += fetch_playlist("sport")
+          targets=[]
+          seen=set()
+          for c in all_channels:
+              name=str(c.get("name") or "")
+              flat=re.sub(r"[^a-z0-9]+","",name.lower())
+              if not ("sctv4k" in flat or ("dazn" in flat and ("ppv" in flat or "fhd" in flat))):
+                  continue
+              # de-duplicate same channel name + source URL across playlist versions
+              for i,cand in enumerate(c.get("candidates") or []):
+                  u=str(cand.get("url") or cand.get("resolvedUrl") or "")
+                  key=(flat,u)
+                  if not u.startswith(("http://","https://")) or key in seen: continue
+                  seen.add(key)
+                  targets.append((name,i,cand,u))
+          print("TARGET_CANDIDATES", len(targets))
+          for name, i, cand, u in targets[:18]:
+              typ,ext=safe_type(cand); p=urlparse(u)
+              ref=str(cand.get("ref") or "")
+              headers=cand.get("headers") if isinstance(cand.get("headers"),dict) else {}
+              drm=cand.get("drm")
+              print("CANDIDATE",json.dumps({
+                  "channel":name,"candidateIndex":i,"type":typ,"extension":ext,
+                  "host":p.hostname,"hasQueryToken":bool(p.query),"refererHost":urlparse(ref).hostname,
+                  "hasCustomUA":bool(cand.get("ua")),"headerNames":sorted(headers.keys()),
+                  "drm":bool(drm),"drmType":drm.get("type") if isinstance(drm,dict) else None,
+                  "forceProxy":bool(cand.get("forceProxy"))
+              },ensure_ascii=False))
+              custom_headers={"User-Agent":str(cand.get("ua") or UA)}
+              if ref: custom_headers["Referer"]=ref
+              for k,v in headers.items():
+                  if str(k).lower() not in ("host","connection","content-length","cookie","user-agent","referer") and isinstance(v,str):
+                      custom_headers[str(k)]=v
+              direct=request(u,custom_headers,12000,15)
+              summarize("DIRECT",direct)
+              q={"u":u}
+              if ref:q["r"]=ref
+              if cand.get("ua"):q["ua"]=str(cand["ua"])
+              if headers:q["h"]=json.dumps(headers,separators=(",",":"))
+              proxied=request(BASE+"/api/stream?"+urllib.parse.urlencode(q),{"User-Agent":UA},12000,18)
+              summarize("WORKER_PROXY",proxied)
+          if not targets:
+              print("NO_TARGETS_FOUND — inspect returned channel naming/schema before changing source data")
+          PY

@@ -405,7 +405,7 @@ async function stalkerSocketProbe(target,q){
       "User-Agent: "+(headers.get("User-Agent")||"NM7-TV/1.0.36 Android-TV"),
       "Accept: */*",
       "Accept-Encoding: identity",
-      "Range: bytes=0-32767",
+      ...(q.get("socketNoRange")==="1"?[]:["Range: bytes=0-32767"]),
       "Connection: close"
     ];
     if(ref)lines.push("Referer: "+ref.replace(/[\\r\\n]/g,""));
@@ -459,6 +459,7 @@ async function stalkerSocketProbe(target,q){
     return new Response(JSON.stringify({
       firstStatus:first.status,redirectHost:dest.hostname,redirectPort:dest.port||"80",
       socketHttpStatus:status,hostMode:q.get("socketHostMode")==="origin"?"origin":"redirect-ip",
+      rangeSent:q.get("socketNoRange")!=="1",
       contentType:responseHeaders["content-type"]||"",
       transferEncoding:responseHeaders["transfer-encoding"]||"",contentLength:responseHeaders["content-length"]||"",
       bytesRead:body.byteLength,tsSync188:sync,server:responseHeaders["server"]||"",
